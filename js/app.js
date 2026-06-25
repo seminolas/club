@@ -75,10 +75,14 @@ function appData() {
       }
     },
 
-    // Called once on app init to render the Google Sign-In button into #google-signin-btn
-    // when the login modal is opened. Safe to call multiple times (no-ops if already rendered).
+    // Render the Google Sign-In button into #google-signin-btn.
+    // Retries every 100ms until the GIS SDK and config are ready.
     initGoogleButton() {
-      if (!window.google?.accounts?.id || !this._googleClientId) return;
+      if (!this.showLogin) return;
+      if (!window.google?.accounts?.id || !this._googleClientId) {
+        setTimeout(() => this.initGoogleButton(), 100);
+        return;
+      }
       const el = document.getElementById('google-signin-btn');
       if (!el || el.children.length > 0) return;
       google.accounts.id.initialize({
