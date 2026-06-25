@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "club-prod"
-database_id = "REPLACE_WITH_PROD_DB_ID"
+database_id = "dc014559-276f-4c9b-8aef-4071b4da9a3c"
 
 [env.staging]
 name = "club-api-staging"
@@ -14,4 +14,4 @@ name = "club-api-staging"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "club-staging"
-database_id = "REPLACE_WITH_STAGING_DB_ID"
+database_id = "ffcff689-6918-40f3-bde8-78502d18d0b5"
