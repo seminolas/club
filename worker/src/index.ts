@@ -233,7 +233,8 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
   if (!session) return c.json({ error: 'Session not found' }, 404);
 
   const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`;
-  const hcHeaders = { 'X-Api-Key': c.env.HC_API_KEY, 'Content-Type': 'application/json' };
+  const hcKey = { 'X-Api-Key': c.env.HC_API_KEY };
+  const hcJson = { ...hcKey, 'Content-Type': 'application/json' };
 
   const log: Array<{ text: string; type: string }> = [];
   const emit = (text: string, type = 'info') => log.push({ text, type });
@@ -242,7 +243,7 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     // Find Box event for session date
     const eventRes = await fetch(
       `${HC_BASE}/event?fromDate=${session_date}T00:00:00Z&toDate=${session_date}T23:59:59Z&sort=startDate`,
-      { headers: hcHeaders }
+      { headers: hcKey }
     );
     if (!eventRes.ok) {
       const body = await eventRes.text().catch(() => '');
@@ -255,8 +256,11 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     emit(`Found event: "${event.name}"`);
 
     // Fetch registered attendees
-    const attRes = await fetch(`${HC_BASE}/eventAttendee?event=${event.id}&limit=200`, { headers: hcHeaders });
-    if (!attRes.ok) throw new Error(`Failed to fetch attendees: ${attRes.status}`);
+    const attRes = await fetch(`${HC_BASE}/eventAttendee?event=${event.id}&limit=200`, { headers: hcKey });
+    if (!attRes.ok) {
+      const body = await attRes.text().catch(() => '');
+      throw new Error(`Failed to fetch attendees: ${attRes.status}${body ? ' — ' + body : ''}`);
+    }
     const attData = await attRes.json() as { attendees?: Array<{ member?: { id: string } }> };
     const registeredIds = new Set((attData.attendees ?? []).map(a => a.member?.id).filter(Boolean) as string[]);
 
@@ -293,7 +297,7 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
       try {
         const res = await fetch(`${HC_BASE}/eventAttendee`, {
           method: 'POST',
-          headers: hcHeaders,
+          headers: hcJson,
           body: JSON.stringify({ event: event.id, member: hcId }),
         });
         if (!res.ok) {
