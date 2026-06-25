@@ -302,13 +302,17 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     for (const { name } of toSync) emit(`  → ${name}`);
     for (const name of notMapped) emit(`  ? ${name}  (no HC ID)`, 'warn');
 
+    emit(`[debug] event.id=${JSON.stringify(event.id)} (${typeof event.id})`);
+    if (toSync.length > 0) emit(`[debug] first hcId=${JSON.stringify(toSync[0].hcId)} (${typeof toSync[0].hcId})`);
+
     let synced = 0, failed = 0;
     for (const { name, hcId } of toSync) {
       try {
+        const body = JSON.stringify({ event: event.id, member: hcId });
         const res = await fetch(`${HC_BASE}/eventAttendee`, {
           method: 'POST',
           headers: hcJson,
-          body: JSON.stringify({ event: event.id, member: hcId }),
+          body,
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({})) as { message?: string };
