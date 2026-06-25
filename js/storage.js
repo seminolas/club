@@ -1,10 +1,23 @@
 // API storage layer — replaces the GitHub API layer from the old app.
-// All state lives in D1 via the Cloudflare Worker at /api/...
+// All state lives in D1 via the Cloudflare Worker.
 // Auth is Google Sign-In + Worker-issued JWT.
 
 const Storage = (() => {
   const JWT_KEY = 'club_jwt';
   const ROLE_KEY = 'club_role';
+
+  // Resolve the correct Worker base URL from the current hostname.
+  // Pages prod   → club.pages.dev          → club-api.workers.dev
+  // Pages staging → staging.club.pages.dev  → club-api-staging.workers.dev
+  // Local dev     → localhost               → http://localhost:8787
+  function resolveApiBase() {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:8787';
+    if (h.startsWith('staging.')) return 'https://club-api-staging.workers.dev';
+    return 'https://club-api.workers.dev';
+  }
+
+  const API_BASE = resolveApiBase();
 
   let _jwt = null;
   let _role = null;
@@ -51,7 +64,7 @@ const Storage = (() => {
   function apiFetch(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
     if (_jwt) headers['Authorization'] = `Bearer ${_jwt}`;
-    return fetch(path, { ...options, headers });
+    return fetch(API_BASE + path, { ...options, headers });
   }
 
   async function apiJSON(path, options = {}) {
