@@ -76,9 +76,9 @@ app.post('/api/sessions', requireAdmin, async (c) => {
 
   const sessionId = await db.createSession(c.env.DB, CLUB_ID, date);
 
-  // Snapshot current leaderboard as 'before'
+  // Copy current leaderboard into this session's working state
   const players = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
-  await db.insertSessionLb(c.env.DB, sessionId, players.map(p => p.id), 'before');
+  await db.setSessionRanks(c.env.DB, sessionId, players.map(p => p.id));
 
   const lbBefore = players.map(p => p.name);
   return c.json({ date, status: 'attendance', attendees: [], boxes: [], leaderboardBefore: lbBefore, leaderboardAfter: null }, 201);
@@ -89,9 +89,21 @@ app.get('/api/sessions/:date', async (c) => {
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
 
-  const [lbBefore, lbAfter, attendees, boxes] = await Promise.all([
-    db.getSessionLb(c.env.DB, session.id, 'before'),
-    db.getSessionLb(c.env.DB, session.id, 'after'),
+  let lbBefore: string[];
+  let lbAfter: string[] | null = null;
+
+  if (session.status === 'closed') {
+    const prevId = await db.getPrevSessionId(c.env.DB, session.id);
+    [lbBefore, lbAfter] = await Promise.all([
+      db.getSessionRanks(c.env.DB, prevId),
+      db.getSessionRanks(c.env.DB, session.id),
+    ]);
+  } else {
+    // Open session: working state (including mid-session adds) lives under session.id
+    lbBefore = await db.getSessionRanks(c.env.DB, session.id);
+  }
+
+  const [attendees, boxes] = await Promise.all([
     db.getAttendeeNames(c.env.DB, session.id),
     db.getBoxes(c.env.DB, session.id),
   ]);
@@ -102,7 +114,7 @@ app.get('/api/sessions/:date', async (c) => {
     attendees,
     boxes,
     leaderboardBefore: lbBefore,
-    leaderboardAfter: lbAfter.length > 0 ? lbAfter : null,
+    leaderboardAfter: lbAfter,
   });
 });
 
@@ -184,7 +196,7 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
   if (!session) return c.json({ error: 'Not found' }, 404);
   if (session.status === 'closed') return c.json({ error: 'Already closed' }, 400);
 
-  // Look up player IDs for the 'after' snapshot
+  // Look up player IDs from the open session's working state
   const allPlayers = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
   const pidByName = new Map(allPlayers.map(p => [p.name, p.id]));
 
@@ -192,11 +204,9 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
     .map(name => pidByName.get(name))
     .filter((id): id is number => id !== undefined);
 
-  await Promise.all([
-    db.insertSessionLb(c.env.DB, session.id, afterIds, 'after'),
-    db.updateRanksAfterClose(c.env.DB, CLUB_ID, leaderboard_after),
-    db.updateSessionStatus(c.env.DB, session.id, 'closed', new Date().toISOString()),
-  ]);
+  // Replace the working rows with the final after-state, then mark closed
+  await db.setSessionRanks(c.env.DB, session.id, afterIds);
+  await db.updateSessionStatus(c.env.DB, session.id, 'closed', new Date().toISOString());
 
   return c.json({ ok: true });
 });

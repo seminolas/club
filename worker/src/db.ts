@@ -2,25 +2,84 @@
 
 import type { Box, Match, SessionStatus } from './types';
 
-// ── Leaderboard ───────────────────────────────────────────────────────────────
+// ── Leaderboard / session_ranks ───────────────────────────────────────────────
 
+// Returns players ordered by their rank in the most recent session (or seed if none).
 export async function getLeaderboardPlayers(
   db: D1Database, clubId: number
-): Promise<{ id: number; name: string; current_rank: number }[]> {
+): Promise<{ id: number; name: string }[]> {
   const { results } = await db
-    .prepare('SELECT id, name, current_rank FROM players WHERE club_id = ? AND archived_at IS NULL ORDER BY current_rank')
-    .bind(clubId)
-    .all<{ id: number; name: string; current_rank: number }>();
+    .prepare(`
+      SELECT p.id, p.name FROM players p
+      JOIN session_ranks sr ON sr.player_id = p.id
+      WHERE p.club_id = ? AND p.archived_at IS NULL
+        AND sr.session_id IS (SELECT id FROM sessions WHERE club_id = ? ORDER BY date DESC LIMIT 1)
+      ORDER BY sr.rank_position
+    `)
+    .bind(clubId, clubId)
+    .all<{ id: number; name: string }>();
   return results;
 }
 
 export async function getPlayerByName(
   db: D1Database, clubId: number, name: string
-): Promise<{ id: number; name: string; current_rank: number } | null> {
+): Promise<{ id: number; name: string } | null> {
   return db
-    .prepare('SELECT id, name, current_rank FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
+    .prepare('SELECT id, name FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
     .bind(clubId, name)
-    .first<{ id: number; name: string; current_rank: number }>();
+    .first<{ id: number; name: string }>();
+}
+
+// Get ranked player names for a given session_id (NULL = seed).
+export async function getSessionRanks(
+  db: D1Database, sessionId: number | null
+): Promise<string[]> {
+  const { results } = sessionId === null
+    ? await db
+        .prepare(`
+          SELECT p.name FROM session_ranks sr
+          JOIN players p ON p.id = sr.player_id
+          WHERE sr.session_id IS NULL
+          ORDER BY sr.rank_position
+        `)
+        .all<{ name: string }>()
+    : await db
+        .prepare(`
+          SELECT p.name FROM session_ranks sr
+          JOIN players p ON p.id = sr.player_id
+          WHERE sr.session_id = ?
+          ORDER BY sr.rank_position
+        `)
+        .bind(sessionId)
+        .all<{ name: string }>();
+  return results.map(r => r.name);
+}
+
+// Returns the id of the session immediately before the given one, or null if first.
+export async function getPrevSessionId(
+  db: D1Database, sessionId: number
+): Promise<number | null> {
+  const row = await db
+    .prepare('SELECT id FROM sessions WHERE date < (SELECT date FROM sessions WHERE id = ?) ORDER BY date DESC LIMIT 1')
+    .bind(sessionId)
+    .first<{ id: number }>();
+  return row?.id ?? null;
+}
+
+// Replace all session_ranks rows for a given session_id (NULL = seed).
+// Deletes existing rows first, then inserts playerIds in rank order.
+export async function setSessionRanks(
+  db: D1Database, sessionId: number | null, playerIds: number[]
+): Promise<void> {
+  if (playerIds.length === 0) return;
+  const deleteStmt = sessionId === null
+    ? db.prepare('DELETE FROM session_ranks WHERE session_id IS NULL')
+    : db.prepare('DELETE FROM session_ranks WHERE session_id = ?').bind(sessionId);
+  const insertStmts = playerIds.map((pid, i) =>
+    db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) VALUES (?, ?, ?)')
+      .bind(sessionId, pid, i + 1)
+  );
+  await db.batch([deleteStmt, ...insertStmts]);
 }
 
 // Replace the full leaderboard: re-rank all listed players, archive omitted ones.
@@ -29,41 +88,33 @@ export async function replaceLeaderboard(
 ): Promise<void> {
   const stmts: D1PreparedStatement[] = [];
 
-  // Archive all current active players first
   stmts.push(
     db.prepare("UPDATE players SET archived_at = date('now') WHERE club_id = ? AND archived_at IS NULL")
       .bind(clubId)
   );
 
-  for (let i = 0; i < names.length; i++) {
-    const rank = i + 1;
-    // Upsert: try to update existing (including archived), else insert
+  for (const name of names) {
     stmts.push(
-      db.prepare(`
-        INSERT INTO players (club_id, name, current_rank, archived_at)
-        VALUES (?, ?, ?, NULL)
-        ON CONFLICT(id) DO NOTHING
-      `).bind(clubId, names[i], rank)
+      db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?) ON CONFLICT(id) DO NOTHING')
+        .bind(clubId, name)
     );
-    // Re-activate if was archived
     stmts.push(
-      db.prepare('UPDATE players SET current_rank = ?, archived_at = NULL WHERE club_id = ? AND name = ?')
-        .bind(rank, clubId, names[i])
+      db.prepare('UPDATE players SET archived_at = NULL WHERE club_id = ? AND name = ?')
+        .bind(clubId, name)
     );
   }
 
   await db.batch(stmts);
-}
 
-// Update ranks after session close. newOrder is the full ordered name array.
-export async function updateRanksAfterClose(
-  db: D1Database, clubId: number, newOrder: string[]
-): Promise<void> {
-  const stmts = newOrder.map((name, i) =>
-    db.prepare('UPDATE players SET current_rank = ? WHERE club_id = ? AND name = ?')
-      .bind(i + 1, clubId, name)
-  );
-  if (stmts.length > 0) await db.batch(stmts);
+  // Write seed rows (session_id = NULL) for the newly ordered players
+  const stmts2: D1PreparedStatement[] = [
+    db.prepare('DELETE FROM session_ranks WHERE session_id IS NULL'),
+    ...names.map((name, i) =>
+      db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) SELECT NULL, id, ? FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
+        .bind(i + 1, clubId, name)
+    ),
+  ];
+  await db.batch(stmts2);
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -113,34 +164,6 @@ export async function updateSessionStatus(
   }
 }
 
-// ── Session leaderboard snapshots ─────────────────────────────────────────────
-
-export async function getSessionLb(
-  db: D1Database, sessionId: number, snapshot: 'before' | 'after'
-): Promise<string[]> {
-  const { results } = await db
-    .prepare(`
-      SELECT p.name FROM session_lb sl
-      JOIN players p ON p.id = sl.player_id
-      WHERE sl.session_id = ? AND sl.snapshot = ?
-      ORDER BY sl.rank_position
-    `)
-    .bind(sessionId, snapshot)
-    .all<{ name: string }>();
-  return results.map(r => r.name);
-}
-
-export async function insertSessionLb(
-  db: D1Database, sessionId: number, playerIds: number[], snapshot: 'before' | 'after'
-): Promise<void> {
-  if (playerIds.length === 0) return;
-  const stmts = playerIds.map((pid, i) =>
-    db.prepare('INSERT OR REPLACE INTO session_lb (session_id, player_id, rank_position, snapshot) VALUES (?, ?, ?, ?)')
-      .bind(sessionId, pid, i + 1, snapshot)
-  );
-  await db.batch(stmts);
-}
-
 // ── Attendees ─────────────────────────────────────────────────────────────────
 
 export async function getAttendeeNames(db: D1Database, sessionId: number): Promise<string[]> {
@@ -148,8 +171,9 @@ export async function getAttendeeNames(db: D1Database, sessionId: number): Promi
     .prepare(`
       SELECT p.name FROM attendees a
       JOIN players p ON p.id = a.player_id
+      JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id
       WHERE a.session_id = ?
-      ORDER BY p.current_rank
+      ORDER BY sr.rank_position
     `)
     .bind(sessionId)
     .all<{ name: string }>();
@@ -214,14 +238,12 @@ export async function getBoxes(db: D1Database, sessionId: number): Promise<Box[]
     .bind(sessionId)
     .all<SetRow>();
 
-  // Group by box
   const boxMap = new Map<number, { box_number: number; players: string[] }>();
   for (const r of boxRows) {
     if (!boxMap.has(r.box_id)) boxMap.set(r.box_id, { box_number: r.box_number, players: [] });
     boxMap.get(r.box_id)!.players.push(r.player_name);
   }
 
-  // Group sets by match
   const setsByMatch = new Map<number, Array<[number | '', number | '']>>();
   for (const s of setRows) {
     if (!setsByMatch.has(s.match_id)) setsByMatch.set(s.match_id, []);
@@ -229,12 +251,10 @@ export async function getBoxes(db: D1Database, sessionId: number): Promise<Box[]
     arr[s.set_number] = [s.score_a ?? '', s.score_b ?? ''];
   }
 
-  // Group matches by box
   const matchesByBox = new Map<number, Match[]>();
   for (const m of matchRows) {
     if (!matchesByBox.has(m.box_id)) matchesByBox.set(m.box_id, []);
     const sets = setsByMatch.get(m.match_id) ?? [];
-    // Derive pair1/pair2 from the stored match_number — same constants as frontend
     const pairing = getPairing(boxMap.get(m.box_id)!.players.length, m.match_number);
     matchesByBox.get(m.box_id)!.push({ ...pairing, sets });
   }
@@ -248,7 +268,6 @@ export async function getBoxes(db: D1Database, sessionId: number): Promise<Box[]
     }));
 }
 
-// Mirror of PAIRINGS_4 / PAIRINGS_5 from algorithm.js
 const PAIRINGS_4 = [
   { pair1: [0, 1], pair2: [2, 3] },
   { pair1: [0, 2], pair2: [1, 3] },
@@ -268,7 +287,6 @@ function getPairing(boxSize: number, matchNumber: number): { pair1: number[]; pa
 }
 
 export async function clearBoxes(db: D1Database, sessionId: number): Promise<void> {
-  // Cascade deletes via SELECT + batch (D1 SQLite doesn't enforce FK cascades)
   const { results: boxIds } = await db
     .prepare('SELECT id FROM boxes WHERE session_id = ?')
     .bind(sessionId)
@@ -306,8 +324,6 @@ export async function saveBoxes(
   const stmts: D1PreparedStatement[] = [];
 
   for (let bi = 0; bi < boxes.length; bi++) {
-    const box = boxes[bi];
-    // Insert box row
     stmts.push(
       db.prepare('INSERT INTO boxes (session_id, box_number) VALUES (?, ?)')
         .bind(sessionId, bi)
@@ -316,7 +332,6 @@ export async function saveBoxes(
 
   await db.batch(stmts);
 
-  // Fetch back the box IDs
   const { results: boxRows } = await db
     .prepare('SELECT id, box_number FROM boxes WHERE session_id = ? ORDER BY box_number')
     .bind(sessionId)
@@ -348,7 +363,6 @@ export async function saveBoxes(
 
   await db.batch(stmts2);
 
-  // Fetch match IDs grouped by box
   const { results: matchRows } = await db
     .prepare(`
       SELECT m.id, m.box_id, m.match_number
@@ -360,7 +374,6 @@ export async function saveBoxes(
     .bind(sessionId)
     .all<{ id: number; box_id: number; match_number: number }>();
 
-  // Build box_id → match rows map
   const matchesByBoxId = new Map<number, typeof matchRows>();
   for (const m of matchRows) {
     if (!matchesByBoxId.has(m.box_id)) matchesByBoxId.set(m.box_id, []);
@@ -393,7 +406,6 @@ export async function saveBoxes(
   if (stmts3.length > 0) await db.batch(stmts3);
 }
 
-// Update a single set score
 export async function updateSetScore(
   db: D1Database,
   sessionId: number,
@@ -433,15 +445,12 @@ export async function addPlayerMidSession(
   boxesAssigned: boolean
 ): Promise<number> {
   const stmts: D1PreparedStatement[] = [
-    // Shift existing ranks down
-    db.prepare('UPDATE players SET current_rank = current_rank + 1 WHERE club_id = ? AND current_rank >= ? AND archived_at IS NULL')
-      .bind(clubId, insertRank),
-    // Insert new player
-    db.prepare('INSERT INTO players (club_id, name, current_rank) VALUES (?, ?, ?)')
-      .bind(clubId, name, insertRank),
-    // Shift session_lb before snapshot
-    db.prepare("UPDATE session_lb SET rank_position = rank_position + 1 WHERE session_id = ? AND snapshot = 'before' AND rank_position >= ?")
+    // Shift ranks down in the open session's working state
+    db.prepare('UPDATE session_ranks SET rank_position = rank_position + 1 WHERE session_id = ? AND rank_position >= ?')
       .bind(sessionId, insertRank),
+    // Insert new player (no current_rank column)
+    db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?)')
+      .bind(clubId, name),
   ];
 
   await db.batch(stmts);
@@ -454,14 +463,13 @@ export async function addPlayerMidSession(
   if (!newPlayer) throw new Error('Failed to insert player');
 
   const stmts2: D1PreparedStatement[] = [
-    db.prepare("INSERT INTO session_lb (session_id, player_id, rank_position, snapshot) VALUES (?, ?, ?, 'before')")
+    db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) VALUES (?, ?, ?)')
       .bind(sessionId, newPlayer.id, insertRank),
     db.prepare('INSERT INTO attendees (session_id, player_id) VALUES (?, ?)')
       .bind(sessionId, newPlayer.id),
   ];
 
   if (boxesAssigned) {
-    // Clear boxes when attendance changes after assignment
     stmts2.push(
       db.prepare('DELETE FROM match_sets WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)')
         .bind(sessionId),
