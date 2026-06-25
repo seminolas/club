@@ -3,3 +3,8 @@ dist/
 .wrangler/
 *.sql
 prod.sql
+
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
