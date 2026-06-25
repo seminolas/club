@@ -6,18 +6,9 @@ const Storage = (() => {
   const JWT_KEY = 'club_jwt';
   const ROLE_KEY = 'club_role';
 
-  // Resolve the correct Worker base URL from the current hostname.
-  // Pages prod   → club.pages.dev          → club-api.workers.dev
-  // Pages staging → staging.club.pages.dev  → club-api-staging.workers.dev
-  // Local dev     → localhost               → http://localhost:8787
-  function resolveApiBase() {
-    const h = window.location.hostname;
-    if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:8787';
-    if (h.startsWith('staging.')) return 'https://club-api-staging.workers.dev';
-    return 'https://club-api.workers.dev';
-  }
-
-  const API_BASE = resolveApiBase();
+  // Worker serves both the static HTML/JS and the API from the same origin.
+  // Relative /api/... paths work for prod, staging, and local wrangler dev.
+  const API_BASE = '';
 
   let _jwt = null;
   let _role = null;

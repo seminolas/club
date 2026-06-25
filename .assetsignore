@@ -1,0 +1,6 @@
+worker/
+.github/
+docs/
+.git/
+*.pdf
+*.csv
