@@ -266,7 +266,7 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     emit(`Found event: "${event.name}"`);
 
     // Fetch registered attendees
-    const attRes = await fetch(`${HC_BASE}/eventAttendee?event=${event.id}&limit=200`, { headers: hcKey });
+    const attRes = await fetch(`${HC_BASE}/eventAttendee?event=${event.id}&limit=100`, { headers: hcKey });
     if (!attRes.ok) {
       const body = await attRes.text().catch(() => '');
       throw new Error(`Failed to fetch attendees: ${attRes.status}${body ? ' — ' + body : ''}`);
