@@ -302,29 +302,29 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     for (const { name } of toSync) emit(`  → ${name}`);
     for (const name of notMapped) emit(`  ? ${name}  (no HC ID)`, 'warn');
 
-    emit(`[debug] event.id=${JSON.stringify(event.id)} (${typeof event.id})`);
-    if (toSync.length > 0) emit(`[debug] first hcId=${JSON.stringify(toSync[0].hcId)} (${typeof toSync[0].hcId})`);
-
-    let synced = 0, failed = 0;
-    for (const { name, hcId } of toSync) {
-      try {
-        const body = JSON.stringify({ event: event.id, member: hcId });
-        const res = await fetch(`${HC_BASE}/eventAttendee`, {
-          method: 'POST',
-          headers: hcJson,
-          body,
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({})) as { message?: string };
-          throw new Error(err.message ?? `HTTP ${res.status}`);
-        }
-        emit(`  ✓ ${name}`, 'ok');
-        synced++;
-        await new Promise(r => setTimeout(r, 300));
-      } catch (e) {
-        emit(`  ✗ ${name}: ${(e as Error).message}`, 'error');
-        failed++;
+    let synced = 0;
+    if (toSync.length > 0) {
+      const res = await fetch(`${HC_BASE}/eventAttendee`, {
+        method: 'POST',
+        headers: hcJson,
+        body: JSON.stringify({
+          event: event.id,
+          feeMethod: 'rules',
+          hasAttended: true,
+          seriesHandling: 'instance',
+          meta: {
+            whoFor: 'specific',
+            members: toSync.map(({ hcId }) => hcId),
+            notifyByEmail: true,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Failed to sync attendees: ${res.status}${body ? ' — ' + body : ''}`);
       }
+      synced = toSync.length;
+      for (const { name } of toSync) emit(`  ✓ ${name}`, 'ok');
     }
 
     emit('');
@@ -333,7 +333,6 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     if (alreadyIn.length) parts.push(`${alreadyIn.length} already in HC`);
     if (synced) parts.push(`${synced} synced`);
     if (notMapped.length) parts.push(`${notMapped.length} no HC ID`);
-    if (failed) parts.push(`${failed} failed`);
     emit(`Done. ${parts.join(', ')}.`);
   } catch (e) {
     emit('');
