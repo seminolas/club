@@ -1,0 +1,52 @@
+name: Refresh staging D1 from prod
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Export prod D1
+        run: wrangler d1 export club-prod --output prod.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: Wipe staging D1
+        run: |
+          wrangler d1 execute club-staging --env staging --command "
+            DROP TABLE IF EXISTS match_sets;
+            DROP TABLE IF EXISTS matches;
+            DROP TABLE IF EXISTS box_players;
+            DROP TABLE IF EXISTS boxes;
+            DROP TABLE IF EXISTS attendees;
+            DROP TABLE IF EXISTS session_lb;
+            DROP TABLE IF EXISTS sessions;
+            DROP TABLE IF EXISTS club_admins;
+            DROP TABLE IF EXISTS players;
+            DROP TABLE IF EXISTS clubs;
+          "
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: Apply schema to staging
+        run: wrangler d1 migrations apply club-staging --env staging
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: Load prod data into staging
+        run: wrangler d1 execute club-staging --env staging --file prod.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

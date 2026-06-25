@@ -1,0 +1,17 @@
+name = "club-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "club-prod"
+database_id = "REPLACE_WITH_PROD_DB_ID"
+
+[env.staging]
+name = "club-api-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "club-staging"
+database_id = "REPLACE_WITH_STAGING_DB_ID"
