@@ -84,8 +84,7 @@ const Storage = (() => {
   // ── Sessions ──────────────────────────────────────────────────────────────
 
   async function listSessions() {
-    const sessions = await apiJSON('/api/sessions');
-    return sessions.map(s => s.date);
+    return apiJSON('/api/sessions');
   }
 
   async function getSession(date) {

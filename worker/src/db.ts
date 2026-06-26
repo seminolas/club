@@ -130,11 +130,18 @@ export async function getSessionByDate(
 
 export async function listSessions(
   db: D1Database, clubId: number
-): Promise<{ date: string; status: SessionStatus }[]> {
+): Promise<{ date: string; status: SessionStatus; attendee_count: number }[]> {
   const { results } = await db
-    .prepare('SELECT date, status FROM sessions WHERE club_id = ? ORDER BY date DESC')
+    .prepare(`
+      SELECT s.date, s.status, COUNT(a.id) AS attendee_count
+      FROM sessions s
+      LEFT JOIN attendees a ON a.session_id = s.id
+      WHERE s.club_id = ?
+      GROUP BY s.id
+      ORDER BY s.date DESC
+    `)
     .bind(clubId)
-    .all<{ date: string; status: SessionStatus }>();
+    .all<{ date: string; status: SessionStatus; attendee_count: number }>();
   return results;
 }
 

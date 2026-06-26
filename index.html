@@ -276,17 +276,11 @@
 
     <!-- Tab 2: Sessions -->
     <div x-show="homeTab === 2">
-      <div class="bg-white rounded-xl shadow p-4 no-print">
+
+      <!-- New session card: date picker always visible; button only when date has no session -->
+      <div class="bg-white rounded-xl shadow p-4 mb-4 no-print">
         <div class="flex gap-3 items-center flex-wrap">
-
           <input type="date" x-model="selectedDate" class="border rounded px-2 py-2 text-sm">
-
-          <template x-if="sessionDateExists">
-            <button @click="openSession(selectedDate)"
-                    class="text-sm bg-blue-700 text-white rounded px-4 py-2 font-medium whitespace-nowrap">
-              Select Session
-            </button>
-          </template>
           <template x-if="!sessionDateExists">
             <div class="relative group">
               <button @click="startSession(selectedDate)"
@@ -311,19 +305,33 @@
               </div>
             </div>
           </template>
-
-          <template x-if="sessionDates.length > 1">
-            <select @change="openSession($event.target.value); $event.target.value = ''"
-                    class="border rounded px-2 py-2 text-sm text-gray-600">
-              <option value="">Past sessions…</option>
-              <template x-for="d in sessionDates" :key="d">
-                <option :value="d" x-text="formatDate(d)"></option>
-              </template>
-            </select>
+          <template x-if="sessionDateExists">
+            <span class="text-sm text-gray-400 italic">Session already exists for this date.</span>
           </template>
-
         </div>
       </div>
+
+      <!-- Session list -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="divide-y max-h-[75vh] overflow-y-auto">
+          <template x-for="s in sessionList" :key="s.date">
+            <div @click="openSession(s.date)"
+                 :class="{
+                   'bg-green-50': s.status === 'closed',
+                   'bg-blue-50':  s.status !== 'closed'
+                 }"
+                 class="flex items-center px-4 py-3 text-sm cursor-pointer hover:brightness-95 select-none">
+              <span class="flex-1 font-medium" x-text="shortDate(s.date) + ': ' + s.attendee_count + ' players'"></span>
+              <span x-show="s.status === 'closed'" class="text-green-500 text-lg">✓</span>
+              <span x-show="s.status !== 'closed'" class="text-yellow-400 text-lg">⏱</span>
+            </div>
+          </template>
+          <template x-if="sessionList.length === 0 && !loading">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">No sessions yet.</div>
+          </template>
+        </div>
+      </div>
+
     </div>
 
   </div>

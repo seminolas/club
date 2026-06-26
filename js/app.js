@@ -18,8 +18,8 @@ function appData() {
     // Leaderboard
     leaderboard: [],
 
-    // Sessions list (array of date strings, newest first)
-    sessionDates: [],
+    // Sessions list — full objects {date, status, attendee_count}, newest first
+    sessionList: [],
     mostRecentSessionStatus: null,
     selectedDate: null,
 
@@ -56,12 +56,19 @@ function appData() {
       this.route();
     },
 
+    get sessionDates() { return this.sessionList.map(s => s.date); },
+
     initSelectedDate() {
-      if (this.mostRecentSessionStatus && this.mostRecentSessionStatus !== 'closed' && this.sessionDates[0]) {
-        this.selectedDate = this.sessionDates[0];
+      if (this.mostRecentSessionStatus && this.mostRecentSessionStatus !== 'closed' && this.sessionList[0]) {
+        this.selectedDate = this.sessionList[0].date;
       } else {
         this.selectedDate = nextTuesday();
       }
+    },
+
+    shortDate(isoDate) {
+      const d = new Date(isoDate + 'T00:00:00');
+      return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
     },
 
     async route() {
@@ -151,15 +158,9 @@ function appData() {
         const lb = await Storage.getLeaderboard();
         if (lb) this.leaderboard = lb.content.players;
 
-        this.sessionDates = await Storage.listSessions();
-        if (this.sessionDates.length > 0) {
-          const newest = this.sessionDates[0];
-          if (this.session?.date === newest) {
-            this.mostRecentSessionStatus = this.session.status;
-          } else {
-            const recent = await Storage.getSession(newest);
-            this.mostRecentSessionStatus = recent?.content?.status ?? null;
-          }
+        this.sessionList = await Storage.listSessions();
+        if (this.sessionList.length > 0) {
+          this.mostRecentSessionStatus = this.sessionList[0].status;
         } else {
           this.mostRecentSessionStatus = null;
         }
@@ -244,7 +245,7 @@ function appData() {
       try {
         const result = await Storage.createSession(date);
         this.session = result.content;
-        this.sessionDates = [date, ...this.sessionDates.filter(d => d !== date)];
+        this.sessionList = [{ date, status: 'attendance', attendee_count: 0 }, ...this.sessionList.filter(s => s.date !== date)];
         this.sessionTab = 1;
         this.view = 'session';
         location.hash = `/${date}/attendance`;
