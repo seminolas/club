@@ -133,7 +133,7 @@ export async function listSessions(
 ): Promise<{ date: string; status: SessionStatus; attendee_count: number }[]> {
   const { results } = await db
     .prepare(`
-      SELECT s.date, s.status, COUNT(a.id) AS attendee_count
+      SELECT s.date, s.status, COUNT(a.player_id) AS attendee_count
       FROM sessions s
       LEFT JOIN attendees a ON a.session_id = s.id
       WHERE s.club_id = ?
