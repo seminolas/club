@@ -78,7 +78,7 @@
         </template>
         <template x-if="view === 'session'">
           <div class="flex items-center gap-2 min-w-0">
-            <button @click="view = 'home'; location.hash = '/'"
+            <button @click="location.hash = '/players'"
                     class="text-gray-500 hover:text-gray-700 shrink-0 text-lg leading-none">🏠</button>
             <span class="font-bold text-blue-700 text-sm truncate"
                   x-text="session ? formatDate(session.date) : ''"></span>
@@ -237,7 +237,7 @@
     <!-- Home tabs -->
     <div class="flex border-b mb-4 no-print">
       <template x-for="[label, num] in [['Players', 1], ['Sessions', 2]]" :key="num">
-        <button @click="homeTab = num"
+        <button @click="setHomeTab(num)"
                 :class="homeTab === num
                   ? 'border-b-2 border-blue-700 text-blue-700 font-medium'
                   : 'text-gray-500 hover:text-gray-700'"
@@ -336,7 +336,7 @@
     <!-- Tabs -->
     <div class="flex border-b mb-4 no-print">
       <template x-for="[label, num] in [['Attendance', 1], ['Games', 2], ['Wrap-up', 3]]" :key="num">
-        <button @click="sessionTab = num"
+        <button @click="setSessionTab(num)"
                 :class="sessionTab === num
                   ? 'border-b-2 border-blue-700 text-blue-700 font-medium'
                   : 'text-gray-500 hover:text-gray-700'"

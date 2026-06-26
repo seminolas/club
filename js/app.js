@@ -66,15 +66,46 @@ function appData() {
 
     async route() {
       const hash = location.hash.replace('#', '') || '/';
-      const m = hash.match(/^\/session\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
-      if (m) {
-        await this.openSession(m[1]);
-        const sub = m[3];
-        if (sub === 'results') this.sessionTab = 2;
-        else if (sub === 'leaderboard') this.sessionTab = 3;
-      } else {
-        this.view = 'home';
+
+      // Redirect old URL format (from previously shared WhatsApp links)
+      const oldM = hash.match(/^\/session\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
+      if (oldM) {
+        const tab = oldM[3] === 'results' ? 'games' : oldM[3] === 'leaderboard' ? 'wrapup' : 'attendance';
+        location.hash = `/${oldM[1]}/${tab}`;
+        return;
       }
+
+      // Session: /YYYY-MM-DD or /YYYY-MM-DD/tab
+      const m = hash.match(/^\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
+      if (m) {
+        const date = m[1];
+        if (this.view !== 'session' || this.session?.date !== date) {
+          await this.openSession(date, { pushHash: false });
+        }
+        const sub = m[3];
+        if (sub === 'games') this.sessionTab = 2;
+        else if (sub === 'wrapup') this.sessionTab = 3;
+        else this.sessionTab = 1;
+        return;
+      }
+
+      // Home tabs
+      this.view = 'home';
+      if (hash === '/sessions') this.homeTab = 2;
+      else this.homeTab = 1;
+    },
+
+    setHomeTab(num) {
+      this.homeTab = num;
+      location.hash = num === 2 ? '/sessions' : '/players';
+    },
+
+    setSessionTab(num) {
+      this.sessionTab = num;
+      const date = this.session?.date;
+      if (!date) return;
+      const slug = num === 2 ? 'games' : num === 3 ? 'wrapup' : 'attendance';
+      location.hash = `/${date}/${slug}`;
     },
 
     // Render the Google Sign-In button into #google-signin-btn.
@@ -216,7 +247,7 @@ function appData() {
         this.sessionDates = [date, ...this.sessionDates.filter(d => d !== date)];
         this.sessionTab = 1;
         this.view = 'session';
-        location.hash = `/session/${date}`;
+        location.hash = `/${date}/attendance`;
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -224,7 +255,7 @@ function appData() {
       }
     },
 
-    async openSession(date) {
+    async openSession(date, { pushHash = true } = {}) {
       this.loading = true;
       try {
         const result = await Storage.getSession(date);
@@ -235,6 +266,7 @@ function appData() {
         this.view = 'session';
         this.boxExpanded = {};
         this.sessionSearch = '';
+        if (pushHash) location.hash = `/${date}/attendance`;
 
         if (this.leaderboard.length === 0) {
           const lb = await Storage.getLeaderboard();
@@ -457,7 +489,7 @@ function appData() {
         await Storage.saveBoxes(this.session.date, boxes);
         this.session.boxes = boxes;
         this.session.status = 'boxes_assigned';
-        this.sessionTab = 2;
+        this.setSessionTab(2);
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -606,7 +638,7 @@ function appData() {
         this.session.status = 'closed';
         this.leaderboard = newLeaderboard;
         this.mostRecentSessionStatus = 'closed';
-        this.sessionTab = 3;
+        this.setSessionTab(3);
         this.showToast('Session closed. Leaderboard updated.');
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -668,7 +700,7 @@ function appData() {
         this.session.status = 'closed';
         delete this.session._editSnapshot;
         this.leaderboard = newLeaderboard;
-        this.sessionTab = 3;
+        this.setSessionTab(3);
         this.showToast('Session saved. Leaderboard updated.');
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -687,8 +719,8 @@ function appData() {
       const lines = [
         `🏸 ${label} — Box Night`,
         '',
-        `Results: ${base}/#/session/${date}/results`,
-        `Ladder:  ${base}/#/session/${date}/leaderboard`,
+        `Results: ${base}/#/${date}/games`,
+        `Ladder:  ${base}/#/${date}/wrapup`,
       ];
 
       window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
