@@ -160,7 +160,7 @@ app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
   const pidByName = new Map(players.map(p => [p.name, p.id]));
 
   await db.saveBoxes(c.env.DB, session.id, boxes, pidByName);
-  await db.updateSessionStatus(c.env.DB, session.id, 'boxes_assigned');
+  await db.updateSessionStatus(c.env.DB, session.id, 'in_progress');
 
   return c.json({ ok: true });
 });
@@ -179,10 +179,6 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
 
   const ok = await db.updateSetScore(c.env.DB, session.id, box_number, match_number, set_number, score_a, score_b);
   if (!ok) return c.json({ error: 'Match not found' }, 404);
-
-  if (session.status === 'boxes_assigned') {
-    await db.updateSessionStatus(c.env.DB, session.id, 'in_progress');
-  }
 
   return c.json({ ok: true });
 });

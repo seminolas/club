@@ -29,6 +29,7 @@ function appData() {
     // UI helpers
     sessionSearch: '',
     boxExpanded: {},
+    allBoxesExpanded: true,
     highlightIdx: -1,
     addPlayerName: '',
     addPlayerPos: null,
@@ -123,11 +124,20 @@ function appData() {
     },
 
     setSessionTab(num) {
+      if (this.isTabLocked(num)) return;
       this.sessionTab = num;
       const date = this.session?.date;
       if (!date) return;
       const slug = num === 2 ? 'games' : num === 3 ? 'wrapup' : 'attendance';
       location.hash = `/${date}/${slug}`;
+    },
+
+    isTabLocked(num) {
+      const s = this.session?.status;
+      if (!s) return num !== 1;
+      if (num === 2) return s === 'attendance';
+      if (num === 3) return s !== 'closed';
+      return false;
     },
 
     // Render the Google Sign-In button into #google-signin-btn.
@@ -504,7 +514,9 @@ function appData() {
       try {
         await Storage.saveBoxes(this.session.date, boxes);
         this.session.boxes = boxes;
-        this.session.status = 'boxes_assigned';
+        this.session.status = 'in_progress';
+        this.allBoxesExpanded = true;
+        this.boxExpanded = {};
         this.setSessionTab(2);
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -538,7 +550,7 @@ function appData() {
 
     boxHeaderLabel(box, bi) {
       const names = box.players.map((_, i) => this.boxDisplayName(box, i)).join(', ');
-      return `BOX ${bi + 1}: ${names}`;
+      return `Box ${bi + 1} (${box.players.length}p): ${names}`;
     },
 
     isBoxVisible(bi) {
@@ -550,13 +562,28 @@ function appData() {
     },
 
     isBoxExpanded(bi) {
-      if (this.session?.status !== 'closed') return true;
       if (this.sessionSearch.trim() && this.isBoxVisible(bi)) return true;
-      return !!this.boxExpanded[bi];
+      if (bi in this.boxExpanded) return this.boxExpanded[bi];
+      return this.allBoxesExpanded;
     },
 
     toggleBoxExpanded(bi) {
-      this.boxExpanded = { ...this.boxExpanded, [bi]: !this.boxExpanded[bi] };
+      this.boxExpanded = { ...this.boxExpanded, [bi]: !this.isBoxExpanded(bi) };
+    },
+
+    get anyBoxCollapsed() {
+      return (this.session?.boxes ?? []).some((_, bi) => !this.isBoxExpanded(bi));
+    },
+
+    toggleAllBoxes() {
+      this.allBoxesExpanded = this.anyBoxCollapsed;
+      this.boxExpanded = {};
+    },
+
+    isBoxComplete(bi) {
+      const box = this.session?.boxes?.[bi];
+      if (!box) return false;
+      return box.matches.every(m => getMatchStatus(m) === 'complete');
     },
 
     isSitout(boxIndex, matchIndex, playerIndex) {
