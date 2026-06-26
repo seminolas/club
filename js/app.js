@@ -696,6 +696,28 @@ function appData() {
       return this.session.date === this.sessionDates[0];
     },
 
+    async deleteSession() {
+      const label = formatDate(this.session.date);
+      if (!confirm(`Delete session "${label}"?\n\nThis will permanently remove all attendance, boxes, and scores. This cannot be undone.`)) return;
+      this.loading = true;
+      try {
+        await Storage.deleteSession(this.session.date);
+        this.sessionList = this.sessionList.filter(s => s.date !== this.session.date);
+        if (this.sessionList.length > 0) {
+          this.mostRecentSessionStatus = this.sessionList[0].status;
+        } else {
+          this.mostRecentSessionStatus = null;
+        }
+        this.session = null;
+        location.hash = '/sessions';
+        this.showToast(`Session deleted.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async enableEditing() {
       if (!confirm('Re-open this session for editing?\n\nThe live leaderboard will only be updated when you close again.')) return;
       // Store a local snapshot for discard
@@ -808,12 +830,12 @@ function appData() {
     printBoxes() { window.print(); },
 
     printLadder() {
-      const isoDate = this.selectedDate ?? '';
+      const isoDate = this.session?.date ?? this.selectedDate ?? '';
       const d = isoDate ? new Date(isoDate + 'T00:00:00') : null;
       const dateStr = d
         ? `${_DAYS[d.getDay()]}, ${_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
         : '';
-      const players = this.leaderboard;
+      const players = this.session?.leaderboardBefore ?? this.leaderboard;
       const n = players.length;
 
       const stops = [

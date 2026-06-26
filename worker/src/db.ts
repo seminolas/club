@@ -324,6 +324,18 @@ export async function clearBoxes(db: D1Database, sessionId: number): Promise<voi
   await db.batch(stmts);
 }
 
+export async function deleteSession(db: D1Database, sessionId: number): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM match_sets WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)').bind(sessionId),
+    db.prepare('DELETE FROM matches WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)').bind(sessionId),
+    db.prepare('DELETE FROM box_players WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)').bind(sessionId),
+    db.prepare('DELETE FROM boxes WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM attendees WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM session_ranks WHERE session_id = ?').bind(sessionId),
+    db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId),
+  ]);
+}
+
 export async function saveBoxes(
   db: D1Database, sessionId: number, boxes: Box[],
   playerIdByName: Map<string, number>

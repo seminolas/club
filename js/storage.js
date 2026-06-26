@@ -100,6 +100,10 @@ const Storage = (() => {
     return { content: data };
   }
 
+  async function deleteSession(date) {
+    return apiJSON(`/api/sessions/${date}`, { method: 'DELETE' });
+  }
+
   async function setAttendance(date, playerName, attending) {
     const res = await apiJSON(`/api/sessions/${date}/attendance`, {
       method: 'PUT',
@@ -162,7 +166,7 @@ const Storage = (() => {
   return {
     autoLogin, loginWithGoogleToken, logout, isAdmin, getRole,
     getLeaderboard, saveLeaderboard,
-    listSessions, getSession, createSession,
+    listSessions, getSession, createSession, deleteSession,
     setAttendance, saveBoxes, updateScore, closeSession,
     addPlayer,
     syncHelloClub, getConfig,

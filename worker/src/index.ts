@@ -207,6 +207,14 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
   return c.json({ ok: true });
 });
 
+app.delete('/api/sessions/:date', requireAdmin, async (c) => {
+  const date = c.req.param('date');
+  const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+  await db.deleteSession(c.env.DB, session.id);
+  return c.json({ ok: true });
+});
+
 // ── Players ───────────────────────────────────────────────────────────────────
 
 app.post('/api/players', requireAdmin, async (c) => {
