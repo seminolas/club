@@ -29,10 +29,12 @@ jobs:
           DROP TABLE IF EXISTS boxes;
           DROP TABLE IF EXISTS attendees;
           DROP TABLE IF EXISTS session_ranks;
+          DROP TABLE IF EXISTS session_lb;
           DROP TABLE IF EXISTS sessions;
           DROP TABLE IF EXISTS club_admins;
           DROP TABLE IF EXISTS players;
           DROP TABLE IF EXISTS clubs;
+          DROP TABLE IF EXISTS d1_migrations;
           EOF
           wrangler d1 execute club-staging --remote --file /tmp/wipe.sql
         env:
