@@ -74,10 +74,11 @@ app.post('/api/sessions', requireAdmin, async (c) => {
   const existing = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (existing) return c.json({ error: 'Session already exists' }, 409);
 
-  const sessionId = await db.createSession(c.env.DB, CLUB_ID, date);
-
-  // Copy current leaderboard into this session's working state
+  // Fetch leaderboard BEFORE creating the session — after creation the new
+  // session becomes the most recent, making getLeaderboardPlayers return nothing.
   const players = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
+
+  const sessionId = await db.createSession(c.env.DB, CLUB_ID, date);
   await db.setSessionRanks(c.env.DB, sessionId, players.map(p => p.id));
 
   const lbBefore = players.map(p => p.name);
