@@ -244,7 +244,14 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
 
   const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`;
   const hcKey = { 'X-Api-Key': c.env.HC_API_KEY };
-  const hcJson = { ...hcKey, 'Content-Type': 'application/json' };
+  const hcJson = {
+    ...hcKey,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'x-api-version': '2023-07-18',
+    'x-club': c.env.HC_CLUB_SLUG,
+    'x-hostname': `${c.env.HC_CLUB_ID}.helloclub.com`,
+  };
 
   const log: Array<{ text: string; type: string }> = [];
   const emit = (text: string, type = 'info') => log.push({ text, type });
@@ -304,7 +311,7 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
 
     let synced = 0;
     if (toSync.length > 0) {
-      const res = await fetch(`${HC_BASE}/eventAttendee`, {
+      const res = await fetch('https://api.helloclub.com/eventAttendee/many', {
         method: 'POST',
         headers: hcJson,
         body: JSON.stringify({

@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   HC_API_KEY: string;
   HC_CLUB_ID: string;
+  HC_CLUB_SLUG: string;
   GOOGLE_CLIENT_ID: string;
   JWT_SECRET: string;
 }
