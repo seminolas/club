@@ -83,38 +83,61 @@ export async function setSessionRanks(
 }
 
 // Replace the full leaderboard: re-rank all listed players, archive omitted ones.
+// Writes through to both seed rows and the most recent session's ranks so the
+// live leaderboard reflects the import immediately.
 export async function replaceLeaderboard(
   db: D1Database, clubId: number, names: string[]
 ): Promise<void> {
-  const stmts: D1PreparedStatement[] = [];
-
-  stmts.push(
-    db.prepare("UPDATE players SET archived_at = date('now') WHERE club_id = ? AND archived_at IS NULL")
-      .bind(clubId)
-  );
-
-  for (const name of names) {
-    stmts.push(
-      db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?) ON CONFLICT(id) DO NOTHING')
-        .bind(clubId, name)
-    );
-    stmts.push(
-      db.prepare('UPDATE players SET archived_at = NULL WHERE club_id = ? AND name = ?')
-        .bind(clubId, name)
-    );
+  // Build name → lowest-id map across all players (including archived).
+  // Lowest id = the "original" record; duplicates created by past buggy imports stay archived.
+  const { results: allPlayers } = await db
+    .prepare('SELECT id, name FROM players WHERE club_id = ? ORDER BY id ASC')
+    .bind(clubId)
+    .all<{ id: number; name: string }>();
+  const existingByName = new Map<string, number>();
+  for (const p of allPlayers) {
+    if (!existingByName.has(p.name)) existingByName.set(p.name, p.id);
   }
 
+  // Archive everyone active, then unarchive existing players by id or insert new ones.
+  const stmts: D1PreparedStatement[] = [
+    db.prepare("UPDATE players SET archived_at = date('now') WHERE club_id = ? AND archived_at IS NULL").bind(clubId),
+  ];
+  for (const name of names) {
+    if (existingByName.has(name)) {
+      stmts.push(db.prepare('UPDATE players SET archived_at = NULL WHERE id = ?').bind(existingByName.get(name)!));
+    } else {
+      stmts.push(db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?)').bind(clubId, name));
+    }
+  }
   await db.batch(stmts);
 
-  // Write seed rows (session_id = NULL) for the newly ordered players
-  const stmts2: D1PreparedStatement[] = [
-    db.prepare('DELETE FROM session_ranks WHERE session_id IS NULL'),
-    ...names.map((name, i) =>
-      db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) SELECT NULL, id, ? FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
-        .bind(i + 1, clubId, name)
-    ),
-  ];
-  await db.batch(stmts2);
+  // Re-query active players to pick up newly inserted IDs.
+  const { results: active } = await db
+    .prepare('SELECT id, name FROM players WHERE club_id = ? AND archived_at IS NULL ORDER BY id ASC')
+    .bind(clubId)
+    .all<{ id: number; name: string }>();
+  const activeByName = new Map<string, number>();
+  for (const p of active) {
+    if (!activeByName.has(p.name)) activeByName.set(p.name, p.id);
+  }
+
+  const playerIds = names
+    .map(name => activeByName.get(name))
+    .filter((id): id is number => id !== undefined);
+
+  // Write seed rows (used when no sessions exist).
+  await setSessionRanks(db, null, playerIds);
+
+  // Also overwrite the most recent session's ranks so getLeaderboardPlayers
+  // returns the imported order immediately (not just after the next session).
+  const latest = await db
+    .prepare('SELECT id FROM sessions WHERE club_id = ? ORDER BY date DESC LIMIT 1')
+    .bind(clubId)
+    .first<{ id: number }>();
+  if (latest) {
+    await setSessionRanks(db, latest.id, playerIds);
+  }
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
