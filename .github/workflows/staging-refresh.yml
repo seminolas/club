@@ -14,42 +14,23 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Export prod D1 data
-        run: wrangler d1 export club-prod --remote --no-schema --output prod-data.sql
+      - name: Export prod D1 (schema + data)
+        run: wrangler d1 export club-prod --remote --output prod-dump.sql
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       - name: Wipe staging D1
         run: |
-          cat > /tmp/wipe.sql << 'EOF'
-          DROP TABLE IF EXISTS match_sets;
-          DROP TABLE IF EXISTS matches;
-          DROP TABLE IF EXISTS box_players;
-          DROP TABLE IF EXISTS boxes;
-          DROP TABLE IF EXISTS attendees;
-          DROP TABLE IF EXISTS session_ranks;
-          DROP TABLE IF EXISTS session_lb;
-          DROP TABLE IF EXISTS sessions;
-          DROP TABLE IF EXISTS club_admins;
-          DROP TABLE IF EXISTS players;
-          DROP TABLE IF EXISTS clubs;
-          DROP TABLE IF EXISTS d1_migrations;
-          EOF
-          wrangler d1 execute club-staging --remote --file /tmp/wipe.sql
+          for table in match_sets matches box_players boxes attendees session_ranks session_lb sessions club_admins players clubs d1_migrations; do
+            wrangler d1 execute club-staging --remote --command "DROP TABLE IF EXISTS $table"
+          done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
-      - name: Apply schema to staging
-        run: wrangler d1 migrations apply club-staging --env staging --remote
-        working-directory: worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-
-      - name: Load prod data into staging
-        run: wrangler d1 execute club-staging --remote --file prod-data.sql
+      - name: Load prod dump into staging
+        run: wrangler d1 execute club-staging --remote --file prod-dump.sql
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
