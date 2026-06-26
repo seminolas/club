@@ -66,6 +66,21 @@ function appData() {
       }
     },
 
+    get filteredLeaderboard() {
+      const q = this.homeSearch.trim().toLowerCase();
+      if (!q) return this.leaderboard.map((name, i) => ({ name, rank: i + 1 }));
+      const words = name => name.replace(/^\*+\s*|\s*\*+$/g, '').toLowerCase().split(/\s+/);
+      return this.leaderboard
+        .map((name, i) => ({ name, rank: i + 1 }))
+        .filter(p => p.name.toLowerCase().includes(q))
+        .sort((a, b) => {
+          const aWord = words(a.name).some(w => w.startsWith(q)) ? 0 : 1;
+          const bWord = words(b.name).some(w => w.startsWith(q)) ? 0 : 1;
+          if (aWord !== bWord) return aWord - bWord;
+          return a.rank - b.rank;
+        });
+    },
+
     shortDate(isoDate) {
       const d = new Date(isoDate + 'T00:00:00');
       return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });

@@ -258,11 +258,10 @@
       </div>
       <div class="bg-white rounded-xl shadow overflow-hidden">
         <div class="divide-y max-h-[75vh] overflow-y-auto">
-          <template x-for="(name, i) in leaderboard" :key="i">
-            <div x-show="!homeSearch || name.toLowerCase().includes(homeSearch.toLowerCase())"
-                 class="flex items-center px-4 py-2 text-sm hover:bg-gray-50">
-              <span class="w-8 text-gray-400 text-xs shrink-0" x-text="i + 1"></span>
-              <span x-text="name"></span>
+          <template x-for="p in filteredLeaderboard" :key="p.rank">
+            <div class="flex items-center px-4 py-2 text-sm hover:bg-gray-50">
+              <span class="w-8 text-gray-400 text-xs shrink-0" x-text="p.rank"></span>
+              <span x-text="p.name"></span>
             </div>
           </template>
           <template x-if="leaderboard.length === 0 && !loading">
