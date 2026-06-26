@@ -312,7 +312,7 @@
 
     <!-- Tabs -->
     <div class="flex border-b mb-4 no-print">
-      <template x-for="[label, num] in [['Attendance', 1], ['Boxes & Results', 2], ['New Leaderboard', 3]]" :key="num">
+      <template x-for="[label, num] in [['Attendance', 1], ['Games', 2], ['Wrap-up', 3]]" :key="num">
         <button @click="sessionTab = num"
                 :class="sessionTab === num
                   ? 'border-b-2 border-blue-700 text-blue-700 font-medium'
@@ -509,9 +509,12 @@
               <div x-show="isBoxExpanded(bi)">
                 <template x-for="(match, mi) in box.matches" :key="mi">
                   <div class="mb-5 pb-5 border-b last:border-b-0 flex gap-3">
+                    <div class="shrink-0 w-9 flex flex-col items-center justify-center text-xs text-gray-400 font-medium text-center leading-tight gap-0.5">
+                      <span x-text="match.pair1.map(i=>i+1).join(' & ')"></span>
+                      <span>vs</span>
+                      <span x-text="match.pair2.map(i=>i+1).join(' & ')"></span>
+                    </div>
                     <div class="flex-1">
-                      <p class="text-xs text-gray-400 font-medium mb-2"
-                         x-text="match.pair1.map(i=>i+1).join(' & ') + ' vs ' + match.pair2.map(i=>i+1).join(' & ')"></p>
                       <div class="flex items-baseline mb-2">
                         <div class="flex-1 flex justify-end pr-3">
                           <span class="font-semibold text-sm" :class="pairResultClass(match, 0)"
@@ -622,7 +625,7 @@
           </div>
           <div class="bg-white rounded-xl shadow overflow-hidden">
             <div class="px-4 py-3 border-b">
-              <h3 class="font-semibold">New Leaderboard</h3>
+              <h3 class="font-semibold">Wrap-up</h3>
             </div>
             <div class="divide-y max-h-[65vh] overflow-y-auto">
               <template x-for="entry in session.leaderboardAfter.map((n,i)=>({n,i})).filter(e=>!sessionSearch||e.n.toLowerCase().includes(sessionSearch.toLowerCase()))" :key="entry.i">
