@@ -2,7 +2,9 @@ function appData() {
   return {
     // ── State ──────────────────────────────────────────────────────────────
     view: 'home',
-    sessionTab: 1,         // 1=Attendance, 2=Boxes&Results, 3=Leaderboard
+    homeTab: 1,            // 1=Players, 2=Sessions
+    homeSearch: '',
+    sessionTab: 1,         // 1=Attendance, 2=Games, 3=Wrap-up
     loading: false,
     error: null,
     toast: null,
