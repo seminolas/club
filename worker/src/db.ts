@@ -201,9 +201,9 @@ export async function getAttendeeNames(db: D1Database, sessionId: number): Promi
     .prepare(`
       SELECT p.name FROM attendees a
       JOIN players p ON p.id = a.player_id
-      JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id
+      LEFT JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id
       WHERE a.session_id = ?
-      ORDER BY sr.rank_position
+      ORDER BY COALESCE(sr.rank_position, 9999)
     `)
     .bind(sessionId)
     .all<{ name: string }>();

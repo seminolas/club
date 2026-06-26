@@ -1,3 +1,21 @@
+// Strip leading/trailing asterisks (and surrounding spaces) used as ladder markers.
+function cleanName(name) {
+  return name.replace(/^\*+\s*|\s*\*+$/g, '');
+}
+
+// Filter a ranked list [{name, rank}] by query, with word-boundary hits first.
+function searchRanked(items, q) {
+  return items
+    .filter(p => p.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const words = n => cleanName(n).toLowerCase().split(/\s+/);
+      const aWord = words(a.name).some(w => w.startsWith(q)) ? 0 : 1;
+      const bWord = words(b.name).some(w => w.startsWith(q)) ? 0 : 1;
+      if (aWord !== bWord) return aWord - bWord;
+      return a.rank - b.rank;
+    });
+}
+
 function appData() {
   return {
     // ── State ──────────────────────────────────────────────────────────────
@@ -69,17 +87,8 @@ function appData() {
 
     get filteredLeaderboard() {
       const q = this.homeSearch.trim().toLowerCase();
-      if (!q) return this.leaderboard.map((name, i) => ({ name, rank: i + 1 }));
-      const words = name => name.replace(/^\*+\s*|\s*\*+$/g, '').toLowerCase().split(/\s+/);
-      return this.leaderboard
-        .map((name, i) => ({ name, rank: i + 1 }))
-        .filter(p => p.name.toLowerCase().includes(q))
-        .sort((a, b) => {
-          const aWord = words(a.name).some(w => w.startsWith(q)) ? 0 : 1;
-          const bWord = words(b.name).some(w => w.startsWith(q)) ? 0 : 1;
-          if (aWord !== bWord) return aWord - bWord;
-          return a.rank - b.rank;
-        });
+      const ranked = this.leaderboard.map((name, i) => ({ name, rank: i + 1 }));
+      return q ? searchRanked(ranked, q) : ranked;
     },
 
     shortDate(isoDate) {
@@ -315,18 +324,8 @@ function appData() {
 
     get filteredPlayers() {
       const q = this.sessionSearch.trim().toLowerCase();
-      const lb = this.attendanceLeaderboard;
-      if (!q) return lb.map((name, i) => ({ name, rank: i + 1 }));
-      const words = name => name.replace(/^\*+\s*|\s*\*+$/g, '').toLowerCase().split(/\s+/);
-      return lb
-        .map((name, i) => ({ name, rank: i + 1 }))
-        .filter(p => p.name.toLowerCase().includes(q))
-        .sort((a, b) => {
-          const aWord = words(a.name).some(w => w.startsWith(q)) ? 0 : 1;
-          const bWord = words(b.name).some(w => w.startsWith(q)) ? 0 : 1;
-          if (aWord !== bWord) return aWord - bWord;
-          return a.rank - b.rank;
-        });
+      const ranked = this.attendanceLeaderboard.map((name, i) => ({ name, rank: i + 1 }));
+      return q ? searchRanked(ranked, q) : ranked;
     },
 
     get searchHasNoMatch() {
@@ -531,7 +530,7 @@ function appData() {
     },
 
     firstName(name) {
-      const clean = name.replace(/^\*+\s*|\s*\*+$/g, '');
+      const clean = cleanName(name);
       return clean.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]+/)?.[0] ?? clean.trim();
     },
 
