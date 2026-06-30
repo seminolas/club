@@ -501,6 +501,7 @@ function appData() {
         await Storage.saveBoxes(this.session.date, boxes);
         this.session.boxes = boxes;
         this.session.status = 'games';
+        this._syncSessionStatus(this.session.date, 'games');
         this.allBoxesExpanded = true;
         this.boxExpanded = {};
         this.setSessionTab(2);
@@ -649,6 +650,11 @@ function appData() {
       return allScoresComplete(this.session.boxes);
     },
 
+    _syncSessionStatus(date, status) {
+      const entry = this.sessionList.find(s => s.date === date);
+      if (entry) entry.status = status;
+    },
+
     // ── Close session ──────────────────────────────────────────────────────
     async closeSession() {
       if (!this.allScoresComplete) return;
@@ -661,6 +667,7 @@ function appData() {
         await Storage.closeSession(this.session.date, newLeaderboard);
         this.session.leaderboardAfter = newLeaderboard;
         this.session.status = 'closed';
+        this._syncSessionStatus(this.session.date, 'closed');
         this.leaderboard = newLeaderboard;
         this.mostRecentSessionStatus = 'closed';
         this.setSessionTab(3);
@@ -705,6 +712,7 @@ function appData() {
       try {
         await Storage.reopenSession(this.session.date);
         this.session.status = 'games';
+        this._syncSessionStatus(this.session.date, 'games');
         this.setSessionTab(2);
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -731,6 +739,7 @@ function appData() {
         await Storage.reopenAttendance(this.session.date);
         this.session.boxes = [];
         this.session.status = 'attendance';
+        this._syncSessionStatus(this.session.date, 'attendance');
         this.setSessionTab(1);
       } catch (e) {
         this.showToast(e.message, 'error');
