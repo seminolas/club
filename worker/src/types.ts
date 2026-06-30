@@ -26,7 +26,7 @@ export interface SessionSummary {
   status: SessionStatus;
 }
 
-export type SessionStatus = 'attendance' | 'boxes_assigned' | 'in_progress' | 'closed';
+export type SessionStatus = 'attendance' | 'games' | 'closed';
 
 export interface SetScore {
   0: number | '';

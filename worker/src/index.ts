@@ -126,23 +126,15 @@ app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
 
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
-  if (session.status === 'in_progress' || session.status === 'closed') {
+  if (session.status === 'games' || session.status === 'closed') {
     return c.json({ error: 'Cannot change attendance in this state' }, 400);
   }
 
   const player = await db.getPlayerByName(c.env.DB, CLUB_ID, player_name);
   if (!player) return c.json({ error: 'Player not found' }, 404);
 
-  const hadBoxes = session.status === 'boxes_assigned';
-
   await db.setAttendance(c.env.DB, session.id, player.id, attending);
-
-  if (hadBoxes) {
-    await db.clearBoxes(c.env.DB, session.id);
-    await db.updateSessionStatus(c.env.DB, session.id, 'attendance');
-  }
-
-  return c.json({ ok: true, boxesCleared: hadBoxes });
+  return c.json({ ok: true });
 });
 
 // Store computed box assignment from client
@@ -161,7 +153,7 @@ app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
   const pidByName = new Map(players.map(p => [p.name, p.id]));
 
   await db.saveBoxes(c.env.DB, session.id, boxes, pidByName);
-  await db.updateSessionStatus(c.env.DB, session.id, 'in_progress');
+  await db.updateSessionStatus(c.env.DB, session.id, 'games');
 
   return c.json({ ok: true });
 });
@@ -191,7 +183,6 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
 
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
-  if (session.status === 'closed') return c.json({ error: 'Already closed' }, 400);
 
   // Look up player IDs from the open session's working state
   const allPlayers = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
@@ -205,6 +196,25 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
   await db.setSessionRanks(c.env.DB, session.id, afterIds);
   await db.updateSessionStatus(c.env.DB, session.id, 'closed', new Date().toISOString());
 
+  return c.json({ ok: true });
+});
+
+app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
+  const date = c.req.param('date') as string;
+  const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+  if (session.status !== 'closed') return c.json({ error: 'Session is not closed' }, 400);
+  await db.updateSessionStatus(c.env.DB, session.id, 'games');
+  return c.json({ ok: true });
+});
+
+app.post('/api/sessions/:date/reopen-attendance', requireAdmin, async (c) => {
+  const date = c.req.param('date') as string;
+  const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+  if (session.status !== 'games') return c.json({ error: 'Session is not in games state' }, 400);
+  await db.clearBoxes(c.env.DB, session.id);
+  await db.updateSessionStatus(c.env.DB, session.id, 'attendance');
   return c.json({ ok: true });
 });
 
@@ -228,14 +238,14 @@ app.post('/api/players', requireAdmin, async (c) => {
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, session_date);
   if (!session) return c.json({ error: 'Session not found' }, 404);
   if (session.status === 'closed') return c.json({ error: 'Session is closed' }, 400);
+  if (session.status === 'games') return c.json({ error: 'Cannot add players during games — re-open attendance first' }, 400);
 
   const existing = await db.getPlayerByName(c.env.DB, CLUB_ID, name);
   if (existing) return c.json({ error: 'Player already exists' }, 409);
 
-  const boxesAssigned = session.status === 'boxes_assigned' || session.status === 'in_progress';
-  const newId = await db.addPlayerMidSession(c.env.DB, CLUB_ID, session.id, name, insert_rank, boxesAssigned);
+  const newId = await db.addPlayerMidSession(c.env.DB, CLUB_ID, session.id, name, insert_rank);
 
-  return c.json({ ok: true, id: newId, boxesCleared: boxesAssigned });
+  return c.json({ ok: true, id: newId });
 });
 
 // ── HelloClub sync (server-side proxy) ────────────────────────────────────────

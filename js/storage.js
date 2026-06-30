@@ -148,6 +148,14 @@ const Storage = (() => {
     });
   }
 
+  async function reopenSession(date) {
+    return apiJSON(`/api/sessions/${date}/reopen`, { method: 'POST' });
+  }
+
+  async function reopenAttendance(date) {
+    return apiJSON(`/api/sessions/${date}/reopen-attendance`, { method: 'POST' });
+  }
+
   // ── HelloClub sync ────────────────────────────────────────────────────────
 
   async function syncHelloClub(sessionDate) {
@@ -168,6 +176,7 @@ const Storage = (() => {
     getLeaderboard, saveLeaderboard,
     listSessions, getSession, createSession, deleteSession,
     setAttendance, saveBoxes, updateScore, closeSession,
+    reopenSession, reopenAttendance,
     addPlayer,
     syncHelloClub, getConfig,
   };

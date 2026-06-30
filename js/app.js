@@ -142,10 +142,7 @@ function appData() {
     },
 
     isTabLocked(num) {
-      const s = this.session?.status;
-      if (!s) return num !== 1;
-      if (num === 2) return s === 'attendance';
-      if (num === 3) return s !== 'closed';
+      if (!this.session) return num !== 1;
       return false;
     },
 
@@ -336,14 +333,9 @@ function appData() {
     isAttending(name) { return this.session?.attendees.includes(name) ?? false; },
 
     async toggleAttendance(name) {
-      if (!this.session || this.session.status === 'in_progress' || this.session.status === 'closed') return;
+      if (!this.session || this.session.status === 'games' || this.session.status === 'closed') return;
 
       const wasAttending = this.session.attendees.includes(name);
-      const hadBoxes = this.session.status === 'boxes_assigned' && this.session.boxes.length > 0;
-
-      if (hadBoxes) {
-        if (!confirm('Attendance changed — this will clear the current box assignments. Continue?')) return;
-      }
 
       // Optimistic update
       if (wasAttending) {
@@ -353,11 +345,7 @@ function appData() {
       }
 
       try {
-        const res = await Storage.setAttendance(this.session.date, name, !wasAttending);
-        if (res.boxesCleared) {
-          this.session.boxes = [];
-          this.session.status = 'attendance';
-        }
+        await Storage.setAttendance(this.session.date, name, !wasAttending);
       } catch (e) {
         // Roll back optimistic update
         if (wasAttending) {
@@ -466,26 +454,21 @@ function appData() {
 
       this.loading = true;
       try {
-        const res = await Storage.addPlayer(name, insertIdx + 1, this.session.date);
+        await Storage.addPlayer(name, insertIdx + 1, this.session.date);
 
         // Update local leaderboard
         const newLeaderboard = [...this.leaderboard];
         newLeaderboard.splice(insertIdx, 0, name);
         this.leaderboard = newLeaderboard;
 
-        // Update session's leaderboardBefore
-        if (this.session && this.session.status !== 'in_progress' && this.session.status !== 'closed') {
+        // Update session's leaderboardBefore (only valid in attendance state)
+        if (this.session?.status === 'attendance') {
           this.session.leaderboardBefore.splice(insertIdx, 0, name);
         }
 
         // Auto-mark as attending (already done server-side)
         if (!this.session.attendees.includes(name)) {
           this.session.attendees.push(name);
-        }
-
-        if (res.boxesCleared) {
-          this.session.boxes = [];
-          this.session.status = 'attendance';
         }
 
         this.showAddPlayer = false;
@@ -502,6 +485,10 @@ function appData() {
     async assignBoxes() {
       if (!this.session || this.attendingCount < 4) return;
 
+      if (this.session.status === 'games' && this.session.boxes?.length) {
+        if (!confirm('Reassigning boxes will clear all current scores. Continue?')) return;
+      }
+
       const lb = this.session.leaderboardBefore;
       const sorted = [...this.session.attendees].sort((a, b) => {
         const ai = lb.indexOf(a), bi = lb.indexOf(b);
@@ -513,7 +500,7 @@ function appData() {
       try {
         await Storage.saveBoxes(this.session.date, boxes);
         this.session.boxes = boxes;
-        this.session.status = 'in_progress';
+        this.session.status = 'games';
         this.allBoxesExpanded = true;
         this.boxExpanded = {};
         this.setSessionTab(2);
@@ -605,10 +592,6 @@ function appData() {
         else break;
       }
 
-      if (this.session.status === 'boxes_assigned') {
-        this.session.status = 'in_progress';
-      }
-
       // Clear stale third set on sweep
       const sets = match.sets;
       if (sets.length > 2 && isSetComplete(sets[0]?.[0], sets[0]?.[1]) && isSetComplete(sets[1]?.[0], sets[1]?.[1])) {
@@ -691,8 +674,7 @@ function appData() {
 
     // ── Edit last closed session ───────────────────────────────────────────
     get canEditSession() {
-      if (!this.session || this.session.status !== 'closed') return false;
-      return this.session.date === this.sessionDates[0];
+      return this.session?.status === 'closed';
     },
 
     async deleteSession() {
@@ -718,31 +700,12 @@ function appData() {
     },
 
     async enableEditing() {
-      if (!confirm('Re-open this session for editing?\n\nThe live leaderboard will only be updated when you close again.')) return;
-      // Store a local snapshot for discard
-      this.session._editSnapshot = {
-        boxes: JSON.parse(JSON.stringify(this.session.boxes)),
-        leaderboardAfter: this.session.leaderboardAfter ? [...this.session.leaderboardAfter] : null,
-      };
-      // Update status server-side — reuse the score endpoint to trigger in_progress
-      // (simpler: just optimistically update, the next score save will flip status)
-      this.session.status = 'in_progress';
-    },
-
-    async closeWithDiscard() {
-      if (!confirm('Discard all changes and restore the original results?')) return;
+      if (!confirm('Re-open this session for editing?\n\nScores can be adjusted and re-closed to update the leaderboard.')) return;
       this.loading = true;
       try {
-        const snap = this.session._editSnapshot;
-        if (snap) {
-          this.session.boxes = snap.boxes;
-          this.session.leaderboardAfter = snap.leaderboardAfter;
-        }
-        // Re-close with original leaderboard
-        await Storage.closeSession(this.session.date, this.session.leaderboardAfter ?? []);
-        this.session.status = 'closed';
-        delete this.session._editSnapshot;
-        this.showToast('Changes discarded.');
+        await Storage.reopenSession(this.session.date);
+        this.session.status = 'games';
+        this.setSessionTab(2);
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -750,22 +713,25 @@ function appData() {
       }
     },
 
-    async closeSessionWithSave() {
-      if (!confirm('Save changes and update the leaderboard?')) return;
+    async reopenAttendance() {
+      const boxCount = this.session.boxes?.length ?? 0;
+      const scoreCount = this.session.boxes?.reduce((sum, b) =>
+        sum + b.matches.reduce((s2, m) => s2 + (m.sets?.length ?? 0), 0), 0) ?? 0;
 
-      const newLeaderboard = applyLeaderboardUpdate(this.session.boxes, this.session.leaderboardBefore);
+      let warning = 'Re-open attendance for this session?';
+      if (boxCount > 0) {
+        warning = `This will clear ${boxCount} box${boxCount !== 1 ? 'es' : ''}`;
+        if (scoreCount > 0) warning += ` and ${scoreCount} entered score${scoreCount !== 1 ? 's' : ''}`;
+        warning += '. This cannot be undone. Continue?';
+      }
+      if (!confirm(warning)) return;
 
       this.loading = true;
       try {
-        // Re-save boxes with current state (scores may have changed)
-        await Storage.saveBoxes(this.session.date, this.session.boxes);
-        await Storage.closeSession(this.session.date, newLeaderboard);
-        this.session.leaderboardAfter = newLeaderboard;
-        this.session.status = 'closed';
-        delete this.session._editSnapshot;
-        this.leaderboard = newLeaderboard;
-        this.setSessionTab(3);
-        this.showToast('Session saved. Leaderboard updated.');
+        await Storage.reopenAttendance(this.session.date);
+        this.session.boxes = [];
+        this.session.status = 'attendance';
+        this.setSessionTab(1);
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {

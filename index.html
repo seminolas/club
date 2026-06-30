@@ -85,8 +85,7 @@
             <span class="text-xs px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
                   :class="{
                     'bg-yellow-100 text-yellow-700': session?.status === 'attendance',
-                    'bg-blue-100 text-blue-700': session?.status === 'boxes_assigned',
-                    'bg-orange-100 text-orange-700': session?.status === 'in_progress',
+                    'bg-orange-100 text-orange-700': session?.status === 'games',
                     'bg-green-100 text-green-700': session?.status === 'closed',
                   }"
                   x-text="session?.status?.replace(/_/g, ' ')"></span>
@@ -112,7 +111,7 @@
         </template>
 
         <!-- ── SESSION admin: Edit + Delete buttons ── -->
-        <template x-if="view === 'session' && isAdmin && !(session && session._editSnapshot)">
+        <template x-if="view === 'session' && isAdmin">
           <div class="flex items-center gap-1">
             <div class="relative group">
               <button @click="canEditSession && enableEditing()"
@@ -123,7 +122,7 @@
               </button>
               <div x-show="!canEditSession"
                    class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                <span x-text="session?.status !== 'closed' ? 'Session must be closed to edit' : 'Can only edit the most recent session'"></span>
+                <span>Session must be closed to edit</span>
                 <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
               </div>
             </div>
@@ -295,16 +294,14 @@
                   class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
             🖨 Sign In Sheet
           </button>
-          <template x-if="isAdmin && session?.status !== 'closed'">
-            <button @click="assignBoxes()"
-                    :disabled="attendingCount < 4"
-                    :class="attendingCount < 4 ? 'opacity-40 cursor-not-allowed' : ''"
-                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
-              <span x-text="session?.boxes?.length ? '↺ Reassign' : '▶ Start Games'"></span>
-            </button>
-          </template>
         </div>
       </div>
+
+      <template x-if="session?.status === 'games'">
+        <div class="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2 mb-3 text-sm text-orange-700 no-print">
+          Games in progress — go to the Games tab to re-open attendance.
+        </div>
+      </template>
 
       <div class="flex gap-2 mb-3 no-print items-center">
         <div class="relative flex-1">
@@ -331,7 +328,7 @@
           </div>
         </template>
 
-        <template x-if="isAdmin && searchHasNoMatch && !showAddPlayer">
+        <template x-if="isAdmin && searchHasNoMatch && !showAddPlayer && session?.status === 'attendance'">
           <div class="px-4 py-3">
             <p class="text-sm text-gray-400 mb-2">No match for "<span x-text="sessionSearch"></span>"</p>
             <button @click="prepareAddPlayer()"
@@ -371,60 +368,56 @@
 
       <!-- Action card -->
       <div class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-3 flex-wrap">
-        <button @click="toggleAllBoxes()"
-                class="text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
-                x-text="anyBoxCollapsed ? '⊕ Expand all' : '⊖ Collapse all'">
-        </button>
-        <div class="w-px h-5 bg-gray-200 shrink-0"></div>
-        <div class="flex items-center gap-2 ml-auto">
-          <button @click="printBoxes()"
-                  class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
-            🖨 Scoresheets
-          </button>
-          <!-- Normal mode: Wrap up -->
-          <template x-if="isAdmin && session && !session._editSnapshot && session.status !== 'closed'">
+        <!-- attendance state: assign boxes button -->
+        <template x-if="session?.status === 'attendance'">
+          <div class="flex items-center gap-2 ml-auto">
             <div class="relative group">
-              <button @click="allScoresComplete && closeSession()"
-                      :disabled="!allScoresComplete"
-                      :class="!allScoresComplete ? 'opacity-40 cursor-not-allowed' : ''"
-                      class="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
-                Wrap up ▶
+              <button @click="assignBoxes()"
+                      :disabled="attendingCount < 4"
+                      :class="attendingCount < 4 ? 'opacity-40 cursor-not-allowed' : ''"
+                      class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                ▶ Assign Boxes
               </button>
-              <div x-show="!allScoresComplete"
+              <div x-show="attendingCount < 4"
                    class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                Enter all scores first
+                Need at least 4 players attending
                 <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
               </div>
             </div>
-          </template>
-          <!-- Edit mode: Discard + Save & Close -->
-          <template x-if="isAdmin && session?._editSnapshot">
-            <div class="flex items-center gap-2">
-              <button @click="closeWithDiscard()"
-                      class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-600 hover:bg-gray-50 whitespace-nowrap">
-                ✗ Discard
+          </div>
+        </template>
+        <!-- games or closed state: full toolbar -->
+        <template x-if="session?.status !== 'attendance'">
+          <div class="flex items-center gap-3 w-full flex-wrap">
+            <template x-if="isAdmin && session?.status === 'games'">
+              <button @click="reopenAttendance()"
+                      class="text-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                ← Re-open Attendance
               </button>
-              <div class="relative group">
-                <button @click="allScoresComplete && closeSessionWithSave()"
-                        :disabled="!allScoresComplete"
-                        :class="!allScoresComplete ? 'opacity-40 cursor-not-allowed' : ''"
-                        class="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
-                  ✓ Save & Close
+            </template>
+            <button @click="toggleAllBoxes()"
+                    class="text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                    x-text="anyBoxCollapsed ? '⊕ Expand all' : '⊖ Collapse all'">
+            </button>
+            <div class="flex items-center gap-2 ml-auto">
+              <button @click="printBoxes()"
+                      class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
+                🖨 Scoresheets
+              </button>
+              <template x-if="isAdmin && session?.status === 'games'">
+                <button @click="assignBoxes()"
+                        class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                  ↺ Reassign
                 </button>
-                <div x-show="!allScoresComplete"
-                     class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  Enter all scores to close
-                  <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
-                </div>
-              </div>
+              </template>
             </div>
-          </template>
-        </div>
+          </div>
+        </template>
       </div>
 
       <template x-if="!session?.boxes?.length">
         <p class="text-center text-gray-400 py-10 text-sm">
-          Go to Attendance and click Start Games first.
+          Mark who is attending, then click Assign Boxes above.
         </p>
       </template>
 
@@ -644,22 +637,47 @@
 
       <!-- Action card -->
       <div class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-3 flex-wrap">
-        <template x-if="isAdmin">
-          <div class="flex items-center gap-3">
-            <button @click="syncHelloClub()"
-                    class="text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
-              🔄 Sync HC
+        <template x-if="isAdmin && session?.status === 'games'">
+          <div class="relative group ml-auto">
+            <button @click="allScoresComplete && closeSession()"
+                    :disabled="!allScoresComplete"
+                    :class="!allScoresComplete ? 'opacity-40 cursor-not-allowed' : ''"
+                    class="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
+              ✓ Close Session
             </button>
-            <div class="w-px h-5 bg-gray-200 shrink-0"></div>
+            <div x-show="!allScoresComplete"
+                 class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+              Enter all scores first
+              <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
+            </div>
           </div>
         </template>
-        <button @click="shareOnWhatsApp()"
-                class="text-sm bg-green-100 text-green-700 hover:bg-green-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
-          📱 Share on WhatsApp
-        </button>
+        <template x-if="session?.status === 'closed'">
+          <div class="flex items-center gap-3 w-full flex-wrap">
+            <template x-if="isAdmin">
+              <div class="flex items-center gap-3">
+                <button @click="syncHelloClub()"
+                        class="text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                  🔄 Sync HC
+                </button>
+                <div class="w-px h-5 bg-gray-200 shrink-0"></div>
+              </div>
+            </template>
+            <button @click="shareOnWhatsApp()"
+                    class="text-sm bg-green-100 text-green-700 hover:bg-green-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+              📱 Share on WhatsApp
+            </button>
+          </div>
+        </template>
       </div>
 
-      <template x-if="session?.leaderboardAfter">
+      <template x-if="session?.status === 'games'">
+        <p class="text-center text-gray-400 py-10 text-sm">
+          Enter all scores in the Games tab, then close the session.
+        </p>
+      </template>
+
+      <template x-if="session?.leaderboardAfter && session?.status === 'closed'">
         <div>
           <div class="flex gap-2 mb-3 items-center">
             <div class="relative flex-1">

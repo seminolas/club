@@ -484,18 +484,14 @@ export async function addPlayerMidSession(
   sessionId: number,
   name: string,
   insertRank: number,
-  boxesAssigned: boolean
 ): Promise<number> {
-  const stmts: D1PreparedStatement[] = [
+  await db.batch([
     // Shift ranks down in the open session's working state
     db.prepare('UPDATE session_ranks SET rank_position = rank_position + 1 WHERE session_id = ? AND rank_position >= ?')
       .bind(sessionId, insertRank),
-    // Insert new player (no current_rank column)
     db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?)')
       .bind(clubId, name),
-  ];
-
-  await db.batch(stmts);
+  ]);
 
   const newPlayer = await db
     .prepare('SELECT id FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
@@ -504,29 +500,13 @@ export async function addPlayerMidSession(
 
   if (!newPlayer) throw new Error('Failed to insert player');
 
-  const stmts2: D1PreparedStatement[] = [
+  await db.batch([
     db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) VALUES (?, ?, ?)')
       .bind(sessionId, newPlayer.id, insertRank),
     db.prepare('INSERT INTO attendees (session_id, player_id) VALUES (?, ?)')
       .bind(sessionId, newPlayer.id),
-  ];
+  ]);
 
-  if (boxesAssigned) {
-    stmts2.push(
-      db.prepare('DELETE FROM match_sets WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)')
-        .bind(sessionId),
-      db.prepare('DELETE FROM matches WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)')
-        .bind(sessionId),
-      db.prepare('DELETE FROM box_players WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)')
-        .bind(sessionId),
-      db.prepare('DELETE FROM boxes WHERE session_id = ?')
-        .bind(sessionId),
-      db.prepare("UPDATE sessions SET status = 'attendance' WHERE id = ?")
-        .bind(sessionId)
-    );
-  }
-
-  await db.batch(stmts2);
   return newPlayer.id;
 }
 
