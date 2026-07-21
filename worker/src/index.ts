@@ -22,14 +22,15 @@ app.post('/api/auth/login', async (c) => {
   const { id_token } = await c.req.json<{ id_token: string }>();
   if (!id_token) return c.json({ error: 'Missing id_token' }, 400);
 
-  const email = await verifyGoogleToken(id_token, c.env.GOOGLE_CLIENT_ID);
-  if (!email) return c.json({ error: 'Invalid Google token' }, 401);
+  const google = await verifyGoogleToken(id_token, c.env.GOOGLE_CLIENT_ID);
+  if (!google) return c.json({ error: 'Invalid Google token' }, 401);
 
-  const role = await db.getAdminRole(c.env.DB, CLUB_ID, email);
-  if (!role) return c.json({ error: 'Not authorised for this club' }, 403);
+  const profile = await db.findPlayerByAuthProfile(c.env.DB, 'google', google.sub);
+  if (!profile) return c.json({ error: 'No player account is linked to this Google profile. Contact your club admin.' }, 403);
 
-  const token = await signJwt({ sub: email, club_id: CLUB_ID, role }, c.env.JWT_SECRET);
-  return c.json({ token, role });
+  const roles = await db.getPlayerRoles(c.env.DB, profile.id);
+  const token = await signJwt({ sub: String(profile.id), player_id: profile.id, club_id: CLUB_ID, roles }, c.env.JWT_SECRET);
+  return c.json({ token, roles, player: { id: profile.id, name: profile.name } });
 });
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ app.get('/api/config', async (c) => {
 app.get('/api/leaderboard', async (c) => {
   const players = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
   return c.json({
-    players: players.map(p => p.name),
+    players: players.map(p => ({ id: p.id, name: p.name, hc_member_id: p.hc_member_id ?? null, preferred_name: p.preferred_name ?? null })),
     updatedAt: new Date().toISOString().split('T')[0],
   });
 });
@@ -81,7 +82,7 @@ app.post('/api/sessions', requireAdmin, async (c) => {
   const sessionId = await db.createSession(c.env.DB, CLUB_ID, date);
   await db.setSessionRanks(c.env.DB, sessionId, players.map(p => p.id));
 
-  const lbBefore = players.map(p => p.name);
+  const lbBefore = players.map(p => ({ id: p.id, name: p.name }));
   return c.json({ date, status: 'attendance', attendees: [], boxes: [], leaderboardBefore: lbBefore, leaderboardAfter: null }, 201);
 });
 
@@ -90,8 +91,8 @@ app.get('/api/sessions/:date', async (c) => {
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
 
-  let lbBefore: string[];
-  let lbAfter: string[] | null = null;
+  let lbBefore: { id: number; name: string }[];
+  let lbAfter: { id: number; name: string }[] | null = null;
 
   if (session.status === 'closed') {
     const prevId = await db.getPrevSessionId(c.env.DB, session.id);
@@ -100,12 +101,11 @@ app.get('/api/sessions/:date', async (c) => {
       db.getSessionRanks(c.env.DB, session.id),
     ]);
   } else {
-    // Open session: working state (including mid-session adds) lives under session.id
     lbBefore = await db.getSessionRanks(c.env.DB, session.id);
   }
 
   const [attendees, boxes] = await Promise.all([
-    db.getAttendeeNames(c.env.DB, session.id),
+    db.getAttendees(c.env.DB, session.id),
     db.getBoxes(c.env.DB, session.id),
   ]);
 
@@ -119,10 +119,10 @@ app.get('/api/sessions/:date', async (c) => {
   });
 });
 
-// Toggle attendance for a named player
+// Toggle attendance for a player by ID
 app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
   const date = c.req.param('date');
-  const { player_name, attending } = await c.req.json<{ player_name: string; attending: boolean }>();
+  const { player_id, attending } = await c.req.json<{ player_id: number; attending: boolean }>();
 
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
@@ -130,29 +130,21 @@ app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
     return c.json({ error: 'Cannot change attendance in this state' }, 400);
   }
 
-  const player = await db.getPlayerByName(c.env.DB, CLUB_ID, player_name);
-  if (!player) return c.json({ error: 'Player not found' }, 404);
-
-  await db.setAttendance(c.env.DB, session.id, player.id, attending);
+  await db.setAttendance(c.env.DB, session.id, player_id, attending);
   return c.json({ ok: true });
 });
 
-// Store computed box assignment from client
+// Store computed box assignment from client (player IDs in boxes.players)
 app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
   const date = c.req.param('date');
-  const { boxes } = await c.req.json<{ boxes: import('./types').Box[] }>();
+  const { boxes } = await c.req.json<{ boxes: import('./types').BoxInput[] }>();
 
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
   if (session.status === 'closed') return c.json({ error: 'Session is closed' }, 400);
 
   await db.clearBoxes(c.env.DB, session.id);
-
-  // Build name→id map from current players
-  const players = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
-  const pidByName = new Map(players.map(p => [p.name, p.id]));
-
-  await db.saveBoxes(c.env.DB, session.id, boxes, pidByName);
+  await db.saveBoxes(c.env.DB, session.id, boxes);
   await db.updateSessionStatus(c.env.DB, session.id, 'games');
 
   return c.json({ ok: true });
@@ -176,24 +168,15 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
   return c.json({ ok: true });
 });
 
-// Close session: accept new leaderboard order from client (computed by algorithm.js)
+// Close session: accept new leaderboard order as player IDs from client
 app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
   const date = c.req.param('date');
-  const { leaderboard_after } = await c.req.json<{ leaderboard_after: string[] }>();
+  const { leaderboard_after } = await c.req.json<{ leaderboard_after: number[] }>();
 
   const session = await db.getSessionByDate(c.env.DB, CLUB_ID, date);
   if (!session) return c.json({ error: 'Not found' }, 404);
 
-  // Look up player IDs from the open session's working state
-  const allPlayers = await db.getLeaderboardPlayers(c.env.DB, CLUB_ID);
-  const pidByName = new Map(allPlayers.map(p => [p.name, p.id]));
-
-  const afterIds = leaderboard_after
-    .map(name => pidByName.get(name))
-    .filter((id): id is number => id !== undefined);
-
-  // Replace the working rows with the final after-state, then mark closed
-  await db.setSessionRanks(c.env.DB, session.id, afterIds);
+  await db.setSessionRanks(c.env.DB, session.id, leaderboard_after);
   await db.updateSessionStatus(c.env.DB, session.id, 'closed', new Date().toISOString());
 
   return c.json({ ok: true });
@@ -228,6 +211,30 @@ app.delete('/api/sessions/:date', requireAdmin, async (c) => {
 
 // ── Players ───────────────────────────────────────────────────────────────────
 
+app.get('/api/players/:id', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400);
+  const player = await db.getPlayerById(c.env.DB, CLUB_ID, id);
+  if (!player) return c.json({ error: 'Not found' }, 404);
+  return c.json(player);
+});
+
+app.put('/api/players/:id', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400);
+  const body = await c.req.json<{ email?: string | null; hc_member_id?: string | null }>();
+  await db.updatePlayerProfile(c.env.DB, id, body);
+  return c.json({ ok: true });
+});
+
+app.delete('/api/players/:id', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400);
+  const result = await db.deletePlayer(c.env.DB, id);
+  if (!result.deleted) return c.json({ error: result.reason }, 409);
+  return c.json({ ok: true });
+});
+
 app.post('/api/players', requireAdmin, async (c) => {
   const { name, insert_rank, session_date } = await c.req.json<{
     name: string; insert_rank: number; session_date: string;
@@ -249,6 +256,34 @@ app.post('/api/players', requireAdmin, async (c) => {
 });
 
 // ── HelloClub sync (server-side proxy) ────────────────────────────────────────
+
+app.get('/api/hc/members', requireAdmin, async (c) => {
+  const q = c.req.query('q') ?? '';
+  if (!q.trim()) return c.json({ members: [] });
+
+  const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`;
+  const res = await fetch(
+    `${HC_BASE}/member?search=${encodeURIComponent(q)}&limit=15`,
+    { headers: { 'X-Api-Key': c.env.HC_API_KEY, 'Accept': 'application/json' } }
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    return c.json({ error: `HC API error: ${res.status}${body ? ' — ' + body : ''}` }, 502);
+  }
+  const data = await res.json() as { members?: Array<{
+    id: string; firstName: string; lastName: string;
+    number?: string; email?: string; isArchived?: boolean; isSuspended?: boolean;
+  }> };
+  const members = (data.members ?? [])
+    .filter(m => !m.isArchived && !m.isSuspended)
+    .map(m => ({
+      id: m.id,
+      name: `${m.firstName} ${m.lastName}`.trim(),
+      number: m.number ?? null,
+      email: m.email ?? null,
+    }));
+  return c.json({ members });
+});
 
 app.post('/api/hc/sync', requireAdmin, async (c) => {
   const { session_date } = await c.req.json<{ session_date: string }>();
@@ -282,8 +317,8 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
       throw new Error(`HelloClub API error: ${eventRes.status}${body ? ' — ' + body : ''}`);
     }
     const eventData = await eventRes.json() as { events?: Array<{ id: string; name: string }> };
-    const event = (eventData.events ?? []).find(e => e.name?.includes('Box'));
-    if (!event) throw new Error(`No Box event found for ${session_date}`);
+    const event = (eventData.events ?? []).find(e => e.name?.includes('Senior Box'));
+    if (!event) throw new Error(`No Senior Box event found for ${session_date}`);
 
     emit(`Found event: "${event.name}"`);
 
