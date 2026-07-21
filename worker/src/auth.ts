@@ -78,12 +78,12 @@ function b64urlToBigInt(s: string): bigint {
   return BigInt('0x' + hex);
 }
 
-export async function verifyGoogleToken(idToken: string, clientId: string): Promise<string | null> {
+export async function verifyGoogleToken(idToken: string, clientId: string): Promise<{ email: string; sub: string } | null> {
   const parts = idToken.split('.');
   if (parts.length !== 3) return null;
 
   let header: { kid?: string; alg?: string };
-  let payload: { aud?: string; email?: string; email_verified?: boolean; exp?: number };
+  let payload: { aud?: string; sub?: string; email?: string; email_verified?: boolean; exp?: number };
   try {
     header = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[0])));
     payload = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[1])));
@@ -92,7 +92,7 @@ export async function verifyGoogleToken(idToken: string, clientId: string): Prom
   }
 
   if (payload.aud !== clientId) return null;
-  if (!payload.email || !payload.email_verified) return null;
+  if (!payload.email || !payload.email_verified || !payload.sub) return null;
   if ((payload.exp ?? 0) < Math.floor(Date.now() / 1000)) return null;
 
   const keys = await getGooglePublicKeys();
@@ -111,7 +111,8 @@ export async function verifyGoogleToken(idToken: string, clientId: string): Prom
       b64urlDecode(parts[2]),
       new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
     );
-    return valid ? payload.email : null;
+    if (!valid || !payload.email || !payload.sub) return null;
+    return { email: payload.email, sub: payload.sub };
   } catch {
     return null;
   }
@@ -125,6 +126,8 @@ export async function requireAdmin(c: Context<{ Bindings: Env }>, next: () => Pr
   const token = auth.slice(7);
   const payload = await verifyJwt(token, c.env.JWT_SECRET);
   if (!payload) return c.json({ error: 'Unauthorized' }, 401);
+  const isAdmin = payload.roles?.includes('admin') || payload.roles?.includes('owner');
+  if (!isAdmin) return c.json({ error: 'Forbidden' }, 403);
   c.set('jwtPayload', payload);
   await next();
 }

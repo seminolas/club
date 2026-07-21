@@ -8,16 +8,22 @@ export interface Env {
 }
 
 export interface JwtPayload {
-  sub: string;      // email
+  sub: string;      // player_id as string
+  player_id: number;
   club_id: number;
-  role: 'owner' | 'admin';
+  roles: ('owner' | 'admin' | 'scorer' | 'player')[];
   exp: number;
 }
 
 // Shapes the frontend already expects (matches current JSON file format)
 
+export interface Player {
+  id: number;
+  name: string;
+}
+
 export interface LeaderboardResponse {
-  players: string[];
+  players: Player[];
   updatedAt: string;
 }
 
@@ -39,8 +45,16 @@ export interface Match {
   sets: Array<[number | '', number | '']>;
 }
 
+// Box as returned by GET — players are full {id, name} objects
 export interface Box {
-  players: string[];
+  players: Player[];
+  matches: Match[];
+  finalPlacings: null;
+}
+
+// Box as sent in PUT requests — players are IDs only
+export interface BoxInput {
+  players: number[];
   matches: Match[];
   finalPlacings: null;
 }
@@ -48,8 +62,8 @@ export interface Box {
 export interface SessionResponse {
   date: string;
   status: SessionStatus;
-  attendees: string[];
+  attendees: Player[];
   boxes: Box[];
-  leaderboardBefore: string[];
-  leaderboardAfter: string[] | null;
+  leaderboardBefore: Player[];
+  leaderboardAfter: Player[] | null;
 }

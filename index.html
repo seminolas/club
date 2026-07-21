@@ -51,8 +51,8 @@
   <!-- ── Login modal ──────────────────────────────────────────────────── -->
   <div x-show="showLogin" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center no-print">
     <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4">
-      <h3 class="font-bold text-lg text-blue-700 mb-1">Admin Login</h3>
-      <p class="text-xs text-gray-400 mb-5">Sign in with your Google account to manage sessions.</p>
+      <h3 class="font-bold text-lg text-blue-700 mb-1">Sign in</h3>
+      <p class="text-xs text-gray-400 mb-5">Sign in with your Google account.</p>
 
       <!-- Google Sign-In button rendered here by GIS SDK -->
       <div id="google-signin-btn" class="flex justify-center mb-3"></div>
@@ -75,6 +75,13 @@
       <div class="flex items-center gap-2 min-w-0">
         <template x-if="view === 'home'">
           <h1 class="font-bold text-blue-700 text-sm">NBA Senior Tuesday Box</h1>
+        </template>
+        <template x-if="view === 'player'">
+          <div class="flex items-center gap-2 min-w-0">
+            <button @click="location.hash = '/players'"
+                    class="text-gray-500 hover:text-gray-700 shrink-0 text-lg leading-none">🏠</button>
+            <span class="font-bold text-blue-700 text-sm truncate" x-text="player?.name ?? ''"></span>
+          </div>
         </template>
         <template x-if="view === 'session'">
           <div class="flex items-center gap-2 min-w-0">
@@ -146,7 +153,7 @@
         <template x-if="!isAdmin">
           <button @click="showLogin = true; $nextTick(() => initGoogleButton())"
                   class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">
-            Admin Login
+            Sign in
           </button>
         </template>
 
@@ -184,14 +191,22 @@
       <div class="bg-white rounded-xl shadow overflow-hidden">
         <div class="divide-y max-h-[75vh] overflow-y-auto">
           <template x-for="p in filteredLeaderboard" :key="p.rank">
-            <div class="flex items-center px-4 py-2 text-sm hover:bg-gray-50">
+            <div class="flex items-center px-4 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                 @click="isAdmin && p.id && (location.hash = '/players/' + p.id)"
+                 :class="isAdmin ? 'cursor-pointer' : 'cursor-default'">
               <span class="w-8 text-gray-400 text-xs shrink-0" x-text="p.rank"></span>
-              <span x-text="p.name"></span>
+              <span class="flex-1" x-text="p.name"></span>
+              <div class="flex items-center gap-1 ml-2">
+                <span x-show="p.hc_member_id"
+                      class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">HC ✅</span>
+                <span x-show="!p.hc_member_id"
+                      class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">HC ❌</span>
+              </div>
             </div>
           </template>
           <template x-if="leaderboard.length === 0 && !loading">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">
-              No leaderboard data. Log in as Admin to import a CSV.
+              No leaderboard data. Sign in as admin to import a CSV.
             </div>
           </template>
         </div>
@@ -223,7 +238,7 @@
               <div x-show="!isAdmin && !(mostRecentSessionStatus && mostRecentSessionStatus !== 'closed')"
                    class="absolute bottom-full left-1/2 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
                    style="transform: translateX(-50%)">
-                Log in as Admin to create sessions.
+                Sign in as admin to create sessions.
                 <div class="absolute top-full left-1/2 border-4 border-transparent border-t-gray-800"
                      style="transform: translateX(-50%)"></div>
               </div>
@@ -539,10 +554,21 @@
               <div x-show="isBoxExpanded(bi)">
                 <template x-for="(match, mi) in box.matches" :key="mi">
                   <div class="mb-5 pb-5 border-b last:border-b-0 flex gap-3">
-                    <div class="shrink-0 flex items-center justify-center text-xs text-gray-400 font-medium whitespace-nowrap">
-                      <span x-text="match.pair1.map(i=>i+1).join(' & ') + ' vs ' + match.pair2.map(i=>i+1).join(' & ')"></span>
+                    <div class="hidden sm:flex sm:flex-row sm:items-center shrink-0 text-xs text-gray-400 font-medium whitespace-nowrap">
+                      <span x-text="match.pair1.map(i=>i+1).join(' & ')"></span>
+                      <span class="mx-1">vs</span>
+                      <span x-text="match.pair2.map(i=>i+1).join(' & ')"></span>
                     </div>
                     <div class="flex-1">
+                      <div class="flex sm:hidden mb-1 text-xs text-gray-400 font-medium">
+                        <div class="flex-1 flex justify-end pr-3">
+                          <span x-text="match.pair1.map(i=>i+1).join(' & ')"></span>
+                        </div>
+                        <div class="w-8 text-center shrink-0">vs</div>
+                        <div class="flex-1 pl-3">
+                          <span x-text="match.pair2.map(i=>i+1).join(' & ')"></span>
+                        </div>
+                      </div>
                       <div class="flex items-baseline mb-2">
                         <div class="flex-1 flex justify-end pr-3">
                           <span class="font-semibold text-sm" :class="pairResultClass(match, 0)"
@@ -559,10 +585,10 @@
                       <template x-for="setIdx in [0, 1, 2]" :key="setIdx">
                         <div class="flex items-center mb-1.5" x-show="setIdx < 2 || showThirdSet(match)">
                           <div class="flex-1 flex justify-end items-center gap-2 pr-3">
-                            <span class="text-xs text-gray-400 shrink-0">Set <span x-text="setIdx + 1"></span></span>
+                            <span class="text-xs text-gray-400 shrink-0 whitespace-nowrap">Set <span x-text="setIdx + 1"></span></span>
                             <input type="number" min="0" max="99"
                                    :value="match.sets[setIdx]?.[0] ?? ''"
-                                   @change="setScore(bi, mi, setIdx, 0, $event.target.value); saveScores()"
+                                   @input="setScore(bi, mi, setIdx, 0, $event.target.value)"
                                    :disabled="session.status === 'closed' || !isAdmin"
                                    class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
                                    :class="scoreInputClass(match, setIdx, 0)">
@@ -573,7 +599,7 @@
                           <div class="flex-1 pl-3">
                             <input type="number" min="0" max="99"
                                    :value="match.sets[setIdx]?.[1] ?? ''"
-                                   @change="setScore(bi, mi, setIdx, 1, $event.target.value); saveScores()"
+                                   @input="setScore(bi, mi, setIdx, 1, $event.target.value)"
                                    @keydown.tab="handleScoreTab(bi, mi, setIdx, $event)"
                                    :disabled="session.status === 'closed' || !isAdmin"
                                    class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
@@ -600,22 +626,22 @@
                     <table class="w-full text-sm border-collapse">
                       <thead>
                         <tr class="bg-gray-50 border-b">
-                          <th class="text-left px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide w-8">#</th>
-                          <th class="text-left px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Player</th>
-                          <th class="text-right px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Matches won</th>
-                          <th class="text-right px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Games (W−L)</th>
-                          <th class="text-right px-3 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Points (F−A)</th>
+                          <th class="text-left px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide w-8">#</th>
+                          <th class="text-left px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Player</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Won</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Games</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Points</th>
                         </tr>
                       </thead>
                       <tbody>
                         <template x-for="s in getBoxStandings(bi)" :key="s.name">
                           <tr class="border-b last:border-b-0 hover:bg-gray-50">
-                            <td class="px-3 py-2 text-xs font-bold text-gray-400" x-text="s.placing + '.'"></td>
-                            <td class="px-3 py-2" x-text="s.name"></td>
-                            <td class="px-3 py-2 text-right tabular-nums" x-text="s.matchesWon"></td>
-                            <td class="px-3 py-2 text-right tabular-nums"
+                            <td class="px-2 py-2 text-sm font-bold text-gray-500" x-text="s.placing + '.'"></td>
+                            <td class="px-2 py-2" x-text="boxDisplayName(box, box.players.indexOf(s.name))"></td>
+                            <td class="px-2 py-2 text-right tabular-nums" x-text="s.matchesWon"></td>
+                            <td class="px-2 py-2 text-right tabular-nums"
                                 x-text="(s.setsWon - s.setsLost >= 0 ? '+' : '') + (s.setsWon - s.setsLost)"></td>
-                            <td class="px-3 py-2 text-right tabular-nums"
+                            <td class="px-2 py-2 text-right tabular-nums"
                                 x-text="(s.pointsFor - s.pointsAgainst >= 0 ? '+' : '') + (s.pointsFor - s.pointsAgainst)"></td>
                           </tr>
                         </template>
@@ -739,6 +765,210 @@
                   :class="hcSync.running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"
                   class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700">
             Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- PLAYER VIEW                                                          -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div x-show="view === 'player' && player" class="max-w-3xl mx-auto px-4 py-4">
+
+    <!-- Tabs -->
+    <div class="flex border-b mb-4 no-print">
+      <button @click="playerTab = 1"
+              :class="playerTab === 1 ? 'border-b-2 border-blue-700 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'"
+              class="px-4 py-2 text-base -mb-px">Profile</button>
+    </div>
+
+    <!-- ── Tab 1: Profile ────────────────────────────────────────────── -->
+    <div x-show="playerTab === 1">
+
+      <!-- Action bar -->
+      <div x-show="isAdmin" class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-2 justify-end">
+        <template x-if="!_editingPlayer">
+          <div class="flex items-center gap-2">
+            <button @click="removePlayer()"
+                    class="text-sm border border-red-300 rounded px-3 py-1.5 text-red-600 hover:bg-red-50 font-medium mr-auto">
+              Remove player
+            </button>
+            <button @click="startEditPlayer()"
+                    class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-700 hover:bg-gray-50 font-medium">
+              Edit
+            </button>
+            <button @click="openHCSearch()"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium">
+              Find in HelloClub
+            </button>
+          </div>
+        </template>
+        <template x-if="_editingPlayer">
+          <div class="flex items-center gap-2">
+            <button @click="cancelEditPlayer()"
+                    class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button @click="savePlayerProfile()"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium">
+              Save
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <div class="space-y-4">
+
+          <!-- Name -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Name</span>
+            <span x-show="!_editingPlayer" class="text-sm font-medium" x-text="player?.name"></span>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.name"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700">
+          </div>
+
+          <!-- Email -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Email</span>
+            <span x-show="!_editingPlayer" class="text-sm"
+                  :class="player?.email ? 'text-gray-800' : 'text-gray-400 italic'"
+                  x-text="player?.email ?? 'Not set'"></span>
+            <input x-show="_editingPlayer" type="email" x-model="_playerDraft.email"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="email@example.com">
+          </div>
+
+          <!-- Preferred name -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Preferred</span>
+            <span x-show="!_editingPlayer" class="text-sm"
+                  :class="player?.preferred_name ? 'text-gray-800' : 'text-gray-400 italic'"
+                  x-text="player?.preferred_name ?? 'Not set'"></span>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.preferred_name"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="Short name used in boxes (blank to use first name)">
+          </div>
+
+          <!-- HelloClub ID -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">HelloClub</span>
+            <div x-show="!_editingPlayer" class="flex items-center gap-2">
+              <span class="text-sm font-mono text-gray-700" x-show="player?.hc_member_id" x-text="player?.hc_member_id"></span>
+              <span x-show="player?.hc_member_id"
+                    class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">LINKED</span>
+              <span x-show="!player?.hc_member_id"
+                    class="text-sm text-gray-400 italic">Not set</span>
+            </div>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.hc_member_id"
+                   @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 font-mono focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="HelloClub member ID (blank to unlink)">
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── HelloClub member search modal ──────────────────────────────── -->
+    <div x-show="_hcModal.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col" style="max-height:80vh">
+        <div class="px-5 py-4 border-b border-gray-200 shrink-0">
+          <h2 class="font-bold text-gray-800 mb-3">Find in HelloClub</h2>
+          <div class="flex gap-2">
+            <input type="search" x-model="_hcModal.query"
+                   @input="scheduleHCSearch()"
+                   @keydown.enter="doHCSearch()"
+                   class="border rounded px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="Search by name…">
+            <button @click="doHCSearch()"
+                    :disabled="_hcModal.loading"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 disabled:opacity-50">
+              Search
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <div x-show="_hcModal.loading" class="px-5 py-6 text-center text-sm text-gray-400 animate-pulse">
+            Searching…
+          </div>
+          <div x-show="!_hcModal.loading && _hcModal.results.length === 0 && _hcModal.query.trim()"
+               class="px-5 py-6 text-center text-sm text-gray-400">
+            No active members found.
+          </div>
+          <template x-for="m in _hcModal.results" :key="m.id">
+            <div class="flex items-center justify-between px-5 py-3 border-b last:border-b-0 hover:bg-gray-50">
+              <div class="min-w-0 mr-3">
+                <div class="text-sm font-medium" x-text="m.name"></div>
+                <div class="text-xs text-gray-400">
+                  <span x-show="m.number" x-text="'#' + m.number" class="mr-2"></span>
+                  <span x-show="m.email" x-text="m.email"></span>
+                </div>
+              </div>
+              <button @click="selectHCMember(m)"
+                      class="text-xs bg-blue-700 text-white rounded px-3 py-1.5 shrink-0">
+                Select
+              </button>
+            </div>
+          </template>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end shrink-0">
+          <button @click="_hcModal.open = false"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HC sync confirmation modal -->
+    <div x-show="_hcConfirm.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+        <div class="px-5 py-4 border-b border-gray-200">
+          <h2 class="font-bold text-gray-800">Sync from HelloClub</h2>
+          <p class="text-sm text-gray-500 mt-0.5"
+             x-text="_hcConfirm.member?.name + (_hcConfirm.member?.number ? ' (#' + _hcConfirm.member.number + ')' : '')"></p>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+          <template x-if="_hcConfirm.nameDiffers">
+            <label class="flex items-start gap-3 cursor-pointer select-none">
+              <input type="checkbox" x-model="_hcConfirm.updateName" class="mt-0.5 shrink-0">
+              <span class="text-sm">
+                Update name:
+                <span class="line-through text-gray-400" x-text="player?.name"></span>
+                → <span class="font-medium" x-text="_hcConfirm.member?.name"></span>
+              </span>
+            </label>
+          </template>
+          <template x-if="_hcConfirm.emailDiffers">
+            <label class="flex items-start gap-3 cursor-pointer select-none">
+              <input type="checkbox" x-model="_hcConfirm.updateEmail" class="mt-0.5 shrink-0">
+              <span class="text-sm">
+                Update email:
+                <span class="line-through text-gray-400" x-text="player?.email || '(none)'"></span>
+                → <span class="font-medium" x-text="_hcConfirm.member?.email"></span>
+              </span>
+            </label>
+          </template>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex gap-2 justify-end">
+          <button @click="_hcConfirm.open = false"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100">
+            Cancel
+          </button>
+          <button @click="confirmHCLink()"
+                  class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded hover:bg-blue-800">
+            Confirm
           </button>
         </div>
       </div>

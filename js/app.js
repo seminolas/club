@@ -34,7 +34,19 @@ function appData() {
     loginError: null,
 
     // Leaderboard
-    leaderboard: [],
+    leaderboard: [],        // string[] — names, rank order
+    _playerIds: {},
+    _playerHcIds: {},
+    _playerPreferredNames: {},  // id → preferred_name
+
+    // Player view
+    player: null,
+    playerTab: 1,
+    _editingPlayer: false,
+    _playerDraft: { name: '', email: '', hc_member_id: '', preferred_name: '' },
+    _hcModal: { open: false, query: '', results: [], loading: false },
+    _hcConfirm: { open: false, member: null, nameDiffers: false, emailDiffers: false, updateName: false, updateEmail: false },
+    _hcSearchTimer: null,
 
     // Sessions list — full objects {date, status, attendee_count}, newest first
     sessionList: [],
@@ -53,6 +65,8 @@ function appData() {
     addPlayerPos: null,
     showAddPlayer: false,
     _scoreSaveTimers: {},  // key: "bi-mi-si" → timer id
+    _pollInterval: null,
+    _dirtyScoreCells: new Set(),
 
     // HelloClub sync modal
     hcSync: { open: false, running: false, log: [] },
@@ -61,7 +75,7 @@ function appData() {
     _googleClientId: null,
 
     async init() {
-      this.isAdmin = Storage.autoLogin();
+      this.isAdmin = Storage.autoLogin() && Storage.isAdmin();
 
       // Load club config to get googleClientId for GIS initialization
       Storage.getConfig().then(cfg => {
@@ -87,7 +101,10 @@ function appData() {
 
     get filteredLeaderboard() {
       const q = this.homeSearch.trim().toLowerCase();
-      const ranked = this.leaderboard.map((name, i) => ({ name, rank: i + 1 }));
+      const ranked = this.leaderboard.map((name, i) => {
+        const id = this._playerIds[name];
+        return { id, name, rank: i + 1, hc_member_id: this._playerHcIds[id] ?? null };
+      });
       return q ? searchRanked(ranked, q) : ranked;
     },
 
@@ -107,6 +124,17 @@ function appData() {
         return;
       }
 
+      // Player profile: /players/:id — admin only
+      const playerM = hash.match(/^\/players\/(\d+)/);
+      if (playerM) {
+        if (!this.isAdmin) { location.hash = '/'; return; }
+        const id = parseInt(playerM[1]);
+        if (this.view !== 'player' || this.player?.id !== id) {
+          await this.openPlayer(id);
+        }
+        return;
+      }
+
       // Session: /YYYY-MM-DD or /YYYY-MM-DD/tab
       const m = hash.match(/^\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
       if (m) {
@@ -123,6 +151,7 @@ function appData() {
 
       // Home tabs
       this.view = 'home';
+      this._stopPolling();
       if (hash === '/sessions') this.homeTab = 2;
       else this.homeTab = 1;
     },
@@ -169,7 +198,7 @@ function appData() {
       this.loginError = null;
       try {
         await Storage.loginWithGoogleToken(response.credential);
-        this.isAdmin = true;
+        this.isAdmin = Storage.isAdmin();
         this.showLogin = false;
       } catch (e) {
         this.loginError = e.message;
@@ -181,13 +210,36 @@ function appData() {
       this.isAdmin = false;
     },
 
+    // Transforms raw session API response: extracts names for internal state (algorithm.js
+    // and display code work with string arrays), merges player IDs into _playerIds map.
+    _transformSession(raw) {
+      const merge = (arr) => (arr ?? []).forEach(p => { if (p?.id && p?.name) this._playerIds[p.name] = p.id; });
+      const names = (arr) => (arr ?? []).map(p => p.name);
+      merge(raw.leaderboardBefore);
+      merge(raw.leaderboardAfter);
+      merge(raw.attendees);
+      (raw.boxes ?? []).forEach(b => merge(b.players));
+      return {
+        ...raw,
+        leaderboardBefore: names(raw.leaderboardBefore),
+        leaderboardAfter: raw.leaderboardAfter ? names(raw.leaderboardAfter) : null,
+        attendees: names(raw.attendees),
+        boxes: (raw.boxes ?? []).map(b => ({ ...b, players: names(b.players) })),
+      };
+    },
+
     // ── Home ───────────────────────────────────────────────────────────────
     async loadHome() {
       this.loading = true;
       this.error = null;
       try {
         const lb = await Storage.getLeaderboard();
-        if (lb) this.leaderboard = lb.content.players;
+        if (lb) {
+          this.leaderboard = lb.content.players.map(p => p.name);
+          this._playerIds = Object.fromEntries(lb.content.players.map(p => [p.name, p.id]));
+          this._playerHcIds = Object.fromEntries(lb.content.players.map(p => [p.id, p.hc_member_id ?? null]));
+          this._playerPreferredNames = Object.fromEntries(lb.content.players.filter(p => p.preferred_name).map(p => [p.id, p.preferred_name]));
+        }
 
         this.sessionList = await Storage.listSessions();
         if (this.sessionList.length > 0) {
@@ -235,7 +287,15 @@ function appData() {
       this.loading = true;
       try {
         await Storage.saveLeaderboard(players);
-        this.leaderboard = players;
+        const lb = await Storage.getLeaderboard();
+        if (lb) {
+          this.leaderboard = lb.content.players.map(p => p.name);
+          this._playerIds = Object.fromEntries(lb.content.players.map(p => [p.name, p.id]));
+          this._playerHcIds = Object.fromEntries(lb.content.players.map(p => [p.id, p.hc_member_id ?? null]));
+          this._playerPreferredNames = Object.fromEntries(lb.content.players.filter(p => p.preferred_name).map(p => [p.id, p.preferred_name]));
+        } else {
+          this.leaderboard = players;
+        }
         this.showToast(`Imported ${players.length} players.`);
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -275,7 +335,7 @@ function appData() {
       this.loading = true;
       try {
         const result = await Storage.createSession(date);
-        this.session = result.content;
+        this.session = this._transformSession(result.content);
         this.sessionList = [{ date, status: 'attendance', attendee_count: 0 }, ...this.sessionList.filter(s => s.date !== date)];
         this.sessionTab = 1;
         this.view = 'session';
@@ -292,7 +352,7 @@ function appData() {
       try {
         const result = await Storage.getSession(date);
         if (!result) { this.showToast('Session not found.', 'error'); return; }
-        this.session = result.content;
+        this.session = this._transformSession(result.content);
         this.mostRecentSessionStatus = result.content.status;
         this.sessionTab = 1;
         this.view = 'session';
@@ -302,8 +362,13 @@ function appData() {
 
         if (this.leaderboard.length === 0) {
           const lb = await Storage.getLeaderboard();
-          if (lb) this.leaderboard = lb.content.players;
+          if (lb) {
+            this.leaderboard = lb.content.players.map(p => p.name);
+            lb.content.players.forEach(p => { this._playerIds[p.name] = p.id; this._playerHcIds[p.id] = p.hc_member_id ?? null; if (p.preferred_name) this._playerPreferredNames[p.id] = p.preferred_name; });
+          }
         }
+
+        this._startPolling();
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -345,7 +410,7 @@ function appData() {
       }
 
       try {
-        await Storage.setAttendance(this.session.date, name, !wasAttending);
+        await Storage.setAttendance(this.session.date, this._playerIds[name], !wasAttending);
       } catch (e) {
         // Roll back optimistic update
         if (wasAttending) {
@@ -454,12 +519,13 @@ function appData() {
 
       this.loading = true;
       try {
-        await Storage.addPlayer(name, insertIdx + 1, this.session.date);
+        const added = await Storage.addPlayer(name, insertIdx + 1, this.session.date);
 
         // Update local leaderboard
         const newLeaderboard = [...this.leaderboard];
         newLeaderboard.splice(insertIdx, 0, name);
         this.leaderboard = newLeaderboard;
+        if (added?.id) this._playerIds = { ...this._playerIds, [name]: added.id };
 
         // Update session's leaderboardBefore (only valid in attendance state)
         if (this.session?.status === 'attendance') {
@@ -498,7 +564,8 @@ function appData() {
       const boxes = assignBoxes(sorted);
       this.loading = true;
       try {
-        await Storage.saveBoxes(this.session.date, boxes);
+        const boxesForApi = boxes.map(box => ({ ...box, players: box.players.map(name => this._playerIds[name]) }));
+        await Storage.saveBoxes(this.session.date, boxesForApi);
         this.session.boxes = boxes;
         this.session.status = 'games';
         this._syncSessionStatus(this.session.date, 'games');
@@ -518,6 +585,8 @@ function appData() {
     },
 
     firstName(name) {
+      const id = this._playerIds[name];
+      if (id && this._playerPreferredNames[id]) return this._playerPreferredNames[id];
       const clean = cleanName(name);
       return clean.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]+/)?.[0] ?? clean.trim();
     },
@@ -598,7 +667,10 @@ function appData() {
       if (sets.length > 2 && isSetComplete(sets[0]?.[0], sets[0]?.[1]) && isSetComplete(sets[1]?.[0], sets[1]?.[1])) {
         const p1Won0 = Number(sets[0][0]) > Number(sets[0][1]);
         const p1Won1 = Number(sets[1][0]) > Number(sets[1][1]);
-        if (p1Won0 === p1Won1) match.sets = match.sets.slice(0, 2);
+        if (p1Won0 === p1Won1) {
+        match.sets = match.sets.slice(0, 2);
+        this._scheduleScoreSave(bi, mi, 2, match); // delete third set from D1
+      }
       }
 
       this._scheduleScoreSave(bi, mi, si, match);
@@ -608,6 +680,7 @@ function appData() {
     _scheduleScoreSave(bi, mi, si, match) {
       const key = `${bi}-${mi}-${si}`;
       clearTimeout(this._scoreSaveTimers[key]);
+      this._dirtyScoreCells.add(key);
       this._scoreSaveTimers[key] = setTimeout(async () => {
         const [a, b] = match.sets[si] ?? ['', ''];
         try {
@@ -618,6 +691,8 @@ function appData() {
           );
         } catch (e) {
           this.showToast('Score save failed: ' + e.message, 'error');
+        } finally {
+          this._dirtyScoreCells.delete(key);
         }
       }, 1500);
     },
@@ -626,8 +701,69 @@ function appData() {
       // Kept for template compatibility — individual saves handled by _scheduleScoreSave.
     },
 
+    _startPolling() {
+      this._stopPolling();
+      this._pollInterval = setInterval(() => this._pollSession(), 3000);
+    },
+
+    _stopPolling() {
+      clearInterval(this._pollInterval);
+      this._pollInterval = null;
+    },
+
+    async _pollSession() {
+      if (this.view !== 'session' || !this.session) return;
+      try {
+        const result = await Storage.getSession(this.session.date);
+        if (result?.content) this._mergeSessionState(this._transformSession(result.content));
+      } catch (e) {
+        console.warn('Poll error:', e);
+      }
+    },
+
+    _mergeSessionState(remote) {
+      if (!this.session || this.session.date !== remote.date) return;
+
+      if (remote.status !== this.session.status) {
+        this.session.status = remote.status;
+        this._syncSessionStatus(remote.date, remote.status);
+        if (remote.status === 'closed' && remote.leaderboardAfter) {
+          this.session.leaderboardAfter = remote.leaderboardAfter;
+        }
+      }
+
+      if (remote.status === 'attendance') {
+        this.session.attendees = remote.attendees;
+      }
+
+      if (remote.boxes?.length && this.session.boxes?.length) {
+        const boxCount = Math.min(remote.boxes.length, this.session.boxes.length);
+        for (let bi = 0; bi < boxCount; bi++) {
+          const remoteBox = remote.boxes[bi];
+          const localBox = this.session.boxes[bi];
+          const matchCount = Math.min(remoteBox.matches.length, localBox.matches.length);
+          for (let mi = 0; mi < matchCount; mi++) {
+            const remoteSets = remoteBox.matches[mi].sets ?? [];
+            const localMatch = localBox.matches[mi];
+
+            for (let si = 0; si < remoteSets.length; si++) {
+              if (this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) continue;
+              while (localMatch.sets.length <= si) localMatch.sets.push(['', '']);
+              localMatch.sets[si] = [...remoteSets[si]];
+            }
+
+            for (let si = localMatch.sets.length - 1; si >= remoteSets.length; si--) {
+              if (!this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) {
+                localMatch.sets.splice(si, 1);
+              }
+            }
+          }
+        }
+      }
+    },
+
     handleScoreTab(bi, mi, setIdx, event) {
-      if (setIdx !== 1) return;
+      if (setIdx !== 1 || event.shiftKey) return;
       event.preventDefault();
       this.setScore(bi, mi, 1, 1, event.target.value);
       const currentEl = event.target;
@@ -662,9 +798,10 @@ function appData() {
 
       const newLeaderboard = applyLeaderboardUpdate(this.session.boxes, this.session.leaderboardBefore);
 
+      const newLeaderboardIds = newLeaderboard.map(name => this._playerIds[name]);
       this.loading = true;
       try {
-        await Storage.closeSession(this.session.date, newLeaderboard);
+        await Storage.closeSession(this.session.date, newLeaderboardIds);
         this.session.leaderboardAfter = newLeaderboard;
         this.session.status = 'closed';
         this._syncSessionStatus(this.session.date, 'closed');
@@ -763,6 +900,144 @@ function appData() {
       ];
 
       window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
+    },
+
+    // ── Player view ────────────────────────────────────────────────────────
+    async openPlayer(id) {
+      this.loading = true;
+      try {
+        this.player = await Storage.getPlayer(id);
+        this.view = 'player';
+        this.playerTab = 1;
+        this._editingPlayer = false;
+        this._stopPolling();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    startEditPlayer() {
+      this._playerDraft = { name: this.player.name ?? '', email: this.player.email ?? '', hc_member_id: this.player.hc_member_id ?? '', preferred_name: this.player.preferred_name ?? '' };
+      this._editingPlayer = true;
+    },
+
+    cancelEditPlayer() { this._editingPlayer = false; },
+
+    async removePlayer() {
+      if (!this.player) return;
+      if (!confirm(`Remove "${this.player.name}" permanently? This cannot be undone.`)) return;
+      try {
+        await Storage.deletePlayer(this.player.id);
+        const name = this.player.name;
+        this.leaderboard = this.leaderboard.filter(n => n !== name);
+        delete this._playerIds[name];
+        delete this._playerHcIds[this.player.id];
+        delete this._playerPreferredNames[this.player.id];
+        window.location.hash = '/';
+        this.showToast(`${name} removed.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    async savePlayerProfile() {
+      if (!this.player) return;
+      try {
+        const name = this._playerDraft.name.trim();
+        const email = this._playerDraft.email.trim() || null;
+        const hc_member_id = this._playerDraft.hc_member_id.trim() || null;
+        const preferred_name = this._playerDraft.preferred_name.trim() || null;
+        if (!name) { this.showToast('Name cannot be empty.', 'error'); return; }
+        await Storage.updatePlayer(this.player.id, { name, email, hc_member_id, preferred_name });
+        if (name !== this.player.name) {
+          const oldName = this.player.name;
+          this._playerIds[name] = this._playerIds[oldName];
+          delete this._playerIds[oldName];
+          const idx = this.leaderboard.indexOf(oldName);
+          if (idx !== -1) this.leaderboard[idx] = name;
+        }
+        this.player.name = name;
+        this.player.email = email;
+        this.player.hc_member_id = hc_member_id;
+        this.player.preferred_name = preferred_name;
+        this._playerHcIds[this.player.id] = hc_member_id;
+        if (preferred_name) this._playerPreferredNames[this.player.id] = preferred_name;
+        else delete this._playerPreferredNames[this.player.id];
+        this._editingPlayer = false;
+        this.showToast('Profile saved.');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    openHCSearch() {
+      this._hcModal = { open: true, query: this.player?.name ?? '', results: [], loading: false };
+      this.$nextTick(() => this.doHCSearch());
+    },
+
+    scheduleHCSearch() {
+      clearTimeout(this._hcSearchTimer);
+      this._hcSearchTimer = setTimeout(() => this.doHCSearch(), 400);
+    },
+
+    async doHCSearch() {
+      const q = this._hcModal.query.trim();
+      if (!q) { this._hcModal.results = []; return; }
+      this._hcModal.loading = true;
+      try {
+        const data = await Storage.searchHCMembers(q);
+        this._hcModal.results = data.members ?? [];
+      } catch (e) {
+        this.showToast('HC search failed: ' + e.message, 'error');
+        this._hcModal.results = [];
+      } finally {
+        this._hcModal.loading = false;
+      }
+    },
+
+    selectHCMember(m) {
+      if (!this.player) return;
+      const nameDiffers = m.name.trim() !== this.player.name.trim();
+      const emailDiffers = !!m.email && m.email.trim() !== (this.player.email ?? '').trim();
+      if (!nameDiffers && !emailDiffers) {
+        this._doLink(m, {});
+        return;
+      }
+      this._hcModal.open = false;
+      this._hcConfirm = { open: true, member: m, nameDiffers, emailDiffers, updateName: nameDiffers, updateEmail: emailDiffers };
+    },
+
+    async confirmHCLink() {
+      const { member, updateName, updateEmail } = this._hcConfirm;
+      this._hcConfirm.open = false;
+      const extra = {};
+      if (updateName) extra.name = member.name;
+      if (updateEmail) extra.email = member.email;
+      await this._doLink(member, extra);
+    },
+
+    async _doLink(m, extra) {
+      if (!this.player) return;
+      try {
+        await Storage.updatePlayer(this.player.id, { hc_member_id: m.id, ...extra });
+        this.player.hc_member_id = m.id;
+        this._playerHcIds[this.player.id] = m.id;
+        if (extra.name) {
+          const oldName = this.player.name;
+          this.player.name = extra.name;
+          this._playerIds[extra.name] = this._playerIds[oldName];
+          delete this._playerIds[oldName];
+          const idx = this.leaderboard.indexOf(oldName);
+          if (idx !== -1) this.leaderboard[idx] = extra.name;
+        }
+        if (extra.email) this.player.email = extra.email;
+        this._hcModal.open = false;
+        this.showToast(`Linked to ${m.name}.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
     },
 
     // ── HelloClub sync ─────────────────────────────────────────────────────

@@ -4,21 +4,22 @@
 
 const Storage = (() => {
   const JWT_KEY = 'club_jwt';
-  const ROLE_KEY = 'club_role';
+  const ROLES_KEY = 'club_roles';
 
   // Worker serves both the static HTML/JS and the API from the same origin.
   // Relative /api/... paths work for prod, staging, and local wrangler dev.
   const API_BASE = '';
 
   let _jwt = null;
-  let _role = null;
+  let _roles = [];
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   // Restore session from localStorage (called on app init).
   function autoLogin() {
     _jwt = localStorage.getItem(JWT_KEY);
-    _role = localStorage.getItem(ROLE_KEY);
+    const stored = localStorage.getItem(ROLES_KEY);
+    _roles = stored ? JSON.parse(stored) : [];
     return !!_jwt;
   }
 
@@ -34,28 +35,28 @@ const Storage = (() => {
     }
     const data = await res.json();
     _jwt = data.token;
-    _role = data.role;
+    _roles = data.roles ?? [];
     localStorage.setItem(JWT_KEY, _jwt);
-    localStorage.setItem(ROLE_KEY, _role);
-    return _role;
+    localStorage.setItem(ROLES_KEY, JSON.stringify(_roles));
+    return _roles;
   }
 
   function logout() {
     _jwt = null;
-    _role = null;
+    _roles = [];
     localStorage.removeItem(JWT_KEY);
-    localStorage.removeItem(ROLE_KEY);
+    localStorage.removeItem(ROLES_KEY);
   }
 
-  function isAdmin() { return !!_jwt; }
-  function getRole() { return _role; }
+  function isAdmin() { return _roles.includes('admin') || _roles.includes('owner'); }
+  function getRoles() { return _roles; }
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────
 
   function apiFetch(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
     if (_jwt) headers['Authorization'] = `Bearer ${_jwt}`;
-    return fetch(API_BASE + path, { ...options, headers });
+    return fetch(API_BASE + path, { cache: 'no-store', ...options, headers });
   }
 
   async function apiJSON(path, options = {}) {
@@ -104,10 +105,10 @@ const Storage = (() => {
     return apiJSON(`/api/sessions/${date}`, { method: 'DELETE' });
   }
 
-  async function setAttendance(date, playerName, attending) {
+  async function setAttendance(date, playerId, attending) {
     const res = await apiJSON(`/api/sessions/${date}/attendance`, {
       method: 'PUT',
-      body: JSON.stringify({ player_name: playerName, attending }),
+      body: JSON.stringify({ player_id: playerId, attending }),
     });
     return res;
   }
@@ -132,10 +133,10 @@ const Storage = (() => {
     });
   }
 
-  async function closeSession(date, leaderboardAfter) {
+  async function closeSession(date, leaderboardAfterIds) {
     await apiJSON(`/api/sessions/${date}/close`, {
       method: 'POST',
-      body: JSON.stringify({ leaderboard_after: leaderboardAfter }),
+      body: JSON.stringify({ leaderboard_after: leaderboardAfterIds }),
     });
   }
 
@@ -156,6 +157,27 @@ const Storage = (() => {
     return apiJSON(`/api/sessions/${date}/reopen-attendance`, { method: 'POST' });
   }
 
+  // ── Players ───────────────────────────────────────────────────────────────
+
+  async function getPlayer(id) {
+    return apiJSON(`/api/players/${id}`);
+  }
+
+  async function updatePlayer(id, fields) {
+    return apiJSON(`/api/players/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    });
+  }
+
+  async function deletePlayer(id) {
+    return apiJSON(`/api/players/${id}`, { method: 'DELETE' });
+  }
+
+  async function searchHCMembers(q) {
+    return apiJSON(`/api/hc/members?q=${encodeURIComponent(q)}`);
+  }
+
   // ── HelloClub sync ────────────────────────────────────────────────────────
 
   async function syncHelloClub(sessionDate) {
@@ -172,12 +194,13 @@ const Storage = (() => {
   }
 
   return {
-    autoLogin, loginWithGoogleToken, logout, isAdmin, getRole,
+    autoLogin, loginWithGoogleToken, logout, isAdmin, getRoles,
     getLeaderboard, saveLeaderboard,
     listSessions, getSession, createSession, deleteSession,
     setAttendance, saveBoxes, updateScore, closeSession,
     reopenSession, reopenAttendance,
-    addPlayer,
+    addPlayer, getPlayer, updatePlayer, deletePlayer,
+    searchHCMembers,
     syncHelloClub, getConfig,
   };
 })();
