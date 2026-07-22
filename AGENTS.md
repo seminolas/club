@@ -9,7 +9,7 @@ Comprehensive context for AI agents working on this codebase.
 ```
 GitHub repo: seminolas/club  (branch: master)
 │
-├── Static assets (index.html, js/, data/) ← served by Cloudflare Workers assets
+├── Static assets (index.html, js/) ← served by Cloudflare Workers assets
 └── worker/                                ← Cloudflare Worker (Hono API)
     ├── src/index.ts                       ← all API routes
     ├── src/auth.ts                        ← Google JWT verification + requireAdmin middleware
@@ -55,10 +55,9 @@ There is no build step for the frontend. The Worker compiles `src/index.ts` via 
 │   ├── storage.js      # HTTP client — wraps all /api/* calls
 │   ├── algorithm.js    # box assignment + leaderboard update logic (pure functions)
 │   └── csv.js          # CSV import/export helpers
-├── data/
-│   └── helloclub-members.json  # legacy HC member mapping (unused in Workers version)
-├── stats.html          # analytics dashboard (live-fetch, Observable Plot + Grid.js)
-├── stats2.html         # analytics dashboard v2
+├── temp/               # scratch/experimental files (not served by Worker)
+│   ├── stats.html      # analytics dashboard experiment (Observable Plot + Grid.js)
+│   └── stats2.html     # analytics dashboard v2 experiment
 └── worker/
     ├── wrangler.toml
     ├── src/
