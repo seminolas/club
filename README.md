@@ -47,8 +47,3 @@ Migrations live in `worker/migrations/`. They are applied manually — wrangler 
 
 `HC_CLUB_ID` and `HC_CLUB_SLUG` are plain vars in `wrangler.toml`.
 
-## Analytics dashboards
-
-`stats.html` and `stats2.html` at the repo root are standalone analytics pages
-(Observable Plot + Grid.js) served as static assets. They fetch live data from
-the `/api/sessions` and `/api/leaderboard` endpoints.
