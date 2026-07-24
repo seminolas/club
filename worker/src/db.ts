@@ -12,8 +12,10 @@ export async function getLeaderboardPlayers(
     .prepare(`
       SELECT p.id, p.name, p.hc_member_id, p.preferred_name FROM players p
       JOIN session_ranks sr ON sr.player_id = p.id
+      LEFT JOIN sessions s ON s.id = sr.session_id
       WHERE p.club_id = ? AND p.archived_at IS NULL
         AND sr.session_id IS (SELECT id FROM sessions WHERE club_id = ? ORDER BY date DESC LIMIT 1)
+        AND sr.phase = CASE WHEN COALESCE(s.status, 'closed') = 'closed' THEN 'after' ELSE 'before' END
       ORDER BY sr.rank_position
     `)
     .bind(clubId, clubId)
@@ -30,9 +32,10 @@ export async function getPlayerByName(
     .first<{ id: number; name: string }>();
 }
 
-// Get ranked players for a given session_id (NULL = seed).
+// Get ranked players for a given session_id and phase.
+// Seed rows (session_id = null) have no phase distinction — all are returned.
 export async function getSessionRanks(
-  db: D1Database, sessionId: number | null
+  db: D1Database, sessionId: number | null, phase: 'before' | 'after' = 'after'
 ): Promise<{ id: number; name: string }[]> {
   const { results } = sessionId === null
     ? await db
@@ -47,37 +50,26 @@ export async function getSessionRanks(
         .prepare(`
           SELECT p.id, p.name FROM session_ranks sr
           JOIN players p ON p.id = sr.player_id
-          WHERE sr.session_id = ?
+          WHERE sr.session_id = ? AND sr.phase = ?
           ORDER BY sr.rank_position
         `)
-        .bind(sessionId)
+        .bind(sessionId, phase)
         .all<{ id: number; name: string }>();
   return results;
 }
 
-// Returns the id of the session immediately before the given one, or null if first.
-export async function getPrevSessionId(
-  db: D1Database, sessionId: number
-): Promise<number | null> {
-  const row = await db
-    .prepare('SELECT id FROM sessions WHERE date < (SELECT date FROM sessions WHERE id = ?) ORDER BY date DESC LIMIT 1')
-    .bind(sessionId)
-    .first<{ id: number }>();
-  return row?.id ?? null;
-}
-
-// Replace all session_ranks rows for a given session_id (NULL = seed).
-// Deletes existing rows first, then inserts playerIds in rank order.
+// Replace all session_ranks rows for a given session_id and phase.
+// Seed rows (session_id = null) are always phase 'after' — all seed rows are replaced.
 export async function setSessionRanks(
-  db: D1Database, sessionId: number | null, playerIds: number[]
+  db: D1Database, sessionId: number | null, playerIds: number[], phase: 'before' | 'after' = 'after'
 ): Promise<void> {
   if (playerIds.length === 0) return;
   const deleteStmt = sessionId === null
     ? db.prepare('DELETE FROM session_ranks WHERE session_id IS NULL')
-    : db.prepare('DELETE FROM session_ranks WHERE session_id = ?').bind(sessionId);
+    : db.prepare('DELETE FROM session_ranks WHERE session_id = ? AND phase = ?').bind(sessionId, phase);
   const insertStmts = playerIds.map((pid, i) =>
-    db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) VALUES (?, ?, ?)')
-      .bind(sessionId, pid, i + 1)
+    db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position, phase) VALUES (?, ?, ?, ?)')
+      .bind(sessionId, pid, i + 1, phase)
   );
   await db.batch([deleteStmt, ...insertStmts]);
 }
@@ -507,8 +499,8 @@ export async function addPlayerMidSession(
   insertRank: number,
 ): Promise<number> {
   await db.batch([
-    // Shift ranks down in the open session's working state
-    db.prepare('UPDATE session_ranks SET rank_position = rank_position + 1 WHERE session_id = ? AND rank_position >= ?')
+    // Shift ranks down in the open session's before-state
+    db.prepare("UPDATE session_ranks SET rank_position = rank_position + 1 WHERE session_id = ? AND phase = 'before' AND rank_position >= ?")
       .bind(sessionId, insertRank),
     db.prepare('INSERT INTO players (club_id, name) VALUES (?, ?)')
       .bind(clubId, name),
@@ -522,7 +514,7 @@ export async function addPlayerMidSession(
   if (!newPlayer) throw new Error('Failed to insert player');
 
   await db.batch([
-    db.prepare('INSERT INTO session_ranks (session_id, player_id, rank_position) VALUES (?, ?, ?)')
+    db.prepare("INSERT INTO session_ranks (session_id, player_id, rank_position, phase) VALUES (?, ?, ?, 'before')")
       .bind(sessionId, newPlayer.id, insertRank),
     db.prepare('INSERT INTO attendees (session_id, player_id) VALUES (?, ?)')
       .bind(sessionId, newPlayer.id),
