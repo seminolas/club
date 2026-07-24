@@ -43,6 +43,28 @@ There is no build step for the frontend. The Worker compiles `src/index.ts` via 
 
 **Commit before deploying** — wrangler deploys from the filesystem, not from git. It's easy to deploy uncommitted changes. Check `git status` first.
 
+**Local wrangler (v3) may fail against D1 with an auth error** — use `npx wrangler@4` for D1 commands if this happens.
+
+---
+
+## Staging refresh (GitHub Action)
+
+`.github/workflows/staging-refresh.yml` runs on every push to `master`:
+
+1. Exports prod D1 to a SQL dump
+2. Wipes staging — drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`
+3. Loads the prod dump into staging
+
+Staging receives prod's already-migrated schema via the dump, so **apply new migrations to prod before pushing to master** — the refresh picks them up automatically from the dump.
+
+**If you add a new table to the schema**, update the wipe step in `staging-refresh.yml`. Add the table to the `DROP TABLE IF EXISTS` list in child-before-parent order (leaf/child tables before the parent tables they reference). Missing entries cause the wipe to fail with `FOREIGN KEY constraint failed` on whichever parent table is dropped before its child. The current order:
+
+```
+match_players → match_sets → matches → box_players → boxes
+→ attendees → player_roles → player_auth_profiles → session_ranks
+→ session_lb → sessions → club_admins → roles → players → clubs → d1_migrations
+```
+
 ---
 
 ## Repo structure
@@ -218,3 +240,22 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
 - **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. The `players.current_rank` column exists but is not the source of truth for ordering.
 - **Box assignment algorithm:** boxes of 4 or 5 players; each player plays every other player. With 5 players, one sits out per match (rotation defined in `SITOUT_5` in `algorithm.js`). Players are sorted by leaderboard rank before assignment; the top N go in box 1, next N in box 2, etc.
+
+## Considerations for future work
+
+- i want to increase visual consistency/increase code re-use across pages. if the same or similar job is being done by multiple components or in different ways, look for opportunities to reduce duplication.
+- new code should fit neatly into existing architecture; if it doesn't we might need to refactor first
+
+
+## Future work
+
+- google auth token expiry doesn't log me out - I have to logout and back in again sometimes for write operations to work
+- need to support boxes of 6 and 7 in case only 6 or 7 people show up (but they are unweildy so if more than 30 show up we'll still prefer to run boxes of 5 even if they overflow the available courts (so e.g. 7 boxes across 6 courts))
+- need a better handling for user display names. we now have a concept of preferred names and some special handling of players names to make them shorter. I think we should just give everyone a unique display name (following similar rules as we do now for shortening) and just use those (and update user provisioning accordingly).
+- score entry UI is ok for desktop, not great for mobile. in the future I expect players to be entering scores themselves rather than me copying them from paper score sheets
+- should consider better score sheets in the interim; we could just have names instead of numbers, and maybe we don't need the grid as such, just one score entry per game. also clear set 1/2/3 slots. but would probably still need to have some way for players to calculate final placements (even though I ignore it, but some people just enjoy it better on paper).
+- stats is currently a standalone experiment, needs refining and working into the app
+- need to think about multi-tenancy. e.g. teenage kids group runs their box games the same way
+- whatsapp integration isn't really working - for whatever reason when I click "open app" from that whatsapp link it doesn't find my WA on my samsung phone, so I have to manually copy the text in. 
+- might want to store HC sync results somewhere as well
+- maybe improve HC sync to mark everyone who attended as attended in HC as well 

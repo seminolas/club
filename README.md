@@ -25,6 +25,20 @@ npx wrangler deploy --env staging      # staging
 
 **Do not deploy to staging with a real HC API key** — the staging HC key is intentionally nonsense to prevent accidental sync.
 
+## Staging refresh
+
+The **Refresh staging D1 from prod** GitHub Action (`.github/workflows/staging-refresh.yml`) runs on every push to `master`. It:
+
+1. Exports the prod D1 database to a SQL dump
+2. Wipes staging (drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`)
+3. Loads the prod dump into staging
+
+This keeps staging in sync with prod data so you can test against realistic state.
+
+**If you add a new table**, update the wipe step in `staging-refresh.yml` — add the new table name in child-before-parent order (leaf tables first). Missing tables cause the wipe to fail with a FK constraint error on whatever table references it.
+
+**Staging is not re-migrated after the refresh** — it receives prod's already-migrated schema via the dump. Apply new migrations to prod first, then push to master to trigger the refresh.
+
 ## DB migrations
 
 ```bash
