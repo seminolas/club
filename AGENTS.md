@@ -49,7 +49,7 @@ There is no build step for the frontend. The Worker compiles `src/index.ts` via 
 
 ## Staging refresh (GitHub Action)
 
-`.github/workflows/staging-refresh.yml` runs on every push to `master`:
+`.github/workflows/staging-refresh.yml` — triggered manually via the GitHub Actions UI, or automatically on push to the `staging` branch:
 
 1. Exports prod D1 to a SQL dump
 2. Wipes staging — drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`
