@@ -27,7 +27,7 @@ npx wrangler deploy --env staging      # staging
 
 ## Staging refresh
 
-The **Refresh staging D1 from prod** GitHub Action (`.github/workflows/staging-refresh.yml`) can be triggered manually from the GitHub Actions UI, or runs automatically on push to the `staging` branch. It:
+The **Refresh staging D1 from prod** GitHub Action (`.github/workflows/staging-refresh.yml`) is triggered manually from the GitHub Actions UI. It:
 
 1. Exports the prod D1 database to a SQL dump
 2. Wipes staging (drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`)
