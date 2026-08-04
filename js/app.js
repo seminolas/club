@@ -794,7 +794,11 @@ function appData() {
     // ── Close session ──────────────────────────────────────────────────────
     async closeSession() {
       if (!this.allScoresComplete) return;
-      if (!confirm('Close this session and update the leaderboard?')) return;
+      const isMostRecent = this.sessionList[0]?.date === this.session.date;
+      const confirmMsg = isMostRecent
+        ? 'Close this session and update the leaderboard?'
+        : 'Close this session?\n\nThis is not the most recent session — the leaderboard will not be affected.';
+      if (!confirm(confirmMsg)) return;
 
       const newLeaderboard = applyLeaderboardUpdate(this.session.boxes, this.session.leaderboardBefore);
 
@@ -805,10 +809,12 @@ function appData() {
         this.session.leaderboardAfter = newLeaderboard;
         this.session.status = 'closed';
         this._syncSessionStatus(this.session.date, 'closed');
-        this.leaderboard = newLeaderboard;
-        this.mostRecentSessionStatus = 'closed';
+        if (isMostRecent) {
+          this.leaderboard = newLeaderboard;
+          this.mostRecentSessionStatus = 'closed';
+        }
         this.setSessionTab(3);
-        this.showToast('Session closed. Leaderboard updated.');
+        this.showToast(isMostRecent ? 'Session closed. Leaderboard updated.' : 'Session closed.');
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -844,7 +850,11 @@ function appData() {
     },
 
     async enableEditing() {
-      if (!confirm('Re-open this session for editing?\n\nScores can be adjusted and re-closed to update the leaderboard.')) return;
+      const isLatest = this.sessionList[0]?.date === this.session.date;
+      const reopenMsg = isLatest
+        ? 'Re-open this session for editing?\n\nScores can be adjusted and re-closed to update the leaderboard.'
+        : 'Re-open this session for editing?\n\nScores can be adjusted and re-closed. This is not the most recent session — the leaderboard will not be affected.';
+      if (!confirm(reopenMsg)) return;
       this.loading = true;
       try {
         await Storage.reopenSession(this.session.date);
