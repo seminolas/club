@@ -2,11 +2,15 @@
 
 import type { Box, Match, SessionStatus } from './types';
 
+// Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
+// withSession('first-primary') wrapper) — both expose prepare()/batch().
+export type DB = Pick<D1Database, 'prepare' | 'batch'>;
+
 // ── Leaderboard / session_ranks ───────────────────────────────────────────────
 
 // Returns players ordered by their rank in the most recent session (or seed if none).
 export async function getLeaderboardPlayers(
-  db: D1Database, clubId: number
+  db: DB, clubId: number
 ): Promise<{ id: number; name: string; hc_member_id: string | null; preferred_name: string | null }[]> {
   const { results } = await db
     .prepare(`
@@ -24,7 +28,7 @@ export async function getLeaderboardPlayers(
 }
 
 export async function getPlayerByName(
-  db: D1Database, clubId: number, name: string
+  db: DB, clubId: number, name: string
 ): Promise<{ id: number; name: string } | null> {
   return db
     .prepare('SELECT id, name FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL')
@@ -35,7 +39,7 @@ export async function getPlayerByName(
 // Get ranked players for a given session_id and phase.
 // Seed rows (session_id = null) have no phase distinction — all are returned.
 export async function getSessionRanks(
-  db: D1Database, sessionId: number | null, phase: 'before' | 'after' = 'after'
+  db: DB, sessionId: number | null, phase: 'before' | 'after' = 'after'
 ): Promise<{ id: number; name: string }[]> {
   const { results } = sessionId === null
     ? await db
@@ -61,7 +65,7 @@ export async function getSessionRanks(
 // Replace all session_ranks rows for a given session_id and phase.
 // Seed rows (session_id = null) are always phase 'after' — all seed rows are replaced.
 export async function setSessionRanks(
-  db: D1Database, sessionId: number | null, playerIds: number[], phase: 'before' | 'after' = 'after'
+  db: DB, sessionId: number | null, playerIds: number[], phase: 'before' | 'after' = 'after'
 ): Promise<void> {
   if (playerIds.length === 0) return;
   const deleteStmt = sessionId === null
@@ -78,7 +82,7 @@ export async function setSessionRanks(
 // Writes through to both seed rows and the most recent session's ranks so the
 // live leaderboard reflects the import immediately.
 export async function replaceLeaderboard(
-  db: D1Database, clubId: number, names: string[]
+  db: DB, clubId: number, names: string[]
 ): Promise<void> {
   // Build name → lowest-id map across all players (including archived).
   // Lowest id = the "original" record; duplicates created by past buggy imports stay archived.
@@ -135,7 +139,7 @@ export async function replaceLeaderboard(
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 export async function getSessionByDate(
-  db: D1Database, clubId: number, date: string
+  db: DB, clubId: number, date: string
 ): Promise<{ id: number; date: string; status: SessionStatus; created_at: string; closed_at: string | null } | null> {
   return db
     .prepare('SELECT id, date, status, created_at, closed_at FROM sessions WHERE club_id = ? AND date = ?')
@@ -144,7 +148,7 @@ export async function getSessionByDate(
 }
 
 export async function listSessions(
-  db: D1Database, clubId: number
+  db: DB, clubId: number
 ): Promise<{ date: string; status: SessionStatus; attendee_count: number }[]> {
   const { results } = await db
     .prepare(`
@@ -161,7 +165,7 @@ export async function listSessions(
 }
 
 export async function createSession(
-  db: D1Database, clubId: number, date: string
+  db: DB, clubId: number, date: string
 ): Promise<number> {
   const result = await db
     .prepare("INSERT INTO sessions (club_id, date, status, created_at) VALUES (?, ?, 'attendance', datetime('now'))")
@@ -171,7 +175,7 @@ export async function createSession(
 }
 
 export async function updateSessionStatus(
-  db: D1Database, sessionId: number, status: SessionStatus, closedAt?: string
+  db: DB, sessionId: number, status: SessionStatus, closedAt?: string
 ): Promise<void> {
   if (closedAt) {
     await db
@@ -189,13 +193,13 @@ export async function updateSessionStatus(
 // ── Attendees ─────────────────────────────────────────────────────────────────
 
 export async function getAttendees(
-  db: D1Database, sessionId: number
+  db: DB, sessionId: number
 ): Promise<{ id: number; name: string }[]> {
   const { results } = await db
     .prepare(`
       SELECT p.id, p.name FROM attendees a
       JOIN players p ON p.id = a.player_id
-      LEFT JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id
+      LEFT JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id AND sr.phase = 'before'
       WHERE a.session_id = ?
       ORDER BY COALESCE(sr.rank_position, 9999)
     `)
@@ -205,7 +209,7 @@ export async function getAttendees(
 }
 
 export async function setAttendance(
-  db: D1Database, sessionId: number, playerId: number, attending: boolean
+  db: DB, sessionId: number, playerId: number, attending: boolean
 ): Promise<void> {
   if (attending) {
     await db
@@ -226,7 +230,7 @@ interface BoxRow { box_id: number; box_number: number; player_id: number; player
 interface MatchRow { match_id: number; box_id: number; match_number: number }
 interface SetRow { match_id: number; set_number: number; score_a: number | null; score_b: number | null }
 
-export async function getBoxes(db: D1Database, sessionId: number): Promise<Box[]> {
+export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
   const { results: boxRows } = await db
     .prepare(`
       SELECT b.id as box_id, b.box_number, p.id as player_id, p.name as player_name, bp.position
@@ -310,7 +314,7 @@ function getPairing(boxSize: number, matchNumber: number): { pair1: number[]; pa
   return table[matchNumber] ?? { pair1: [], pair2: [] };
 }
 
-export async function clearBoxes(db: D1Database, sessionId: number): Promise<void> {
+export async function clearBoxes(db: DB, sessionId: number): Promise<void> {
   const { results: boxIds } = await db
     .prepare('SELECT id FROM boxes WHERE session_id = ?')
     .bind(sessionId)
@@ -342,7 +346,7 @@ export async function clearBoxes(db: D1Database, sessionId: number): Promise<voi
   await db.batch(stmts);
 }
 
-export async function deleteSession(db: D1Database, sessionId: number): Promise<void> {
+export async function deleteSession(db: DB, sessionId: number): Promise<void> {
   await db.batch([
     db.prepare('DELETE FROM match_players WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)').bind(sessionId),
     db.prepare('DELETE FROM match_sets WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)').bind(sessionId),
@@ -356,7 +360,7 @@ export async function deleteSession(db: D1Database, sessionId: number): Promise<
 }
 
 export async function saveBoxes(
-  db: D1Database, sessionId: number, boxes: import('./types').BoxInput[]
+  db: DB, sessionId: number, boxes: import('./types').BoxInput[]
 ): Promise<void> {
   const stmts: D1PreparedStatement[] = [];
 
@@ -455,7 +459,7 @@ export async function saveBoxes(
 }
 
 export async function updateSetScore(
-  db: D1Database,
+  db: DB,
   sessionId: number,
   boxNumber: number,
   matchNumber: number,
@@ -492,7 +496,7 @@ export async function updateSetScore(
 // ── Players ───────────────────────────────────────────────────────────────────
 
 export async function addPlayerMidSession(
-  db: D1Database,
+  db: DB,
   clubId: number,
   sessionId: number,
   name: string,
@@ -524,7 +528,7 @@ export async function addPlayerMidSession(
 }
 
 export async function getPlayerById(
-  db: D1Database, clubId: number, id: number
+  db: DB, clubId: number, id: number
 ): Promise<{ id: number; name: string; email: string | null; hc_member_id: string | null; preferred_name: string | null } | null> {
   return db
     .prepare('SELECT id, name, email, hc_member_id, preferred_name FROM players WHERE club_id = ? AND id = ? AND archived_at IS NULL')
@@ -533,7 +537,7 @@ export async function getPlayerById(
 }
 
 export async function updatePlayerProfile(
-  db: D1Database, id: number, fields: { name?: string; email?: string | null; hc_member_id?: string | null; preferred_name?: string | null }
+  db: DB, id: number, fields: { name?: string; email?: string | null; hc_member_id?: string | null; preferred_name?: string | null }
 ): Promise<void> {
   const setParts: string[] = [];
   const values: unknown[] = [];
@@ -550,7 +554,7 @@ export async function updatePlayerProfile(
 }
 
 export async function deletePlayer(
-  db: D1Database, id: number
+  db: DB, id: number
 ): Promise<{ deleted: boolean; reason?: string }> {
   const counts = await db
     .prepare(`SELECT
@@ -572,7 +576,7 @@ export async function deletePlayer(
 // ── Auth profiles ─────────────────────────────────────────────────────────────
 
 export async function getAuthProfiles(
-  db: D1Database, playerId: number
+  db: DB, playerId: number
 ): Promise<{ provider: string; provider_id: string; email: string | null }[]> {
   const { results } = await db
     .prepare('SELECT provider, provider_id, email FROM player_auth_profiles WHERE player_id = ?')
@@ -582,7 +586,7 @@ export async function getAuthProfiles(
 }
 
 export async function findPlayerByAuthProfile(
-  db: D1Database, provider: string, providerId: string
+  db: DB, provider: string, providerId: string
 ): Promise<{ id: number; name: string; preferred_name: string | null } | null> {
   return db
     .prepare(`SELECT p.id, p.name, p.preferred_name
@@ -594,7 +598,7 @@ export async function findPlayerByAuthProfile(
 }
 
 export async function upsertAuthProfile(
-  db: D1Database, playerId: number, provider: string, providerId: string, email: string | null
+  db: DB, playerId: number, provider: string, providerId: string, email: string | null
 ): Promise<void> {
   await db
     .prepare(`INSERT INTO player_auth_profiles (player_id, provider, provider_id, email)
@@ -607,7 +611,7 @@ export async function upsertAuthProfile(
 // ── Club ──────────────────────────────────────────────────────────────────────
 
 export async function getClub(
-  db: D1Database, clubId: number
+  db: DB, clubId: number
 ): Promise<{ id: number; name: string; short_name: string | null; config: string } | null> {
   return db
     .prepare('SELECT id, name, short_name, config FROM clubs WHERE id = ?')
@@ -620,7 +624,7 @@ export async function getClub(
 export type RoleName = 'owner' | 'admin' | 'scorer' | 'player';
 
 export async function getPlayerRoles(
-  db: D1Database, playerId: number
+  db: DB, playerId: number
 ): Promise<RoleName[]> {
   const { results } = await db
     .prepare(`SELECT r.name FROM player_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.player_id = ?`)
@@ -630,7 +634,7 @@ export async function getPlayerRoles(
 }
 
 export async function addPlayerRole(
-  db: D1Database, playerId: number, role: RoleName
+  db: DB, playerId: number, role: RoleName
 ): Promise<void> {
   await db
     .prepare(`INSERT OR IGNORE INTO player_roles (player_id, role_id)
@@ -640,7 +644,7 @@ export async function addPlayerRole(
 }
 
 export async function removePlayerRole(
-  db: D1Database, playerId: number, role: RoleName
+  db: DB, playerId: number, role: RoleName
 ): Promise<void> {
   await db
     .prepare(`DELETE FROM player_roles WHERE player_id = ?
@@ -650,7 +654,7 @@ export async function removePlayerRole(
 }
 
 export async function hasPlayerRole(
-  db: D1Database, playerId: number, role: RoleName
+  db: DB, playerId: number, role: RoleName
 ): Promise<boolean> {
   const row = await db
     .prepare(`SELECT 1 FROM player_roles pr JOIN roles r ON r.id = pr.role_id
