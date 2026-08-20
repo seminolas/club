@@ -10,18 +10,28 @@
     [x-cloak] { display: none !important; }
     @media screen { .print-only { display: none !important; } }
     @media print {
-      @page { size: A4 landscape; margin: 1cm 1.5cm; }
+      @page { size: A4 landscape; margin: 0.6cm 1.5cm; }
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
       #print-area { position: absolute; inset: 0; }
       .no-print { display: none !important; }
       .print-page-break { page-break-after: always; }
-      .print-only { zoom: 0.85; }
+      /* "grid" layout only — one score cell per player per match, needs shrinking
+         to fit; the "cards" layout is sized to fit at full scale already. */
+      .print-only-grid { zoom: 0.85; }
       .sitout-cell {
         background-color: #6b7280 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
+    }
+    /* Not gated to @media print — the pill's dark fill should also show on
+       screen (in the digital preview) as well as in the printed sheet;
+       the print-color-adjust properties are what matter for the printed page. */
+    .game-pill {
+      background-color: #52525b !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
   </style>
 
@@ -415,9 +425,14 @@
                     x-text="anyBoxCollapsed ? '⊕ Expand all' : '⊖ Collapse all'">
             </button>
             <div class="flex items-center gap-2 ml-auto">
-              <button @click="printBoxes()"
+              <span class="text-sm text-gray-400 whitespace-nowrap">Scoresheets:</span>
+              <button @click="printBoxes('cards')"
                       class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
-                🖨 Scoresheets
+                🖨 Cards
+              </button>
+              <button @click="printBoxes('grid')"
+                      class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
+                🖨 Grid
               </button>
               <template x-if="isAdmin && session?.status === 'games'">
                 <button @click="assignBoxes()"
@@ -449,8 +464,111 @@
         <template x-for="(box, bi) in (session?.boxes ?? [])" :key="bi">
           <div :class="bi < (session?.boxes?.length - 1) ? 'print-page-break' : ''">
 
-            <!-- Print-only score sheet -->
+            <!-- Print-only score sheet: "cards" layout -->
+            <template x-if="printLayout === 'cards'">
             <div class="print-only mb-8">
+              <div class="flex items-center gap-4 mb-2">
+                <div class="flex items-center gap-3 shrink-0">
+                  <span class="text-xl font-bold text-gray-800">Box</span>
+                  <div class="flex items-center justify-center font-bold text-xl text-gray-800"
+                       style="width:2.4rem;height:2.4rem;border-radius:50%;border:2.5px solid #1f2937;"
+                       x-text="bi + 1"></div>
+                </div>
+                <div class="text-xl font-bold text-gray-800 uppercase border-l-2 border-gray-200 pl-4"
+                     x-text="box.players.map((_, pi) => boxDisplayName(box, pi)).join('  ·  ')"></div>
+              </div>
+
+              <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap:6px">
+                <template x-for="(match, mi) in box.matches" :key="mi">
+                  <div class="relative grid border-2 border-gray-700 rounded"
+                       :style="'grid-template-columns:1fr auto 1fr; align-items:center; column-gap:18px; height:' + cardHeightMm() + 'mm'">
+                    <div class="game-pill absolute text-white font-bold rounded-full"
+                         style="top:5px;left:8px;padding:2px 12px;font-size:12px;letter-spacing:0.3px">
+                      GAME <span x-text="mi + 1"></span>
+                    </div>
+                    <template x-if="box.players.length === 5">
+                      <div class="absolute font-semibold rounded-full text-gray-700 bg-white"
+                           style="bottom:5px;right:8px;padding:1px 10px;font-size:12px;border:1.5px solid #9ca3af">
+                        ✕ <span x-text="sitoutName(box, mi)"></span>
+                      </div>
+                    </template>
+                    <div class="flex flex-col items-center justify-self-center font-bold uppercase"
+                         style="font-size:14px;line-height:1.4">
+                      <span x-text="boxDisplayName(box, match.pair1[0])"></span>
+                      <span class="text-gray-400 normal-case font-normal" style="font-size:11px">&amp;</span>
+                      <span x-text="boxDisplayName(box, match.pair1[1])"></span>
+                    </div>
+                    <div class="flex flex-col items-center" style="gap:16px">
+                      <template x-for="setN in [1, 2, 3]" :key="setN">
+                        <div class="flex items-center" style="gap:8px">
+                          <div style="width:14mm;height:10mm;border:1.5px solid #9ca3af;border-radius:4px"></div>
+                          <span class="text-gray-400" style="font-size:13px">−</span>
+                          <div style="width:14mm;height:10mm;border:1.5px solid #9ca3af;border-radius:4px"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="flex flex-col items-center justify-self-center font-bold uppercase"
+                         style="font-size:14px;line-height:1.4">
+                      <span x-text="boxDisplayName(box, match.pair2[0])"></span>
+                      <span class="text-gray-400 normal-case font-normal" style="font-size:11px">&amp;</span>
+                      <span x-text="boxDisplayName(box, match.pair2[1])"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <div style="height:24px"></div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="border-2 border-gray-700 bg-gray-100 text-center px-3 py-1 text-sm font-bold uppercase">Totals</th>
+                    <template x-for="(name, pi) in box.players" :key="pi">
+                      <th class="border-2 border-gray-700 text-center px-2 py-1 font-bold text-sm uppercase leading-tight"
+                          x-text="boxDisplayName(box, pi)"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Matches Won</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Games (Won − Lost)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Points (For − Against)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="height:6px"></div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-base uppercase">Final Placing</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            </template>
+
+            <!-- Print-only score sheet: "grid" layout -->
+            <template x-if="printLayout === 'grid'">
+            <div class="print-only print-only-grid mb-8">
               <div class="flex items-center gap-3 mb-3">
                 <div class="flex items-center justify-center font-bold text-xl text-gray-800"
                      style="width:2.4rem;height:2.4rem;border-radius:50%;border:2.5px solid #1f2937;"
@@ -531,6 +649,7 @@
                 </tbody>
               </table>
             </div>
+            </template>
 
             <!-- Digital score entry -->
             <div class="no-print bg-white rounded-xl shadow mb-4" x-show="isBoxVisible(bi)"

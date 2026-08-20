@@ -68,6 +68,9 @@ function appData() {
     _pollInterval: null,
     _dirtyScoreCells: new Set(),
 
+    // Which print-only scoresheet layout to render — 'cards' or 'grid'
+    printLayout: 'cards',
+
     // HelloClub sync modal
     hcSync: { open: false, running: false, log: [] },
 
@@ -584,6 +587,29 @@ function appData() {
       return pairIndices.map(i => this.boxDisplayName(box, i)).join(' & ');
     },
 
+    // Name of the player sitting out a given match, for boxes of 5 (SITOUT_5
+    // is defined in algorithm.js). Boxes of 4 have no sit-out.
+    sitoutName(box, matchIndex) {
+      if (box.players.length !== 5) return '';
+      return this.boxDisplayName(box, SITOUT_5[matchIndex]);
+    },
+
+    // "grid" print layout: is this player the one sitting out this match?
+    isSitout(boxIndex, matchIndex, playerIndex) {
+      const box = this.session.boxes[boxIndex];
+      if (box.players.length !== 5) return false;
+      return SITOUT_5[matchIndex] === playerIndex;
+    },
+
+    // Printed scoresheet: each card's own content (header + pair label + 3 set
+    // rows) needs a fixed minimum height to avoid clipping — unlike a single
+    // full-width grid, a card's height can't shrink just because a box has
+    // more matches (more matches means more card-ROWS, stacked vertically,
+    // not shorter cards). This constant is tuned to fit that fixed content.
+    cardHeightMm() {
+      return 42;
+    },
+
     firstName(name) {
       const id = this._playerIds[name];
       if (id && this._playerPreferredNames[id]) return this._playerPreferredNames[id];
@@ -640,12 +666,6 @@ function appData() {
       const box = this.session?.boxes?.[bi];
       if (!box) return false;
       return box.matches.every(m => getMatchStatus(m) === 'complete');
-    },
-
-    isSitout(boxIndex, matchIndex, playerIndex) {
-      const box = this.session.boxes[boxIndex];
-      if (box.players.length !== 5) return false;
-      return SITOUT_5[matchIndex] === playerIndex;
     },
 
     setScore(bi, mi, si, side, value) {
@@ -1086,7 +1106,10 @@ function appData() {
     },
 
     // ── Print ──────────────────────────────────────────────────────────────
-    printBoxes() { window.print(); },
+    printBoxes(layout) {
+      this.printLayout = layout;
+      this.$nextTick(() => window.print());
+    },
 
     printLadder() {
       const isoDate = this.session?.date ?? this.selectedDate ?? '';
