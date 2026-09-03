@@ -192,16 +192,18 @@ function isValidSetForRules(lo, hi, winAt, cap) {
   return false;
 }
 
-// Valid badminton set under either the standard 21-point rules (deuce at
-// 20-all, capped at 30) or the old 15-point rules (deuce at 14-all, capped
-// at 21) — some boxes with unusual player counts play a mix of both.
+// Valid badminton set under any of the three point systems played at club
+// sessions: standard 21-point (deuce at 20, capped at 30), old 15-point
+// (deuce at 14, capped at 21), or 11-point (deuce at 10, capped at 15).
 function isValidSet(a, b) {
   a = Number(a); b = Number(b);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
   if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return false;
   if (a === b) return false;
   const hi = Math.max(a, b), lo = Math.min(a, b);
-  return isValidSetForRules(lo, hi, 21, 30) || isValidSetForRules(lo, hi, 15, 21);
+  return isValidSetForRules(lo, hi, 21, 30)
+    || isValidSetForRules(lo, hi, 15, 21)
+    || isValidSetForRules(lo, hi, 11, 15);
 }
 
 // True when both scores are present and form a valid set result.
