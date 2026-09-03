@@ -609,6 +609,7 @@ function appData() {
     },
 
     async confirmAssignBoxes() {
+      if (this.loading) return; // guard against a double-click firing two overlapping saves
       const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
       const sizes = options[selectedIndex]?.sizes;
       if (!sizes) return;

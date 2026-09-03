@@ -953,11 +953,15 @@
         </div>
         <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2 shrink-0">
           <button @click="closeBoxOptionsModal()"
-                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100">
+                  :disabled="loading"
+                  :class="loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700">
             Cancel
           </button>
           <button @click="confirmAssignBoxes()"
-                  class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded font-medium hover:bg-blue-800">
+                  :disabled="loading"
+                  :class="loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-800'"
+                  class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded font-medium">
             Assign
           </button>
         </div>
