@@ -13,57 +13,101 @@ const PAIRINGS_5 = [
   { pair1: [0,4], pair2: [1,3] },
 ];
 
-// Which player index sits out each match in a box of 5
-const SITOUT_5 = [3, 0, 1, 4, 2];
+const PAIRINGS_6 = [
+  { pair1: [0,5], pair2: [2,4] },
+  { pair1: [1,2], pair2: [0,3] },
+  { pair1: [1,4], pair2: [3,5] },
+  { pair1: [1,5], pair2: [0,2] },
+  { pair1: [2,5], pair2: [3,4] },
+  { pair1: [0,4], pair2: [1,3] },
+];
+
+const PAIRINGS_7 = [
+  { pair1: [0,1], pair2: [2,3] },
+  { pair1: [0,4], pair2: [1,5] },
+  { pair1: [0,2], pair2: [4,6] },
+  { pair1: [0,3], pair2: [5,6] },
+  { pair1: [1,6], pair2: [2,5] },
+  { pair1: [1,4], pair2: [3,6] },
+  { pair1: [2,4], pair2: [3,5] },
+];
 
 function getPairings(size) {
   if (size === 4) return PAIRINGS_4.map(p => ({ ...p, sets: [] }));
   if (size === 5) return PAIRINGS_5.map(p => ({ ...p, sets: [] }));
+  if (size === 6) return PAIRINGS_6.map(p => ({ ...p, sets: [] }));
+  if (size === 7) return PAIRINGS_7.map(p => ({ ...p, sets: [] }));
   // Fallback for unusual sizes: no matches defined
   return [];
 }
 
-// Divide attendees (in leaderboard order) into boxes.
-// Boxes of 4 come first, boxes of 5 come last.
-// Up to 30 players (6 courts × 5): cap total boxes at MAX_COURTS by preferring
-// 5-player boxes over creating a 7th box. Above 30 players the cap is lifted.
-// Returns array of box objects.
-const MAX_COURTS = 6;
-function assignBoxes(attendees) {
-  const n = attendees.length;
-  let numFours = 0, numFives = 0;
+// Players sitting out a given match — everyone in the box not named in either
+// pair. Empty for a box of 4 (nobody sits out); 1 player for a box of 5; 2 for
+// a box of 6; 3 for a box of 7.
+function getSitout(box, matchIndex) {
+  const match = box.matches[matchIndex];
+  if (!match) return [];
+  const playing = new Set([...match.pair1, ...match.pair2]);
+  return box.players.map((_, i) => i).filter(i => !playing.has(i));
+}
 
-  // For n ≤ MAX_COURTS*5 apply the court cap; above it use no cap.
-  const boxCap = n <= MAX_COURTS * 5 ? MAX_COURTS : Infinity;
-  let found = false;
-  for (let a = Math.floor(n / 4); a >= 0; a--) {
-    const rem = n - 4 * a;
-    if (rem >= 0 && rem % 5 === 0 && a + rem / 5 <= boxCap) {
-      numFours = a; numFives = rem / 5; found = true; break;
+// Every way to split n players into boxes of size 4, 5 or 6 (a box of 7 is
+// only ever offered on its own, for the exact-7-attendees case — see
+// PAIRINGS_7's doc comment). For a given total box count there is generally
+// exactly one combination of sizes that minimises "spread" (largest box size
+// minus smallest); where more than one combination ties for minimal spread
+// at that box count, all of them are kept — none is dropped.
+//
+// Returned options are ordered most boxes first (i.e. most 4s) down to
+// fewest boxes (i.e. most 6s), since that's the order the Assign Boxes modal
+// presents them in, defaulting to the top (most-boxes) entry.
+function boxSizeOptions(n) {
+  if (n === 7) return [{ sizes: [7], boxCount: 1 }];
+
+  const byCount = new Map(); // boxCount -> { spread, triples: [[a,b,c], ...] }
+  for (let c = 0; c * 6 <= n; c++) {
+    for (let b = 0; b * 5 + c * 6 <= n; b++) {
+      const rem = n - b * 5 - c * 6;
+      if (rem % 4 !== 0) continue;
+      const a = rem / 4;
+      const count = a + b + c;
+      if (count === 0) continue;
+
+      const present = [];
+      if (a > 0) present.push(4);
+      if (b > 0) present.push(5);
+      if (c > 0) present.push(6);
+      const spread = Math.max(...present) - Math.min(...present);
+
+      const existing = byCount.get(count);
+      if (!existing || spread < existing.spread) {
+        byCount.set(count, { spread, triples: [[a, b, c]] });
+      } else if (spread === existing.spread) {
+        existing.triples.push([a, b, c]);
+      }
     }
   }
-  // Fallback (no cap) — handles n > MAX_COURTS*5 and unsplittable edge cases
-  if (!found) {
-    for (let a = Math.floor(n / 4); a >= 0; a--) {
-      const rem = n - 4 * a;
-      if (rem >= 0 && rem % 5 === 0) { numFours = a; numFives = rem / 5; break; }
+
+  const options = [];
+  for (const [count, { triples }] of byCount) {
+    for (const [a, b, c] of triples) {
+      const sizes = [...Array(a).fill(4), ...Array(b).fill(5), ...Array(c).fill(6)];
+      options.push({ sizes, boxCount: count });
     }
   }
+  options.sort((x, y) => y.boxCount - x.boxCount);
+  return options;
+}
 
-  // Edge case: n can't be expressed as groups of 4 and 5 (e.g. 6 or 7 players)
-  if (numFours === 0 && numFives === 0) {
-    return [{ players: [...attendees], matches: [], edgeCase: true, finalPlacings: null }];
-  }
-
+// Slice attendees (already sorted, e.g. by leaderboard rank) into boxes of
+// the given sizes, smallest box first — one of the `sizes` arrays returned
+// by boxSizeOptions().
+function buildBoxesFromSizes(attendees, sizes) {
   const boxes = [];
   let idx = 0;
-  for (let i = 0; i < numFours; i++) {
-    boxes.push({ players: attendees.slice(idx, idx + 4), matches: getPairings(4), finalPlacings: null });
-    idx += 4;
-  }
-  for (let i = 0; i < numFives; i++) {
-    boxes.push({ players: attendees.slice(idx, idx + 5), matches: getPairings(5), finalPlacings: null });
-    idx += 5;
+  for (const size of sizes) {
+    boxes.push({ players: attendees.slice(idx, idx + size), matches: getPairings(size), finalPlacings: null });
+    idx += size;
   }
   return boxes;
 }
@@ -135,18 +179,29 @@ function computeBoxStandings(box, leaderboardBefore) {
 
 // ── Score validation ──────────────────────────────────────────────────────────
 
-// Valid badminton set: first to 21 (lead ≥2), deuce extension up to 30-28,
-// cap at 30-29 (at 29-29 the next point wins regardless of 2-point rule).
+// Is (lo, hi) a valid finish for a "first to `winAt`, win by 2, capped at
+// `cap`" game — e.g. standard 21-point badminton is winAt=21, cap=30: a
+// straightforward win at 21 (opponent ≤19), deuce extension by 2 once both
+// reach `winAt - 1` (20-all) up to 30-28, or the 30-29 sudden-death cap
+// (at 29-all the next point wins regardless of the 2-point rule).
+function isValidSetForRules(lo, hi, winAt, cap) {
+  const deuceAt = winAt - 1;
+  if (hi === winAt && lo <= deuceAt - 1) return true;
+  if (lo >= deuceAt && hi === lo + 2 && hi <= cap) return true;
+  if (hi === cap && lo === cap - 1) return true;
+  return false;
+}
+
+// Valid badminton set under either the standard 21-point rules (deuce at
+// 20-all, capped at 30) or the old 15-point rules (deuce at 14-all, capped
+// at 21) — some boxes with unusual player counts play a mix of both.
 function isValidSet(a, b) {
   a = Number(a); b = Number(b);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
   if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return false;
   if (a === b) return false;
   const hi = Math.max(a, b), lo = Math.min(a, b);
-  if (hi === 21 && lo <= 19) return true;
-  if (lo >= 20 && hi === lo + 2 && hi <= 30) return true;
-  if (hi === 30 && lo === 29) return true;
-  return false;
+  return isValidSetForRules(lo, hi, 21, 30) || isValidSetForRules(lo, hi, 15, 21);
 }
 
 // True when both scores are present and form a valid set result.
@@ -189,7 +244,6 @@ function getMatchStatus(match) {
 // Determine whether all matches in all boxes are complete with valid scores.
 function allScoresComplete(boxes) {
   for (const box of boxes) {
-    if (box.edgeCase) continue;
     for (const match of box.matches) {
       if (getMatchStatus(match) !== 'complete') return false;
     }
@@ -280,7 +334,9 @@ function formatDate(isoDate) {
 if (typeof module !== 'undefined') {
   module.exports = {
     getPairings,
-    assignBoxes,
+    getSitout,
+    boxSizeOptions,
+    buildBoxesFromSizes,
     computeBoxStandings,
     isValidSet,
     isSetComplete,

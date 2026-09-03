@@ -74,6 +74,10 @@ function appData() {
     // HelloClub sync modal
     hcSync: { open: false, running: false, log: [] },
 
+    // Assign Boxes modal — options computed by boxSizeOptions() for the
+    // current attendee count, most-boxes-first (see algorithm.js).
+    boxOptionsModal: { open: false, options: [], selectedIndex: 0, sortedAttendees: [] },
+
     // ── Init ───────────────────────────────────────────────────────────────
     _googleClientId: null,
 
@@ -551,7 +555,10 @@ function appData() {
     },
 
     // ── Box assignment ─────────────────────────────────────────────────────
-    async assignBoxes() {
+    // Opens the Assign Boxes modal with every valid way to split the current
+    // attendees into boxes of 4/5/6 (or the single box-of-7 option when
+    // exactly 7 are attending) — see boxSizeOptions() in algorithm.js.
+    assignBoxes() {
       if (!this.session || this.attendingCount < 4) return;
 
       if (this.session.status === 'games' && this.session.boxes?.length) {
@@ -564,7 +571,49 @@ function appData() {
         return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi);
       });
 
-      const boxes = assignBoxes(sorted);
+      this.boxOptionsModal = {
+        open: true,
+        options: boxSizeOptions(sorted.length),
+        selectedIndex: 0, // top option = most boxes, per boxSizeOptions ordering
+        sortedAttendees: sorted,
+      };
+    },
+
+    closeBoxOptionsModal() {
+      this.boxOptionsModal.open = false;
+    },
+
+    // e.g. "2 boxes of 5, 1 box of 6 — 3 boxes total"
+    boxOptionLabel(option) {
+      const counts = {};
+      option.sizes.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+      const parts = Object.keys(counts)
+        .sort((a, b) => a - b)
+        .map(size => `${counts[size]} box${counts[size] > 1 ? 'es' : ''} of ${size}`);
+      return `${parts.join(', ')} — ${option.boxCount} box${option.boxCount > 1 ? 'es' : ''} total`;
+    },
+
+    // Read-only preview of the selected option: one box's players (csv, short
+    // display names as used on the score sheets) per line.
+    boxOptionsPreview() {
+      const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
+      const sizes = options[selectedIndex]?.sizes ?? [];
+      const rows = [];
+      let idx = 0;
+      for (const size of sizes) {
+        const boxPlayers = sortedAttendees.slice(idx, idx + size);
+        rows.push(boxPlayers.map(name => this._dedupedDisplayName(name, sortedAttendees)).join(', '));
+        idx += size;
+      }
+      return rows.join('\n');
+    },
+
+    async confirmAssignBoxes() {
+      const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
+      const sizes = options[selectedIndex]?.sizes;
+      if (!sizes) return;
+
+      const boxes = buildBoxesFromSizes(sortedAttendees, sizes);
       this.loading = true;
       try {
         const boxesForApi = boxes.map(box => ({ ...box, players: box.players.map(name => this._playerIds[name]) }));
@@ -575,6 +624,7 @@ function appData() {
         this.allBoxesExpanded = true;
         this.boxExpanded = {};
         this.setSessionTab(2);
+        this.boxOptionsModal.open = false;
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -587,18 +637,33 @@ function appData() {
       return pairIndices.map(i => this.boxDisplayName(box, i)).join(' & ');
     },
 
-    // Name of the player sitting out a given match, for boxes of 5 (SITOUT_5
-    // is defined in algorithm.js). Boxes of 4 have no sit-out.
+    // Name(s) of the player(s) sitting out a given match (getSitout is defined
+    // in algorithm.js). Boxes of 4 have no sit-out; 5/6/7 sit out 1/2/3 players.
     sitoutName(box, matchIndex) {
-      if (box.players.length !== 5) return '';
-      return this.boxDisplayName(box, SITOUT_5[matchIndex]);
+      return getSitout(box, matchIndex).map(i => this.boxDisplayName(box, i)).join(', ');
     },
 
-    // "grid" print layout: is this player the one sitting out this match?
+    // "Sitting out" cards for the box-of-7 cards print layout (see the
+    // template comment by the inline pill it replaces): one "Name: Game N,
+    // Game M, …" line per player who sits out at least once, grouped into
+    // cards of up to 4 lines each.
+    sitoutCards(box) {
+      const byPlayer = box.players.map(() => []);
+      box.matches.forEach((_, mi) => {
+        for (const pi of getSitout(box, mi)) byPlayer[pi].push(mi + 1);
+      });
+      const rows = byPlayer
+        .map((games, pi) => ({ name: this.boxDisplayName(box, pi), games }))
+        .filter(row => row.games.length > 0);
+      const cards = [];
+      for (let i = 0; i < rows.length; i += 4) cards.push(rows.slice(i, i + 4));
+      return cards;
+    },
+
+    // "grid" print layout: is this player one of those sitting out this match?
     isSitout(boxIndex, matchIndex, playerIndex) {
       const box = this.session.boxes[boxIndex];
-      if (box.players.length !== 5) return false;
-      return SITOUT_5[matchIndex] === playerIndex;
+      return getSitout(box, matchIndex).includes(playerIndex);
     },
 
     // Printed scoresheet: each card's own content (header + pair label + 3 set
@@ -617,10 +682,10 @@ function appData() {
       return clean.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]+/)?.[0] ?? clean.trim();
     },
 
-    boxDisplayName(box, playerIdx) {
-      const name = box.players[playerIdx];
+    // First name, or "First L." if that first name collides with someone
+    // else's in `allPlayers` (e.g. two Johns in the same session).
+    _dedupedDisplayName(name, allPlayers) {
       const first = this.firstName(name);
-      const allPlayers = this.session?.boxes?.flatMap(b => b.players) ?? box.players;
       const hasDuplicate = allPlayers.some((other) => other !== name && this.firstName(other) === first);
       if (!hasDuplicate) return first;
       const clean = name.replace(/^\*+\s*|\s*\*+$/g, '').trim();
@@ -628,6 +693,12 @@ function appData() {
       if (words.length < 2) return first;
       const initial = words[words.length - 1].match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/)?.[0];
       return initial ? `${first} ${initial.toUpperCase()}.` : first;
+    },
+
+    boxDisplayName(box, playerIdx) {
+      const name = box.players[playerIdx];
+      const allPlayers = this.session?.boxes?.flatMap(b => b.players) ?? box.players;
+      return this._dedupedDisplayName(name, allPlayers);
     },
 
     boxHeaderLabel(box, bi) {

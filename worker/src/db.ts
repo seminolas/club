@@ -308,9 +308,33 @@ const PAIRINGS_5 = [
   { pair1: [0, 3], pair2: [1, 2] },
   { pair1: [0, 4], pair2: [1, 3] },
 ];
+const PAIRINGS_6 = [
+  { pair1: [0, 5], pair2: [2, 4] },
+  { pair1: [1, 2], pair2: [0, 3] },
+  { pair1: [1, 4], pair2: [3, 5] },
+  { pair1: [1, 5], pair2: [0, 2] },
+  { pair1: [2, 5], pair2: [3, 4] },
+  { pair1: [0, 4], pair2: [1, 3] },
+];
+const PAIRINGS_7 = [
+  { pair1: [0, 1], pair2: [2, 3] },
+  { pair1: [0, 4], pair2: [1, 5] },
+  { pair1: [0, 2], pair2: [4, 6] },
+  { pair1: [0, 3], pair2: [5, 6] },
+  { pair1: [1, 6], pair2: [2, 5] },
+  { pair1: [1, 4], pair2: [3, 6] },
+  { pair1: [2, 4], pair2: [3, 5] },
+];
 
+// Keep in sync with PAIRINGS_4/5/6/7 in js/algorithm.js — this server copy
+// exists because match pairing is a pure function of (box size, match
+// number), so it's cheaper to regenerate it here than to persist it.
 function getPairing(boxSize: number, matchNumber: number): { pair1: number[]; pair2: number[] } {
-  const table = boxSize === 4 ? PAIRINGS_4 : boxSize === 5 ? PAIRINGS_5 : [];
+  const table = boxSize === 4 ? PAIRINGS_4
+    : boxSize === 5 ? PAIRINGS_5
+    : boxSize === 6 ? PAIRINGS_6
+    : boxSize === 7 ? PAIRINGS_7
+    : [];
   return table[matchNumber] ?? { pair1: [], pair2: [] };
 }
 
