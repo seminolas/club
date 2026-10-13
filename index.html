@@ -937,18 +937,35 @@
               <label class="flex items-center gap-2 p-2 rounded border cursor-pointer text-sm"
                      :class="boxOptionsModal.selectedIndex === i ? 'border-blue-600 bg-blue-50 text-gray-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
                 <input type="radio" name="boxOption"
-                       :checked="boxOptionsModal.selectedIndex === i"
-                       @change="boxOptionsModal.selectedIndex = i">
+                       :checked="!boxOptionsModal.custom && boxOptionsModal.selectedIndex === i"
+                       @change="selectBoxOption(i)">
                 <span x-text="boxOptionLabel(option)"></span>
               </label>
             </template>
+            <label class="flex items-center gap-2 p-2 rounded border cursor-pointer text-sm"
+                   :class="boxOptionsModal.custom ? 'border-blue-600 bg-blue-50 text-gray-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+              <input type="radio" name="boxOption"
+                     :checked="boxOptionsModal.custom"
+                     @change="selectCustomBoxes()">
+              <span>Custom — edit the selected layout below</span>
+            </label>
           </div>
 
           <div class="mt-4">
-            <label class="text-xs font-medium text-gray-500 uppercase tracking-wide">Preview</label>
-            <textarea readonly rows="10"
+            <label class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                   x-text="boxOptionsModal.custom ? 'Custom (one box per line, comma-separated)' : 'Preview'"></label>
+            <textarea x-show="!boxOptionsModal.custom" readonly rows="10"
                       :value="boxOptionsPreview()"
                       class="w-full mt-1 border rounded px-2 py-1.5 text-xs font-mono text-gray-600 bg-gray-50 resize-none"></textarea>
+            <textarea x-show="boxOptionsModal.custom" rows="10"
+                      x-model="boxOptionsModal.customText"
+                      spellcheck="false"
+                      class="w-full mt-1 border rounded px-2 py-1.5 text-xs font-mono text-gray-800 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-700"></textarea>
+            <ul x-show="boxOptionsParsed().errors.length" class="mt-2 space-y-0.5 text-xs text-red-600">
+              <template x-for="(err, ei) in boxOptionsParsed().errors" :key="ei">
+                <li x-text="err"></li>
+              </template>
+            </ul>
           </div>
         </div>
         <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2 shrink-0">
@@ -959,8 +976,8 @@
             Cancel
           </button>
           <button @click="confirmAssignBoxes()"
-                  :disabled="loading"
-                  :class="loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-800'"
+                  :disabled="loading || boxOptionsParsed().errors.length > 0"
+                  :class="loading || boxOptionsParsed().errors.length > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-800'"
                   class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded font-medium">
             Assign
           </button>

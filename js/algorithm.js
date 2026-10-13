@@ -99,17 +99,61 @@ function boxSizeOptions(n) {
   return options;
 }
 
-// Slice attendees (already sorted, e.g. by leaderboard rank) into boxes of
-// the given sizes, smallest box first — one of the `sizes` arrays returned
-// by boxSizeOptions().
-function buildBoxesFromSizes(attendees, sizes) {
-  const boxes = [];
+// Slice attendees (already sorted, e.g. by leaderboard rank) into a layout —
+// one array of player names per box — of the given sizes, smallest box first
+// (one of the `sizes` arrays returned by boxSizeOptions()).
+function splitBySizes(attendees, sizes) {
+  const layout = [];
   let idx = 0;
   for (const size of sizes) {
-    boxes.push({ players: attendees.slice(idx, idx + size), matches: getPairings(size), finalPlacings: null });
+    layout.push(attendees.slice(idx, idx + size));
     idx += size;
   }
-  return boxes;
+  return layout;
+}
+
+// Turn a layout (one array of player names per box, in position order) into
+// boxes with fresh, unscored pairings.
+function buildBoxesFromLayout(layout) {
+  return layout.map(players => ({ players: [...players], matches: getPairings(players.length), finalPlacings: null }));
+}
+
+// Parse the Assign Boxes modal's text — one box per line, comma-separated
+// display names — back into a layout. `nameByDisplay` maps each attendee's
+// display name (exactly as the modal printed it) to their full name; anything
+// else is rejected rather than guessed at. Every attendee must be placed
+// exactly once, in a box of 4–7 (the sizes with pairing tables).
+// Returns { layout, errors } — layout is only usable when errors is empty.
+function parseBoxLayout(text, nameByDisplay) {
+  const errors = [];
+  const layout = [];
+  const seen = new Set();
+
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  lines.forEach((line, li) => {
+    const box = [];
+    for (const token of line.split(',').map(t => t.trim()).filter(Boolean)) {
+      const name = nameByDisplay.get(token);
+      if (!name) {
+        errors.push(`Box ${li + 1}: unknown player "${token}"`);
+      } else if (seen.has(name)) {
+        errors.push(`Box ${li + 1}: "${token}" is already in a box`);
+      } else {
+        seen.add(name);
+        box.push(name);
+      }
+    }
+    if (box.length < 4 || box.length > 7) {
+      errors.push(`Box ${li + 1} has ${box.length} player${box.length !== 1 ? 's' : ''} (must be 4–7)`);
+    }
+    layout.push(box);
+  });
+
+  const missing = [...nameByDisplay].filter(([, name]) => !seen.has(name)).map(([display]) => display);
+  if (missing.length) errors.push(`Not in any box: ${missing.join(', ')}`);
+  if (!lines.length) errors.push('No boxes entered');
+
+  return { layout, errors };
 }
 
 // Compute per-player standings for a single box.
@@ -338,7 +382,9 @@ if (typeof module !== 'undefined') {
     getPairings,
     getSitout,
     boxSizeOptions,
-    buildBoxesFromSizes,
+    splitBySizes,
+    buildBoxesFromLayout,
+    parseBoxLayout,
     computeBoxStandings,
     isValidSet,
     isSetComplete,

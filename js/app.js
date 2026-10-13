@@ -76,7 +76,12 @@ function appData() {
 
     // Assign Boxes modal — options computed by boxSizeOptions() for the
     // current attendee count, most-boxes-first (see algorithm.js).
-    boxOptionsModal: { open: false, options: [], selectedIndex: 0, sortedAttendees: [] },
+    boxOptionsModal: { open: false, options: [], selectedIndex: 0, custom: false, customText: '', sortedAttendees: [] },
+
+    // { date, layout } — the boxes (player names per box) cleared by the last
+    // Re-open Attendance, offered back as the default in the Assign Boxes
+    // modal. In memory only: lost on reload, which just means no default.
+    _previousBoxLayout: null,
 
     // ── Init ───────────────────────────────────────────────────────────────
     _googleClientId: null,
@@ -557,7 +562,12 @@ function appData() {
     // ── Box assignment ─────────────────────────────────────────────────────
     // Opens the Assign Boxes modal with every valid way to split the current
     // attendees into boxes of 4/5/6 (or the single box-of-7 option when
-    // exactly 7 are attending) — see boxSizeOptions() in algorithm.js.
+    // exactly 7 are attending) — see boxSizeOptions() in algorithm.js. When
+    // there's a previous layout for this session (the current boxes on
+    // Reassign, or the boxes cleared by Re-open Attendance — see
+    // _previousBoxLayout), it's offered first, minus anyone no longer
+    // attending, and selected by default. Picking "Custom" copies the selected
+    // option's layout into an editable textbox.
     assignBoxes() {
       if (!this.session || this.attendingCount < 4) return;
 
@@ -571,10 +581,22 @@ function appData() {
         return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi);
       });
 
+      const options = boxSizeOptions(sorted.length).map(o => ({ ...o, layout: splitBySizes(sorted, o.sizes) }));
+
+      const previous = this.session.boxes?.length
+        ? this.session.boxes.map(b => b.players)
+        : this._previousBoxLayout?.date === this.session.date ? this._previousBoxLayout.layout : null;
+      if (previous) {
+        const layout = previous.map(players => players.filter(name => sorted.includes(name))).filter(p => p.length);
+        options.unshift({ previous: true, sizes: layout.map(p => p.length), boxCount: layout.length, layout });
+      }
+
       this.boxOptionsModal = {
         open: true,
-        options: boxSizeOptions(sorted.length),
-        selectedIndex: 0, // top option = most boxes, per boxSizeOptions ordering
+        options,
+        selectedIndex: 0, // previous layout if any, else most boxes, per boxSizeOptions ordering
+        custom: false,
+        customText: '',
         sortedAttendees: sorted,
       };
     },
@@ -590,31 +612,50 @@ function appData() {
       const parts = Object.keys(counts)
         .sort((a, b) => a - b)
         .map(size => `${counts[size]} box${counts[size] > 1 ? 'es' : ''} of ${size}`);
-      return `${parts.join(', ')} — ${option.boxCount} box${option.boxCount > 1 ? 'es' : ''} total`;
+      const label = `${parts.join(', ')} — ${option.boxCount} box${option.boxCount > 1 ? 'es' : ''} total`;
+      return option.previous ? `Previous layout: ${label}` : label;
     },
 
-    // Read-only preview of the selected option: one box's players (csv, short
-    // display names as used on the score sheets) per line.
+    selectBoxOption(i) {
+      this.boxOptionsModal.selectedIndex = i;
+      this.boxOptionsModal.custom = false;
+    },
+
+    // Switching to Custom seeds the textbox from whichever option was selected,
+    // so picking an option then Custom again is the way to reset an edit.
+    selectCustomBoxes() {
+      if (this.boxOptionsModal.custom) return;
+      this.boxOptionsModal.customText = this.boxOptionsPreview();
+      this.boxOptionsModal.custom = true;
+    },
+
+    // Display name → full name, for the attendees being boxed. Short display
+    // names as used on the score sheets, deduped within this attendee list.
+    _boxDisplayNames() {
+      const { sortedAttendees } = this.boxOptionsModal;
+      return new Map(sortedAttendees.map(name => [this._dedupedDisplayName(name, sortedAttendees), name]));
+    },
+
+    // The selected option's layout as text: one box's players (csv) per line.
     boxOptionsPreview() {
       const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
-      const sizes = options[selectedIndex]?.sizes ?? [];
-      const rows = [];
-      let idx = 0;
-      for (const size of sizes) {
-        const boxPlayers = sortedAttendees.slice(idx, idx + size);
-        rows.push(boxPlayers.map(name => this._dedupedDisplayName(name, sortedAttendees)).join(', '));
-        idx += size;
-      }
-      return rows.join('\n');
+      const layout = options[selectedIndex]?.layout ?? [];
+      return layout.map(players => players.map(name => this._dedupedDisplayName(name, sortedAttendees)).join(', ')).join('\n');
+    },
+
+    // Every option (previous, computed or custom) goes through the same parse,
+    // so a previous layout that's no longer valid is flagged too.
+    boxOptionsParsed() {
+      const { custom, customText } = this.boxOptionsModal;
+      return parseBoxLayout(custom ? customText : this.boxOptionsPreview(), this._boxDisplayNames());
     },
 
     async confirmAssignBoxes() {
       if (this.loading) return; // guard against a double-click firing two overlapping saves
-      const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
-      const sizes = options[selectedIndex]?.sizes;
-      if (!sizes) return;
+      const { layout, errors } = this.boxOptionsParsed();
+      if (errors.length) return;
 
-      const boxes = buildBoxesFromSizes(sortedAttendees, sizes);
+      const boxes = buildBoxesFromLayout(layout);
       this.loading = true;
       try {
         const boxesForApi = boxes.map(box => ({ ...box, players: box.players.map(name => this._playerIds[name]) }));
@@ -976,6 +1017,9 @@ function appData() {
       this.loading = true;
       try {
         await Storage.reopenAttendance(this.session.date);
+        if (boxCount > 0) {
+          this._previousBoxLayout = { date: this.session.date, layout: this.session.boxes.map(b => b.players) };
+        }
         this.session.boxes = [];
         this.session.status = 'attendance';
         this._syncSessionStatus(this.session.date, 'attendance');
