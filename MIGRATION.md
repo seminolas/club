@@ -1,0 +1,85 @@
+# Migration plan: evolving `club` into the new architecture
+
+> Agreed 2026-10-21. Instead of replacing this app with the from-scratch rewrite in `C:/dev/src/club-next`, we convert **this** app gradually. It stays live and usable every session night throughout. `club-next` becomes a **reference**: its decisions, tested rules code, components and user stories are carried over piece by piece. It will probably be archived once nothing more is needed from it.
+
+---
+
+## How we work (with Claude)
+
+- **One step per session, PR-sized.** Each step leaves the app working, can be reverted on its own, and is either *structural* (nothing visible) or *visible* (players notice). Aim to alternate, so the effort keeps paying off.
+- **Plan first, every step.** At the start of a step Claude proposes:
+  - what changes;
+  - what gets copied from `club-next`, with exact file paths;
+  - how it will be tested;
+  - how it would be rolled back.
+
+  Nothing is built until the developer approves.
+- **This file is the shared memory.** Update the step table below at the end of every step (status, what was done, anything learned). Decisions made along the way go in the "Decisions log" at the bottom (or in `club-next/decisions.md` until that's archived). Keep `AGENTS.md` accurate about the *current* state of the app.
+- **Safety rules:**
+  - Work on a branch. Deploy to **staging** (`npm run deploy:staging` in `worker/`) first.
+  - Before any schema change, refresh staging from prod (the GitHub Action) and rehearse the migration on real data.
+  - Run the browser checks against staging (Playwright, ported from `club-next/e2e/`).
+  - The developer approves before anything goes to **prod**. **Never deploy on a session day.**
+  - Every prod schema change has a backup first (`wrangler d1 export club-prod --remote`) and a written rollback (D1 Time Travel and/or a down-migration). Worker code rollbacks use `wrangler rollback`.
+- **HelloClub writes** stay exactly as they are today (the existing sync) until a step explicitly changes them. Any *new* HelloClub write behaviour runs in dry-run on staging first.
+- **Priorities are decided ad hoc.** The order below is a sensible default, not a commitment. The visible changes list is a menu to pick from.
+
+---
+
+## Visible changes (menu; prioritise ad hoc)
+
+Improvements players or admins will notice, mostly already prototyped in `club-next`. Each depends on some structural steps (in brackets).
+
+| # | Change | Prototype in `club-next` | Needs |
+| --- | --- | --- | --- |
+| V1 | **Players sign in** (Google; Facebook later), matched to their player record by HelloClub email, or by picking themselves | `src/server/auth.ts`, `routes/welcome.tsx`, `services/people.ts` (`autoLinkByEmail`) | S4, S3 (person/login) |
+| V2 | **Players mark themselves or others as coming**, with a record of who marked whom | `routes/.../attendance.tsx` | V1, S3 |
+| V3 | **Players enter scores on their phones**, with live updates on every screen and no silently dropped scores | `live/*`, `components/BoxCard.tsx`, `ScoreSheet.tsx` | V1, S5, S6 |
+| V4 | **Live box standings** during the night (and projected ladder movement) | `components/BoxCard.tsx`, `domain/standings.ts` | S1 |
+| V5 | **Stats:** session summary, player page, club stats (ladder movement, distributions) | `domain/stats.ts`, `services/stats.ts`, routes `summary`, `people/$id`, `_tabs/stats` | S1, S2 (S5 for the new UI) |
+| V6 | **Display names** (default first name; full name only when names clash) | `domain/names.ts` | S3 |
+| V7 | **OpenSkill rating** shown next to the ladder; ladder sort/filter ("played in last 3 months") | `domain/rating.ts`, `services/clubs.ts` (`ladderRows`) | S1, S2 |
+| V8 | **Multiple clubs** (Thursday juniors) with per-club settings (points per set, box sizes, OpenSkill on/off) | `services/clubs.ts`, `components/ClubForm.tsx` | S3 |
+| V9 | **Sessions created automatically** about an hour before the HelloClub event; manual create lists HelloClub events | `server/jobs.ts`, `components/CreateSessionModal.tsx` | S7, S3 (session id + HelloClub event id) |
+| V10 | **Better HelloClub sync:** marks *everyone* who came as attended, stores results, re-run button, clear failures for unlinked people | `server/jobs.ts` (`hcAttendanceSync`), `routes/jobs/*` | S7 (live writes need verifying first) |
+| V11 | **Admin notifications** (bell with recent items: sync results, failures) | `components/AppHeader.tsx`, `fns/jobs.ts` | S7, S5 |
+| V12 | **Retiring a player mid-session** (walkovers; partner loses too) | `domain/scoring.ts` (`walkoverSets`), `services/sessions.ts` (`retirePlayer`) | S1 |
+| V13 | **Light/Dark toggle** with words; first visit follows the device | `components/ColorSchemeToggle.tsx` | S5 |
+| V14 | **New UI** (Mantine, phone-first), page by page | `components/*`, `/dev/gallery` | S5 |
+| V15 | **WhatsApp share fix** (the Samsung "open in app" issue) and session/ladder links | `routes/.../summary.tsx` | — |
+| V16 | **Ladder import, people list, person admin page** (link HelloClub member, move login, role) | `routes/clubs/$club/import.tsx`, `routes/people/*` | S2, S3, V1 |
+
+Not changing: printable score sheets stay as they are.
+
+---
+
+## Structural steps (default order)
+
+Status: ⬜ not started · 🟨 in progress · ✅ done
+
+| # | Step | Status | Notes |
+| --- | --- | --- | --- |
+| S0 | **Foundations:** a TypeScript test setup (Vitest) + CI (lint, typecheck, tests) for `worker/`; tracked D1 migrations (`wrangler d1 migrations apply`, backfilling `d1_migrations` for files applied by hand); staging deploy as routine; port the Playwright helpers (`club-next/e2e/shot.mjs`) and point them at staging | ⬜ | No visible change |
+| S1 | **Shared rules code + frontend build step.** Bring `club-next/src/domain/*` (pairings, boxes, scoring, standings, ladder, names, stats, rating) and its tests. A small build (Vite or esbuild) bundles it for the browser, so client and server use one copy. This removes the duplicated pairing tables (a known past bug). `js/algorithm.js` becomes a thin wrapper, then goes away. | ⬜ | Behaviour must match exactly. Compare old vs new on prod data (replay every session's ladder) before switching |
+| S2 | **Drizzle over the existing schema.** `drizzle-kit pull` from D1, then replace raw SQL in `worker/src/db.ts` a few queries at a time. No schema change | ⬜ | |
+| S3 | **Small schema changes that only add things,** one migration each, rehearsed on staging with prod data: display names; sessions keyed by id (URLs keep working for date links); check-in audit (who/when); person vs login separation; per-club settings; ladder snapshot model (`club-next` decisions: chained before/after snapshots + adjustments) | ⬜ | Split into sub-steps when planned |
+| S4 | **Auth → BetterAuth** (Google first). Existing admin JWT sign-in keeps working until the switch. Roles collapse to `admin`/`player` (`club-next/decisions.md`, "Roles") | ⬜ | Riskiest step; needs its own careful plan |
+| S5 | **Frontend → React + TanStack Start + Mantine, page by page.** Start takes over the Worker entry; the old Alpine `index.html` keeps serving every route not yet migrated. Suggested order: stats → player page → ladder → club admin pages → session night | ⬜ | Each page is its own step; components come from `club-next/src/components` and the gallery |
+| S6 | **Live session Durable Object** as the write path for session night (scores, check-ins, boxes, close), as designed in `club-next/src/live/*` | ⬜ | Needs S4, S5 (session page) |
+| S7 | **Background jobs** (job runner Durable Object, cron) and notifications | ⬜ | Needed by V9–V11 |
+
+---
+
+## Where things are in `club-next` (reference)
+
+- `decisions.md`, `guidelines.md`, `architecture.md`, `user-stories.md`, `open-questions.md`: the thinking behind it all. Still valid unless a migration step changes it.
+- `src/domain/`: pure TypeScript rules with tests (`domain.test.ts`). The first thing to port.
+- `src/server/services/`: database-injected services with tests (`sessions.test.ts`, `jobs.test.ts`). Port when the matching feature moves.
+- `src/components/` + `/dev/gallery`: the UI vocabulary.
+- `e2e/`: browser-check helpers.
+
+---
+
+## Decisions log (migration-specific)
+
+- **2026-10-21:** Gradual migration of `club` instead of switching to the rewrite. The developer tested `club-next`, liked the direction, but wants to proceed step by step on the live app. A frontend build step is OK from S1. What happens to `club-next` will be decided later (probably archived).
