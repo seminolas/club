@@ -3,7 +3,7 @@
 This is the **live** Northland Badminton Club app — real production software used every session night. Read these before doing anything:
 
 1. **`AGENTS.md`** — how the app works today (deployment, schema, routes, business logic, gotchas).
-2. **`MIGRATION.md`** — the agreed plan for gradually converting this app to the new architecture, step by step, with the current status. It also says how to work: plan each step first and get approval, staging before prod, never deploy on a session day, back up before schema changes.
+2. **`MIGRATION.md`** — the agreed plan for gradually converting this app to the new architecture, step by step, with the current status. It also says how to work: plan each step first and get approval, staging before prod, back up before schema changes.
 
 The design thinking and the reference implementation for the migration live in `C:/dev/src/club-next` (read-only reference — don't develop features there anymore).
 

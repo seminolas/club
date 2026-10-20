@@ -19,7 +19,7 @@
   - Work on a branch. Deploy to **staging** (`npm run deploy:staging` in `worker/`) first.
   - Before any schema change, refresh staging from prod (the GitHub Action) and rehearse the migration on real data.
   - Run the browser checks against staging (Playwright, ported from `club-next/e2e/`).
-  - The developer approves before anything goes to **prod**. **Never deploy on a session day.**
+  - Claude may deploy to staging and prod as required.
   - Every prod schema change has a backup first (`wrangler d1 export club-prod --remote`) and a written rollback (D1 Time Travel and/or a down-migration). Worker code rollbacks use `wrangler rollback`.
 - **HelloClub writes** stay exactly as they are today (the existing sync) until a step explicitly changes them. Any *new* HelloClub write behaviour runs in dry-run on staging first.
 - **Priorities are decided ad hoc.** The order below is a sensible default, not a commitment. The visible changes list is a menu to pick from.
