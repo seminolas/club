@@ -15,10 +15,11 @@ GitHub repo: seminolas/club  (branch: master)
     ├── src/auth.ts                        ← Google JWT verification + requireAdmin middleware
     ├── src/db.ts                          ← all D1 queries
     ├── src/types.ts                       ← shared TypeScript types
-    └── migrations/                        ← D1 schema migrations (applied manually)
+    └── migrations/                        ← D1 schema migrations (tracked by wrangler)
 ```
 
 **Production URL:** https://club.vilhelmas-f78.workers.dev/  
+**Staging URL:** https://club-api-staging.vilhelmas-f78.workers.dev/  
 The Worker serves both the static frontend and the `/api/*` routes from a single deployment.
 
 **Environments:**
@@ -43,7 +44,11 @@ There is no build step for the frontend. The Worker compiles `src/index.ts` via 
 
 **Commit before deploying** — wrangler deploys from the filesystem, not from git. It's easy to deploy uncommitted changes. Check `git status` first.
 
-**Local wrangler (v3) may fail against D1 with an auth error** — use `npx wrangler@4` for D1 commands if this happens.
+**Staging from GitHub:** the "Deploy branch to staging" workflow (`.github/workflows/deploy-staging.yml`, run from the Actions tab or `gh workflow run deploy-staging.yml --ref <branch>`) typechecks, tests and deploys a committed branch to staging.
+
+**Assets:** the Worker serves the repo root as static files, minus what `.assetsignore` lists (docs, `temp/`, `e2e/`, `worker/`, tooling). Anything new at the root that isn't part of the site must be added there, or it becomes public.
+
+**Usual flow:** branch → CI green → deploy to staging → browser checks (`e2e/`) → merge → deploy to prod.
 
 ---
 
@@ -80,16 +85,33 @@ match_players → match_sets → matches → box_players → boxes
 ├── temp/               # scratch/experimental files (not served by Worker)
 │   ├── stats.html      # analytics dashboard experiment (Observable Plot + Grid.js)
 │   └── stats2.html     # analytics dashboard v2 experiment
+├── e2e/                # Playwright browser checks (own package.json; not served)
+│   └── shot.mjs        # open pages, screenshot, report console errors
+├── .github/workflows/  # ci.yml (typecheck + tests), deploy-staging.yml, staging-refresh.yml
 └── worker/
     ├── wrangler.toml
     ├── src/
     │   ├── index.ts    # Hono app, all route handlers
     │   ├── auth.ts     # verifyGoogleToken, signJwt, requireAdmin middleware
     │   ├── db.ts       # all D1 queries (no ORM)
-    │   └── types.ts    # Env, JwtPayload, BoxInput, SessionStatus, etc.
-    ├── migrations/     # SQL migration files, applied manually via wrangler d1 execute
+    │   ├── types.ts    # Env, JwtPayload, BoxInput, SessionStatus, etc.
+    │   └── *.test.ts   # Vitest tests
+    ├── migrations/     # SQL migration files, applied with `wrangler d1 migrations apply`
     └── scripts/        # one-off data repair scripts (not production code)
 ```
+
+## Checks
+
+```bash
+cd worker
+npm run typecheck   # worker code (workers types) + tests (also node types, via tsconfig.test.json)
+npm test            # vitest
+
+cd e2e              # first time: npm install && npx playwright install chromium
+node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"go":"/#/2026-10-20/games","shot":"session"}]'
+```
+
+CI runs typecheck and tests on every push to `master` and every PR. `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `src/pairings.test.ts` checks that the server and client pairing tables agree (see the pairing-table note below).
 
 **Legacy:** `C:/dev/src/temp-badminton/` is the old GitHub Pages version backed by GitHub API for storage. It is no longer active. All production work happens in this repo.
 
@@ -101,15 +123,15 @@ D1 (SQLite). All queries are in `worker/src/db.ts` — no ORM.
 
 ```sql
 clubs           -- id, name, short_name, config (JSON)
-players         -- id, club_id, name, current_rank, hc_member_id, preferred_name, archived_at
+players         -- id, club_id, name, hc_member_id, archived_at, email, preferred_name
 sessions        -- id, club_id, date (YYYY-MM-DD), status, created_at, closed_at
-session_ranks   -- session_id, player_id, rank_position  (replaces old session_lb)
+session_ranks   -- session_id, player_id, rank_position, phase ('before'|'after')  (replaces old session_lb)
 attendees       -- session_id, player_id
 boxes           -- id, session_id, box_number
 box_players     -- box_id, player_id, position (0-indexed)
 matches         -- id, box_id, match_number
 match_sets      -- match_id, set_number, score_a, score_b
-match_players   -- match_id, player_id, pair (0|1)
+match_players   -- match_id, player_id, side (0 = pair A, 1 = pair B)
 player_auth_profiles -- id, player_id, provider ('google'), provider_id, email
 roles           -- id, name ('owner'|'admin'|'scorer'|'player')
 player_roles    -- player_id, role_id
@@ -117,11 +139,15 @@ player_roles    -- player_id, role_id
 
 `club_id = 1` is hard-coded throughout (`CLUB_ID = 1` in `index.ts`). Multi-club support is noted as future work.
 
-**Migrations are applied manually:**
+**Migrations are tracked by wrangler** (the `d1_migrations` table). Add `worker/migrations/NNNN_name.sql`, then:
 ```bash
-npx wrangler d1 execute club-prod --remote --file=worker/migrations/XXXX_name.sql
+cd worker
+npx wrangler d1 migrations list club-staging --env staging --remote   # what's pending
+npm run db:migrate:staging                                         # rehearse on staging (refresh it from prod first)
+npx wrangler d1 export club-prod --remote --output <backup.sql>      # back up prod
+npm run db:migrate:prod
 ```
-Migrations are numbered sequentially. There is a naming collision at `0002` (two files); both were applied. New migrations should start from `0011`.
+Don't use `wrangler d1 execute --file` for migrations any more: wrangler wouldn't record them and would try to run them again. Files 0002–0010 were applied that way and backfilled into `d1_migrations` on 2026-10-21 (`worker/scripts/backfill-d1-migrations.sql`). There is a naming collision at `0002` (two files); both were applied. The next migration is `0011`.
 
 ---
 
@@ -235,10 +261,10 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Development notes
 
-- **No local dev server for the Worker** — changes are tested by deploying to staging. The frontend can be opened directly as a file for layout work, but API calls will fail without the Worker.
+- **No local dev server for the Worker** — changes are checked with `npm run typecheck` and `npm test` locally, then by deploying to staging. The frontend can be opened directly as a file for layout work, but API calls will fail without the Worker.
 - **CRLF warnings** — the repo uses LF line endings but the Windows working copy triggers CRLF conversion warnings on `git add`. These are harmless; the committed content is correct.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
-- **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. The `players.current_rank` column exists but is not the source of truth for ordering.
+- **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. (There is no `players.current_rank` column any more; 0002 dropped it.)
 - **Box assignment algorithm:** each player plays every other player within their box; sizes 5/6/7 sit out 1/2/3 players per match — derived generically by `getSitout()` from each match's pairing (nobody hardcodes sit-out indices per size). Pairing schedules for all four sizes (`PAIRINGS_4/5/6/7` in `algorithm.js`) come from the club's printed score-sheet PDFs (`box6.pdf`, `box7.pdf` — the 4/5 originals aren't kept in-repo). Clicking "Assign Boxes" opens a modal (always, even when there's only one option — see future-work note below) offering every way to split attendees into boxes of 4/5/6, computed by `boxSizeOptions(n)` and ordered most-boxes-first (default selection); exactly 7 attendees instead get the single box-of-7 option, since a 7-box is only ever used as a last resort. Each option's layout (player names per box) comes from `splitBySizes(sortedAttendees, sizes)`, which slices attendees (sorted by leaderboard rank, boxes ascending in size) into the chosen boxes. If there's a previous layout for the session — the current boxes on Reassign, or the boxes cleared by Re-open Attendance (kept in memory only, as `_previousBoxLayout`, so lost on reload) — it's offered first, minus anyone no longer attending, and selected by default. A "Custom" option copies the selected option's layout into an editable textbox (one box per line, comma-separated display names exactly as printed — full names are rejected); re-selecting an option then Custom resets it. Every option is validated through `parseBoxLayout` (every attendee placed exactly once, boxes of 4–7) before `buildBoxesFromLayout` turns it into boxes with fresh pairings. Typical mid-session use: someone leaves → Re-open Attendance → untick them → Assign Boxes (previous layout is preselected, minus them). `boxSizeOptions` also fixed a latent gap: 11 attendees used to be Frobenius-non-representable by 4s/5s alone and hit a dead-end fallback — now resolved as 1 box of 5 + 1 box of 6.
 - **⚠️ Pairing tables are duplicated client + server — keep them in sync.** `worker/src/db.ts` has its own copy of `PAIRINGS_4/5/6/7` and a `getPairing(boxSize, matchNumber)` lookup, used only when *reading* boxes back from D1 (pairing is a pure function of box size + match number, so it's regenerated on read rather than persisted). Adding box sizes 6/7 to `js/algorithm.js` without updating this server copy shipped a real bug: any box of 6/7 rendered fine right after assignment (client used its own in-memory copy) but came back as all-empty pairings (grid all greyed out, "v" with no player numbers) the next time the session was loaded from the API, because `getPairing` only knew sizes 4/5 and fell back to `{pair1:[],pair2:[]}` for everything else. If you ever change a `PAIRINGS_*` table or add a new box size, update both copies — there's no shared import between the Workers backend and the plain-script frontend.
 

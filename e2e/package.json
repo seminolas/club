@@ -1,0 +1,11 @@
+{
+  "name": "club-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "shot": "node shot.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}

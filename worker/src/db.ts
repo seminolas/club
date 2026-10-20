@@ -329,7 +329,7 @@ const PAIRINGS_7 = [
 // Keep in sync with PAIRINGS_4/5/6/7 in js/algorithm.js — this server copy
 // exists because match pairing is a pure function of (box size, match
 // number), so it's cheaper to regenerate it here than to persist it.
-function getPairing(boxSize: number, matchNumber: number): { pair1: number[]; pair2: number[] } {
+export function getPairing(boxSize: number, matchNumber: number): { pair1: number[]; pair2: number[] } {
   const table = boxSize === 4 ? PAIRINGS_4
     : boxSize === 5 ? PAIRINGS_5
     : boxSize === 6 ? PAIRINGS_6

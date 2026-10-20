@@ -1,4 +1,4 @@
-import type { Context } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import type { Env, JwtPayload } from './types';
 
 const JWT_EXPIRY_HOURS = 24 * 7; // 1 week
@@ -71,13 +71,6 @@ async function getGooglePublicKeys(): Promise<GoogleKey[]> {
   return data.keys;
 }
 
-function b64urlToBigInt(s: string): bigint {
-  const bytes = b64urlDecode(s);
-  let hex = '';
-  for (const b of bytes) hex += b.toString(16).padStart(2, '0');
-  return BigInt('0x' + hex);
-}
-
 export async function verifyGoogleToken(idToken: string, clientId: string): Promise<{ email: string; sub: string } | null> {
   const parts = idToken.split('.');
   if (parts.length !== 3) return null;
@@ -120,7 +113,7 @@ export async function verifyGoogleToken(idToken: string, clientId: string): Prom
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 
-export async function requireAdmin(c: Context<{ Bindings: Env }>, next: () => Promise<void>): Promise<Response | void> {
+export const requireAdmin = createMiddleware<{ Bindings: Env; Variables: { jwtPayload: JwtPayload } }>(async (c, next) => {
   const auth = c.req.header('Authorization') ?? '';
   if (!auth.startsWith('Bearer ')) return c.json({ error: 'Unauthorized' }, 401);
   const token = auth.slice(7);
@@ -129,5 +122,5 @@ export async function requireAdmin(c: Context<{ Bindings: Env }>, next: () => Pr
   const isAdmin = payload.roles?.includes('admin') || payload.roles?.includes('owner');
   if (!isAdmin) return c.json({ error: 'Forbidden' }, 403);
   c.set('jwtPayload', payload);
-  await next();
-}
+  return next();
+});
