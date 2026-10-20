@@ -121,7 +121,7 @@ player_roles    -- player_id, role_id
 ```bash
 npx wrangler d1 execute club-prod --remote --file=worker/migrations/XXXX_name.sql
 ```
-Migrations are numbered sequentially. There is a naming collision at `0002` (two files); both were applied. New migrations should start from `0009`.
+Migrations are numbered sequentially. There is a naming collision at `0002` (two files); both were applied. New migrations should start from `0011`.
 
 ---
 
