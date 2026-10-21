@@ -24,7 +24,7 @@ export type DB = Pick<D1Database, 'prepare' | 'batch'>
 
 // Drizzle over the same connection (Drizzle only needs prepare()/batch()).
 const orms = new WeakMap<DB, DrizzleD1Database<typeof t>>()
-function orm(db: DB): DrizzleD1Database<typeof t> {
+export function orm(db: DB): DrizzleD1Database<typeof t> {
   let o = orms.get(db)
   if (!o) {
     o = drizzle(db as D1Database, { schema: t })

@@ -1,4 +1,6 @@
 import { createMiddleware } from 'hono/factory'
+import { createAuth } from './better-auth'
+import type { DB } from './db'
 import type { Env, JwtPayload } from './types'
 
 const JWT_EXPIRY_HOURS = 24 * 7 // 1 week
@@ -143,18 +145,26 @@ export async function verifyGoogleToken(
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 
+// Admins only: either the old app token (Authorization: Bearer, until S4b
+// removes it) or a BetterAuth session whose user has role 'admin'.
 export const requireAdmin = createMiddleware<{
   Bindings: Env
-  Variables: { jwtPayload: JwtPayload }
+  Variables: { jwtPayload: JwtPayload; db: DB }
 }>(async (c, next) => {
   const auth = c.req.header('Authorization') ?? ''
-  if (!auth.startsWith('Bearer ')) return c.json({ error: 'Unauthorized' }, 401)
-  const token = auth.slice(7)
-  const payload = await verifyJwt(token, c.env.JWT_SECRET)
-  if (!payload) return c.json({ error: 'Unauthorized' }, 401)
-  const isAdmin =
-    payload.roles?.includes('admin') || payload.roles?.includes('owner')
-  if (!isAdmin) return c.json({ error: 'Forbidden' }, 403)
-  c.set('jwtPayload', payload)
+  if (auth.startsWith('Bearer ')) {
+    const payload = await verifyJwt(auth.slice(7), c.env.JWT_SECRET)
+    if (!payload) return c.json({ error: 'Unauthorized' }, 401)
+    const isAdmin =
+      payload.roles?.includes('admin') || payload.roles?.includes('owner')
+    if (!isAdmin) return c.json({ error: 'Forbidden' }, 403)
+    c.set('jwtPayload', payload)
+    return next()
+  }
+  const session = await createAuth(c.env, c.get('db')).api.getSession({
+    headers: c.req.raw.headers,
+  })
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  if (session.user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
   return next()
 })

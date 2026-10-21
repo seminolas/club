@@ -51,18 +51,29 @@ export interface TestDb {
   dispose: () => Promise<void>
 }
 
+/** Apply migration files in order (all, or up to and including `upTo`). */
+export async function applyMigrations(
+  raw: D1Database,
+  { from, upTo }: { from?: string; upTo?: string } = {},
+) {
+  for (const file of migrationFiles()) {
+    if (from && file < from) continue
+    if (upTo && file > upTo) break
+    const stmts = migrationStatements(file)
+    if (stmts.length) await raw.batch(stmts.map((s) => raw.prepare(s)))
+  }
+}
+
 export async function createTestDb({
   migrations = true,
-}: { migrations?: boolean } = {}): Promise<TestDb> {
+  upTo,
+}: { migrations?: boolean; upTo?: string } = {}): Promise<TestDb> {
   const proxy = await getPlatformProxy<{ DB: D1Database }>({
     configPath: `${workerDir}/wrangler.toml`,
     persist: false,
   })
   const raw = proxy.env.DB
-  for (const file of migrations ? migrationFiles() : []) {
-    const stmts = migrationStatements(file)
-    if (stmts.length) await raw.batch(stmts.map((s) => raw.prepare(s)))
-  }
+  if (migrations) await applyMigrations(raw, { upTo })
   return {
     db: raw.withSession('first-primary'),
     raw,

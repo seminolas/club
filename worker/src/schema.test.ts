@@ -4,7 +4,9 @@ import { createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
 
 // prod-schema.json: sqlite_master from club-prod (structure only), captured
-// 2026-10-21. Refresh it if prod's schema changes outside migrations.
+// 2026-10-21 when prod's latest migration was PROD_SCHEMA_AT. After applying a
+// new migration to prod, re-capture it and move PROD_SCHEMA_AT forward.
+const PROD_SCHEMA_AT = '0010_session_indexes.sql'
 // Compares structure, not formatting: prod's stored SQL keeps comments and
 // layout on some tables but not others (applied different ways over time).
 const normalise = (sql: string | null) =>
@@ -22,16 +24,21 @@ beforeAll(async () => {
 afterAll(() => t.dispose())
 
 describe('migrations', () => {
-  it('reproduce prod’s schema exactly', async () => {
-    const { results } = await t.raw
-      .prepare(
-        "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations' ORDER BY type, name",
-      )
-      .all<{ type: string; name: string; tbl_name: string; sql: string }>()
-    const shape = (rows: typeof results) =>
-      rows.map((r) => ({ ...r, sql: normalise(r.sql) }))
-    expect(shape(results)).toEqual(shape(prodSchema))
-  })
+  it('up to the one prod is on reproduce prod’s schema exactly', async () => {
+    const atProd = await createTestDb({ upTo: PROD_SCHEMA_AT })
+    try {
+      const { results } = await atProd.raw
+        .prepare(
+          "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations' ORDER BY type, name",
+        )
+        .all<{ type: string; name: string; tbl_name: string; sql: string }>()
+      const shape = (rows: typeof results) =>
+        rows.map((r) => ({ ...r, sql: normalise(r.sql) }))
+      expect(shape(results)).toEqual(shape(prodSchema))
+    } finally {
+      await atProd.dispose()
+    }
+  }, 60_000)
 })
 
 // What a database enforces, per table, independent of how the SQL was written.

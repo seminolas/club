@@ -17,6 +17,7 @@
     "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging"
   },
   "dependencies": {
+    "better-auth": "^1.7.12",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13"
   },

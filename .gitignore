@@ -2,3 +2,5 @@ node_modules/
 dist/
 .wrangler/
 worker/scripts/*.sql
+# local secrets (e.g. the staging test accounts' password)
+.env*
