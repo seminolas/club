@@ -123,6 +123,7 @@ node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"g
 node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod vs staging, diff the on-screen text
 node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
 node admin-flow.mjs    # a whole admin session night on staging as Test Admin, checked, then cleaned up
+node auth-ui.mjs       # sign-in in the browser on staging: to Google, Test Admin UI + logout, non-admin turned away
 ```
 
 CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
@@ -212,12 +213,12 @@ All under `/api/*`. Auth routes are open; everything else requires `Authorizatio
 
 ## Authentication
 
-**Two sign-ins coexist until S4b (MIGRATION.md):**
+**BetterAuth** (`worker/src/better-auth.ts`), mounted at `/api/auth/*` (Drizzle adapter on D1, `admin` plugin, Google provider). Since S4b it is the only sign-in.
 
-- **Old (the current UI):** Google Identity Services in the browser returns an `id_token`, POSTed to `/api/auth/login`; the Worker verifies it, finds the player through `player_auth_profiles`, and issues an app JWT (roles `owner`/`admin`/`scorer`/`player` from `player_roles`). The UI sends it as `Authorization: Bearer`.
-- **BetterAuth (S4a, `worker/src/better-auth.ts`):** mounted at `/api/auth/*` (Drizzle adapter on D1, `admin` plugin, Google provider). Sessions are an HttpOnly cookie (`__Secure-better-auth.session_token` on https). Tables `user`, `session`, `account`, `verification`; `players.user_id` links a player to their login. `user.role` is the app role: `admin` or `user` (player). Migration 0011 carried over every Google link (Google's `sub` is the account id, so the same Google account signs in to the same user) and made owners/admins `admin`. Facebook links weren't carried over (per-app ids).
-
-`requireAdmin` accepts either: a Bearer app JWT with `owner`/`admin`, or a BetterAuth session whose user is `admin`.
+- **Signing in:** "Sign in with Google" in the browser calls `POST /api/auth/sign-in/social` and follows the returned URL to Google (redirect flow; needs `GOOGLE_CLIENT_SECRET` and the redirect URLs `https://<host>/api/auth/callback/google` registered on the Google OAuth client for prod and staging). Google sends the browser back to the page it started on, signed in. The session is an HttpOnly cookie (`__Secure-better-auth.session_token` on https), sent automatically with every same-origin API call.
+- **Who's signed in:** `GET /api/me` → `{ signedIn, isAdmin, name?, player? }`; the browser asks on load. Sign out: `POST /api/auth/sign-out`.
+- **Roles:** `user.role` is `admin` or `user` (player). `requireAdmin` passes only a session whose user is `admin`. A Google account that signs in but isn't an admin is signed out again with a message (players signing in is V1).
+- **Tables:** `user`, `session`, `account`, `verification`; `players.user_id` links a player to their login. Migration 0011 carried over every Google link from the old app (Google's `sub` is the account id, so the same Google account signs in to the same user) and made owners/admins `admin`; 0012 dropped the old tables (`player_auth_profiles`, `roles`, `player_roles`). Facebook links weren't carried over (per-app ids); those players' emails are on `players.email`.
 
 **Staging test accounts.** On staging only, `TEST_LOGIN = "1"` (in `[env.staging.vars]`) turns on email + password sign-in for two synthetic accounts: **Test Admin** (`test-admin@staging.invalid`, admin) and **Test Player** (`test-player@staging.invalid`, player). Sign-up is off; `testLoginEnabled` refuses to start it for any URL that isn't staging or localhost, and a test checks prod-like config rejects password sign-in. Their password is the `TEST_LOGIN_PASSWORD` GitHub secret (the staging refresh re-creates the accounts after loading prod's data, via `worker/scripts/seed-test-users.mts`) and, for local scripts, `e2e/.env.staging` (gitignored). Passwords use PBKDF2 via WebCrypto (`src/test-login.ts`), because BetterAuth's default scrypt is too CPU-heavy for the free plan. Sign in from scripts with `POST /api/auth/sign-in/email` (send an `Origin` header), or `{ "as": "test-admin" }` in `e2e/shot.mjs`.
 ---
@@ -264,13 +265,12 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 | Name | Type | Purpose |
 |------|------|---------|
-| `JWT_SECRET` | Secret | Signs and verifies the old app JWTs (removed in S4b) |
 | `BETTER_AUTH_SECRET` | Secret | BetterAuth: signs session cookies (different on prod and staging) |
 | `BETTER_AUTH_URL` | Var (toml) | BetterAuth: the deployment's origin (prod and staging differ) |
-| `GOOGLE_CLIENT_SECRET` | Secret | BetterAuth's Google sign-in (redirect flow, from S4b) |
+| `GOOGLE_CLIENT_SECRET` | Secret | BetterAuth's Google sign-in (redirect flow) |
 | `TEST_LOGIN` | Var (toml) | `"1"` on **staging only**: password sign-in for the test accounts |
 | `HC_API_KEY` | Secret | HelloClub API key — **prod only**, staging value is nonsense |
-| `GOOGLE_CLIENT_ID` | Secret | Google OAuth client ID for GIS |
+| `GOOGLE_CLIENT_ID` | Secret | Google OAuth client id (same client on prod and staging) |
 | `HC_CLUB_ID` | Var (toml) | `northlandbadminton` — used in HC API base URL |
 | `HC_CLUB_SLUG` | Var (toml) | `northland-badminton` — sent as `x-club` header |
 
@@ -298,7 +298,6 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Future work
 
-- google auth token expiry doesn't log me out - I have to logout and back in again sometimes for write operations to work
 - need a better handling for user display names. we now have a concept of preferred names and some special handling of players names to make them shorter. I think we should just give everyone a unique display name (following similar rules as we do now for shortening) and just use those (and update user provisioning accordingly).
 - score entry UI is ok for desktop, not great for mobile. in the future I expect players to be entering scores themselves rather than me copying them from paper score sheets
 - should consider better score sheets in the interim; we could just have names instead of numbers, and maybe we don't need the grid as such, just one score entry per game. also clear set 1/2/3 slots. but would probably still need to have some way for players to calculate final placements (even though I ignore it, but some people just enjoy it better on paper).
