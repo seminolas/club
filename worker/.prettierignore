@@ -1,0 +1,8 @@
+package-lock.json
+src/test/legacy-algorithm.cjs
+src/__snapshots__
+node_modules
+.wrangler
+# one-off historical scripts
+scripts/*
+!scripts/replay-ladder.mts

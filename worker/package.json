@@ -3,21 +3,30 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "build:web": "esbuild src/browser/index.ts --bundle --format=iife --target=es2020 --outfile=../js/dist/rules.js",
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "lint": "eslint",
+    "format": "prettier --write . && eslint --fix",
+    "format:check": "prettier --check .",
     "db:migrate:prod": "wrangler d1 migrations apply club-prod --remote",
     "db:migrate:staging": "wrangler d1 migrations apply club-staging --env staging --remote",
     "migrate-data": "tsx scripts/migrate-data.ts",
-    "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
+    "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging"
   },
   "dependencies": {
     "hono": "^4.6.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261019.1",
+    "@tanstack/eslint-config": "^0.4.0",
     "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "fast-check": "^4.10.2",
+    "prettier": "^3.9.10",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
     "vitest": "^5.0.5",
