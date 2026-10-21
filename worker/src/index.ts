@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { Env, JwtPayload } from './types'
+import type { BoxInput, Env, JwtPayload } from './types'
 import { requireAdmin, signJwt, verifyGoogleToken } from './auth'
 import * as db from './db'
 import type { DB } from './db'
@@ -195,7 +195,7 @@ app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
 // Store computed box assignment from client (player IDs in boxes.players)
 app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
   const date = c.req.param('date')
-  const { boxes } = await c.req.json<{ boxes: import('./types').BoxInput[] }>()
+  const { boxes } = await c.req.json<{ boxes: BoxInput[] }>()
 
   const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
   if (!session) return c.json({ error: 'Not found' }, 404)
@@ -262,7 +262,7 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
 })
 
 app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
-  const date = c.req.param('date') as string
+  const date = c.req.param('date')
   const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
   if (!session) return c.json({ error: 'Not found' }, 404)
   if (session.status !== 'closed')
@@ -272,7 +272,7 @@ app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
 })
 
 app.post('/api/sessions/:date/reopen-attendance', requireAdmin, async (c) => {
-  const date = c.req.param('date') as string
+  const date = c.req.param('date')
   const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
   if (!session) return c.json({ error: 'Not found' }, 404)
   if (session.status !== 'games')
@@ -371,7 +371,7 @@ app.get('/api/hc/members', requireAdmin, async (c) => {
       502,
     )
   }
-  const data = (await res.json()) as {
+  const data = await res.json<{
     members?: Array<{
       id: string
       firstName: string
@@ -381,7 +381,7 @@ app.get('/api/hc/members', requireAdmin, async (c) => {
       isArchived?: boolean
       isSuspended?: boolean
     }>
-  }
+  }>()
   const members = (data.members ?? [])
     .filter((m) => !m.isArchived && !m.isSuspended)
     .map((m) => ({
@@ -426,9 +426,9 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
         `HelloClub API error: ${eventRes.status}${body ? ' — ' + body : ''}`,
       )
     }
-    const eventData = (await eventRes.json()) as {
+    const eventData = await eventRes.json<{
       events?: Array<{ id: string; name: string }>
-    }
+    }>()
     const event = (eventData.events ?? []).find((e) =>
       e.name?.includes('Senior Box'),
     )
@@ -447,9 +447,9 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
         `Failed to fetch attendees: ${attRes.status}${body ? ' — ' + body : ''}`,
       )
     }
-    const attData = (await attRes.json()) as {
+    const attData = await attRes.json<{
       attendees?: Array<{ member?: { id: string } }>
-    }
+    }>()
     const registeredIds = new Set(
       (attData.attendees ?? [])
         .map((a) => a.member?.id)

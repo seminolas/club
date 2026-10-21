@@ -85,7 +85,7 @@ async function getGooglePublicKeys(): Promise<GoogleKey[]> {
     return googleKeysCache.keys
   }
   const res = await fetch('https://www.googleapis.com/oauth2/v3/certs')
-  const data = (await res.json()) as { keys: GoogleKey[] }
+  const data = await res.json<{ keys: GoogleKey[] }>()
   googleKeysCache = { keys: data.keys, fetchedAt: now }
   return data.keys
 }

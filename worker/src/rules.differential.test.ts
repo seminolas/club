@@ -37,7 +37,7 @@ const validSet: fc.Arbitrary<SetPair> = fc
       hi = cap
       lo = cap - 1
     }
-    return (flip ? [lo, hi] : [hi, lo]) as SetPair
+    return flip ? [lo, hi] : [hi, lo]
   })
 
 const won = (s: SetPair, pair1: boolean) =>

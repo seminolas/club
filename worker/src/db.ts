@@ -1,7 +1,7 @@
 // D1 query helpers — all queries parameterised, no string interpolation.
 
 import { getPairings, SUPPORTED_BOX_SIZES } from './domain/pairings'
-import type { Box, Match, SessionStatus } from './types'
+import type { Box, BoxInput, Match, SessionStatus } from './types'
 
 // Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
 // withSession('first-primary') wrapper) — both expose prepare()/batch().
@@ -244,7 +244,7 @@ export async function createSession(
     )
     .bind(clubId, date)
     .run()
-  return result.meta.last_row_id as number
+  return result.meta.last_row_id
 }
 
 export async function updateSessionStatus(
@@ -495,7 +495,7 @@ export async function deleteSession(db: DB, sessionId: number): Promise<void> {
 export async function saveBoxes(
   db: DB,
   sessionId: number,
-  boxes: import('./types').BoxInput[],
+  boxes: BoxInput[],
 ): Promise<void> {
   const stmts: D1PreparedStatement[] = []
 
