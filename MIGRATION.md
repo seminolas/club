@@ -76,7 +76,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
   - A nightly GitHub Action (about 3am NZ) runs `wrangler d1 export club-prod` and commits the dump to a **private** repo, e.g. `seminolas/club-backups`; git history keeps every night's copy. Never store dumps in `club` itself or its Action artifacts: that repo is public and the data has names, emails and HelloClub ids.
   - Needs: the private repo, and a fine-grained token limited to it ("Contents: read and write") stored as a secret in `club`, created by the developer in the browser. Reuses the existing Cloudflare secrets.
   - A manual "Load a backup into staging" workflow (staging-refresh with a chosen dump) as the restore drill.
-  - R2 (Cloudflare's suggestion) was set aside: enabling it likely needs a payment method on file.
+  - Alternative to decide on when building: **R2** (Cloudflare's own suggestion). Its free tier (10 GB-month storage, 1M writes, 10M reads a month, free egress) easily covers a ~1 MB nightly dump. Activating it reportedly asks for a card or PayPal as verification, charging only beyond the free tier (per third-party guides; check the dashboard). For: stays in Cloudflare, no GitHub token, lifecycle rules can expire old dumps. Against: a payment method on file with no hard spending cap, and plain files rather than a browsable, diffable history.
 
 ## Where things are in `club-next` (reference)
 
