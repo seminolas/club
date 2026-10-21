@@ -26,7 +26,7 @@ export const migrationFiles = () =>
     .filter((f) => f.endsWith('.sql'))
     .sort()
 
-// Child tables before parents. `roles` keeps the rows migration 0007 seeds.
+// Child tables before parents (players before user: players.user_id).
 const DATA_TABLES = [
   'match_players',
   'match_sets',
@@ -34,11 +34,13 @@ const DATA_TABLES = [
   'box_players',
   'boxes',
   'attendees',
-  'player_roles',
-  'player_auth_profiles',
+  'session',
+  'account',
+  'verification',
   'session_ranks',
   'sessions',
   'players',
+  'user',
   'clubs',
 ]
 
@@ -81,7 +83,7 @@ export async function createTestDb({
       await raw.batch([
         ...DATA_TABLES.map((t) => raw.prepare(`DELETE FROM ${t}`)),
         raw.prepare(
-          "DELETE FROM sqlite_sequence WHERE name <> 'roles' AND name <> 'd1_migrations'",
+          "DELETE FROM sqlite_sequence WHERE name <> 'd1_migrations'",
         ),
       ])
     },

@@ -238,38 +238,3 @@ export const matchPlayers = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.matchId, t.playerId] })],
 )
-
-export const playerAuthProfiles = sqliteTable(
-  'player_auth_profiles',
-  {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id),
-    /** 'google', 'facebook', ... */
-    provider: text('provider').notNull(),
-    /** Stable id from the identity provider. */
-    providerId: text('provider_id').notNull(),
-    /** Provider email at time of HelloClub linking. */
-    email: text('email'),
-  },
-  (t) => [unique().on(t.provider, t.providerId)],
-)
-
-export const roles = sqliteTable('roles', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull().unique(),
-})
-
-export const playerRoles = sqliteTable(
-  'player_roles',
-  {
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id),
-    roleId: integer('role_id')
-      .notNull()
-      .references(() => roles.id),
-  },
-  (t) => [primaryKey({ columns: [t.playerId, t.roleId] })],
-)

@@ -3,10 +3,10 @@
 // seed ladder rows (session_id NULL), a closed session with full scores and
 // before/after ladders, a session mid-games with partial scores and a player
 // added mid-session, an archived player, a second club sharing a name and a
-// date, a club with a seed ladder but no sessions, and sign-in profiles
-// and roles.
+// date, and a club with a seed ladder but no sessions.
 import { getPairings } from '../../domain/pairings'
 import type { DB } from '../../db'
+import { testUsersSql } from '../../test-login'
 
 type Row = Record<string, string | number | null>
 
@@ -225,21 +225,6 @@ export async function seed(db: DB): Promise<void> {
         phase: 'after',
       }),
     ),
-    insert(db, 'player_auth_profiles', {
-      player_id: 1,
-      provider: 'google',
-      provider_id: 'sub-aroha',
-      email: 'aroha@example.test',
-    }),
-    insert(db, 'player_auth_profiles', {
-      player_id: 13,
-      provider: 'google',
-      provider_id: 'sub-liam',
-      email: null,
-    }),
-    insert(db, 'player_roles', { player_id: 1, role_id: 1 }),
-    insert(db, 'player_roles', { player_id: 1, role_id: 2 }),
-    insert(db, 'player_roles', { player_id: 3, role_id: 3 }),
   ]
   let boxId = 0
   let matchId = 0
@@ -318,4 +303,40 @@ export async function seed(db: DB): Promise<void> {
     })
   }
   await db.batch(stmts)
+}
+
+/**
+ * The old sign-in's rows (tables dropped by 0012), for testing 0011's
+ * carry-over: Google links for Aroha and (archived) Liam, Aroha owner and
+ * admin, Chloe scorer.
+ */
+export async function seedLegacyAuth(db: DB): Promise<void> {
+  await db.batch([
+    insert(db, 'player_auth_profiles', {
+      player_id: 1,
+      provider: 'google',
+      provider_id: 'sub-aroha',
+      email: 'aroha@example.test',
+    }),
+    insert(db, 'player_auth_profiles', {
+      player_id: 13,
+      provider: 'google',
+      provider_id: 'sub-liam',
+      email: null,
+    }),
+    insert(db, 'player_roles', { player_id: 1, role_id: 1 }),
+    insert(db, 'player_roles', { player_id: 1, role_id: 2 }),
+    insert(db, 'player_roles', { player_id: 3, role_id: 3 }),
+  ])
+}
+
+/** The staging test accounts (Test Admin, Test Player) with this password. */
+export async function seedTestUsers(db: DB, password: string): Promise<void> {
+  const sql = await testUsersSql(password)
+  await db.batch(
+    sql
+      .split('\n')
+      .filter(Boolean)
+      .map((stmt) => db.prepare(stmt)),
+  )
 }

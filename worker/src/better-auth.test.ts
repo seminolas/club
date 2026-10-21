@@ -26,8 +26,8 @@ beforeAll(async () => {
   )
   env = {
     DB: t.raw,
-    JWT_SECRET: 'test-secret',
     GOOGLE_CLIENT_ID: 'test-client-id',
+    GOOGLE_CLIENT_SECRET: 'test-client-secret',
     HC_API_KEY: 'unused',
     HC_CLUB_ID: 'unused',
     HC_CLUB_SLUG: 'unused',
@@ -139,5 +139,55 @@ describe('without TEST_LOGIN (as on prod)', () => {
         BETTER_AUTH_URL: 'https://club-api-staging.vilhelmas-f78.workers.dev',
       }),
     ).toBe(true)
+  })
+})
+
+describe('/api/me', () => {
+  it('signed out', async () => {
+    expect(await (await request('/api/me')).json()).toEqual({
+      signedIn: false,
+      isAdmin: false,
+    })
+  })
+
+  it('the test admin (no player)', async () => {
+    const { cookie } = await signIn('test-admin')
+    expect(await (await request('/api/me', { cookie })).json()).toEqual({
+      signedIn: true,
+      isAdmin: true,
+      name: 'Test Admin',
+      player: null,
+    })
+  })
+
+  it('a player linked to their login', async () => {
+    await t.raw
+      .prepare("UPDATE players SET user_id = 'test-player' WHERE id = 3")
+      .run()
+    const { cookie } = await signIn('test-player')
+    expect(await (await request('/api/me', { cookie })).json()).toEqual({
+      signedIn: true,
+      isAdmin: false,
+      name: 'Test Player',
+      player: { id: 3, name: 'Chloe Wu' },
+    })
+    await t.raw.prepare('UPDATE players SET user_id = NULL WHERE id = 3').run()
+  })
+})
+
+describe('Google sign-in', () => {
+  it('starts the redirect to Google with our callback', async () => {
+    const res = await request('/api/auth/sign-in/social', {
+      method: 'POST',
+      body: { provider: 'google', callbackURL: '/#/players' },
+    })
+    expect(res.status).toBe(200)
+    const { url } = await res.json<{ url: string }>()
+    const google = new URL(url)
+    expect(google.origin).toBe('https://accounts.google.com')
+    expect(google.searchParams.get('client_id')).toBe('test-client-id')
+    expect(google.searchParams.get('redirect_uri')).toBe(
+      `${BASE}/api/auth/callback/google`,
+    )
   })
 })

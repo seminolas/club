@@ -84,15 +84,8 @@ function appData() {
     _previousBoxLayout: null,
 
     // ── Init ───────────────────────────────────────────────────────────────
-    _googleClientId: null,
-
     async init() {
-      this.isAdmin = Storage.autoLogin() && Storage.isAdmin();
-
-      // Load club config to get googleClientId for GIS initialization
-      Storage.getConfig().then(cfg => {
-        this._googleClientId = cfg.googleClientId ?? null;
-      }).catch(() => {});
+      await this.checkSignIn();
 
       await this.loadHome();
       this.initSelectedDate();
@@ -187,38 +180,41 @@ function appData() {
       return false;
     },
 
-    // Render the Google Sign-In button into #google-signin-btn.
-    // Retries every 100ms until the GIS SDK and config are ready.
-    initGoogleButton() {
-      if (!this.showLogin) return;
-      if (!window.google?.accounts?.id || !this._googleClientId) {
-        setTimeout(() => this.initGoogleButton(), 100);
-        return;
+    // ── Auth (BetterAuth, Google redirect) ─────────────────────────────────
+    // On load: who's signed in. Coming back from Google, an account that isn't
+    // an admin is signed out again with a message, as the old sign-in refused
+    // it (players signing in comes later).
+    async checkSignIn() {
+      const params = new URLSearchParams(location.search);
+      const returning = sessionStorage.getItem('signingIn') === '1';
+      sessionStorage.removeItem('signingIn');
+      if (params.has('error')) {
+        this.loginError = 'Sign-in didn’t complete. Please try again.';
+        this.showLogin = true;
+        history.replaceState(null, '', location.pathname + location.hash);
       }
-      const el = document.getElementById('google-signin-btn');
-      if (!el || el.children.length > 0) return;
-      google.accounts.id.initialize({
-        client_id: this._googleClientId,
-        callback: (r) => this.onGoogleSignIn(r),
-      });
-      google.accounts.id.renderButton(el, { type: 'standard', size: 'large', theme: 'outline' });
+      const me = await Storage.me().catch(() => ({ signedIn: false, isAdmin: false }));
+      this.isAdmin = me.isAdmin;
+      if (returning && me.signedIn && !me.isAdmin) {
+        await Storage.logout().catch(() => {});
+        this.loginError = 'This Google account isn’t an admin here. Contact your club admin.';
+        this.showLogin = true;
+      }
     },
 
-    // ── Auth (Google Sign-In) ──────────────────────────────────────────────
-    // Called by the Google Identity Services callback (set in index.html)
-    async onGoogleSignIn(response) {
+    async signInWithGoogle() {
       this.loginError = null;
       try {
-        await Storage.loginWithGoogleToken(response.credential);
-        this.isAdmin = Storage.isAdmin();
-        this.showLogin = false;
+        sessionStorage.setItem('signingIn', '1');
+        await Storage.signInWithGoogle();
       } catch (e) {
+        sessionStorage.removeItem('signingIn');
         this.loginError = e.message;
       }
     },
 
-    logout() {
-      Storage.logout();
+    async logout() {
+      await Storage.logout().catch(() => {});
       this.isAdmin = false;
     },
 

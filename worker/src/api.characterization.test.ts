@@ -3,38 +3,53 @@
 // session night. Written before S2; must pass unchanged after.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import app from './index'
-import { signJwt } from './auth'
 import { getPairing } from './db'
 import { createTestDb, tableRows } from './test/d1'
 import type { TestDb } from './test/d1'
-import { seed } from './test/fixtures/seed'
+import { seed, seedTestUsers } from './test/fixtures/seed'
 import type { Env } from './types'
 
 let t: TestDb
 let env: Env
-let token: string
+// Signed in as the test admin (BetterAuth session cookie).
+let cookie: string
+const PASSWORD = 'test-password-0123456789'
+const BASE = 'http://localhost'
 
 beforeAll(async () => {
   t = await createTestDb()
   env = {
     DB: t.raw,
-    JWT_SECRET: 'test-secret',
     GOOGLE_CLIENT_ID: 'test-client-id',
     HC_API_KEY: 'unused',
     HC_CLUB_ID: 'unused',
     HC_CLUB_SLUG: 'unused',
     BETTER_AUTH_SECRET: 'test-better-auth-secret-0123456789abcdef',
-    BETTER_AUTH_URL: 'http://localhost',
+    BETTER_AUTH_URL: BASE,
+    TEST_LOGIN: '1',
   }
-  token = await signJwt(
-    { sub: '1', player_id: 1, club_id: 1, roles: ['owner', 'admin'] },
-    env.JWT_SECRET,
-  )
 }, 60_000)
 afterAll(() => t.dispose())
 beforeEach(async () => {
   await t.clear()
   await seed(t.db)
+  await seedTestUsers(t.db, PASSWORD)
+  const res = await app.request(
+    '/api/auth/sign-in/email',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: BASE },
+      body: JSON.stringify({
+        email: 'test-admin@staging.invalid',
+        password: PASSWORD,
+      }),
+    },
+    env,
+  )
+  cookie = res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ')
 })
 
 async function call(
@@ -49,7 +64,8 @@ async function call(
       method,
       headers: {
         'Content-Type': 'application/json',
-        ...(admin ? { Authorization: `Bearer ${token}` } : {}),
+        Origin: BASE,
+        ...(admin ? { Cookie: cookie } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     },
@@ -69,7 +85,6 @@ describe('public reads', () => {
       body: {
         timezone: 'Pacific/Auckland',
         hcSubdomain: 'testclub',
-        googleClientId: 'test-client-id',
       },
     })
   })
@@ -98,7 +113,7 @@ describe('public reads', () => {
 })
 
 describe('admin', () => {
-  it('rejects requests without a token', async () => {
+  it('rejects requests without a session', async () => {
     expect((await call('GET', '/api/players/1', undefined, false)).status).toBe(
       401,
     )
