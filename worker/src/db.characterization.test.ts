@@ -1,0 +1,301 @@
+// Characterization tests for db.ts: what every query the app uses returns and
+// writes today, against a real local D1 with the fixture club. Written before
+// S2 moved the queries to Drizzle; the Drizzle versions must pass unchanged.
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import * as db from './db'
+import { createTestDb, tableRows } from './test/d1'
+import type { TestDb } from './test/d1'
+import { seed } from './test/fixtures/seed'
+
+const TABLES = [
+  'clubs',
+  'players',
+  'sessions',
+  'session_ranks',
+  'attendees',
+  'boxes',
+  'box_players',
+  'matches',
+  'match_sets',
+  'match_players',
+  'player_auth_profiles',
+  'player_roles',
+  'roles',
+]
+
+// Rows of every table, with "now" timestamps masked (shape-checked first).
+async function snapshotTables(d: db.DB) {
+  const out: Record<string, unknown[]> = {}
+  for (const table of TABLES) {
+    out[table] = (await tableRows(d, table)).map((row) => {
+      const r = { ...row }
+      if (
+        table === 'sessions' &&
+        typeof r.created_at === 'string' &&
+        r.created_at.startsWith('20') &&
+        r.id !== 1 &&
+        r.id !== 2 &&
+        r.id !== 3
+      ) {
+        expect(r.created_at).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
+        r.created_at = '<now>'
+      }
+      if (
+        table === 'players' &&
+        typeof r.archived_at === 'string' &&
+        r.archived_at !== '2026-01-02'
+      ) {
+        expect(r.archived_at).toMatch(/^\d{4}-\d\d-\d\d$/)
+        r.archived_at = '<today>'
+      }
+      return r
+    })
+  }
+  return out
+}
+
+let t: TestDb
+beforeAll(async () => {
+  t = await createTestDb()
+}, 60_000)
+afterAll(() => t.dispose())
+
+describe('reads', () => {
+  beforeAll(async () => {
+    await t.clear()
+    await seed(t.db)
+  })
+
+  it('getLeaderboardPlayers: latest session’s ladder (before-phase while not closed), active players only', async () => {
+    expect(await db.getLeaderboardPlayers(t.db, 1)).toMatchSnapshot()
+    expect(await db.getLeaderboardPlayers(t.db, 2)).toMatchSnapshot()
+  })
+
+  it('getPlayerByName: active players in the club only', async () => {
+    expect(await db.getPlayerByName(t.db, 1, 'Aroha Ngata')).toEqual({
+      id: 1,
+      name: 'Aroha Ngata',
+    })
+    expect(await db.getPlayerByName(t.db, 2, 'Aroha Ngata')).toEqual({
+      id: 15,
+      name: 'Aroha Ngata',
+    })
+    expect(await db.getPlayerByName(t.db, 1, 'Liam Gone')).toBeNull()
+    expect(await db.getPlayerByName(t.db, 1, 'Nobody')).toBeNull()
+  })
+
+  it('getSessionRanks: by session and phase; seed rows for null', async () => {
+    expect({
+      seed: await db.getSessionRanks(t.db, null),
+      s1before: await db.getSessionRanks(t.db, 1, 'before'),
+      s1after: await db.getSessionRanks(t.db, 1),
+      s2before: await db.getSessionRanks(t.db, 2, 'before'),
+      s2after: await db.getSessionRanks(t.db, 2, 'after'),
+      missing: await db.getSessionRanks(t.db, 99, 'before'),
+    }).toMatchSnapshot()
+  })
+
+  it('getSessionByDate: scoped to the club', async () => {
+    expect(await db.getSessionByDate(t.db, 1, '2026-01-13')).toMatchSnapshot()
+    expect(await db.getSessionByDate(t.db, 2, '2026-01-13')).toMatchSnapshot()
+    expect(await db.getSessionByDate(t.db, 1, '2026-01-06')).toMatchSnapshot()
+    expect(await db.getSessionByDate(t.db, 1, '2030-01-01')).toBeNull()
+  })
+
+  it('listSessions: newest first, with attendee counts', async () => {
+    expect(await db.listSessions(t.db, 1)).toEqual([
+      { date: '2026-01-13', status: 'games', attendee_count: 9 },
+      { date: '2026-01-06', status: 'closed', attendee_count: 9 },
+    ])
+    expect(await db.listSessions(t.db, 2)).toEqual([
+      { date: '2026-01-13', status: 'attendance', attendee_count: 1 },
+    ])
+  })
+
+  it('getAttendees: in ladder-before order', async () => {
+    expect(await db.getAttendees(t.db, 1)).toMatchSnapshot()
+    expect(await db.getAttendees(t.db, 2)).toMatchSnapshot()
+    expect(await db.getAttendees(t.db, 99)).toEqual([])
+  })
+
+  it("getBoxes: players, pairings and sets (blank scores as '')", async () => {
+    expect(await db.getBoxes(t.db, 1)).toMatchSnapshot()
+    expect(await db.getBoxes(t.db, 2)).toMatchSnapshot()
+    expect(await db.getBoxes(t.db, 3)).toEqual([])
+  })
+
+  it('getPlayerById: active players in the club only', async () => {
+    expect(await db.getPlayerById(t.db, 1, 1)).toMatchSnapshot()
+    expect(await db.getPlayerById(t.db, 1, 2)).toMatchSnapshot()
+    expect(await db.getPlayerById(t.db, 1, 13)).toBeNull()
+    expect(await db.getPlayerById(t.db, 1, 15)).toBeNull()
+  })
+
+  it('findPlayerByAuthProfile: active players only', async () => {
+    expect(
+      await db.findPlayerByAuthProfile(t.db, 'google', 'sub-aroha'),
+    ).toEqual({ id: 1, name: 'Aroha Ngata', preferred_name: null })
+    expect(
+      await db.findPlayerByAuthProfile(t.db, 'google', 'sub-liam'),
+    ).toBeNull()
+    expect(
+      await db.findPlayerByAuthProfile(t.db, 'facebook', 'sub-aroha'),
+    ).toBeNull()
+  })
+
+  it('getClub', async () => {
+    expect(await db.getClub(t.db, 1)).toMatchSnapshot()
+    expect(await db.getClub(t.db, 2)).toMatchSnapshot()
+    expect(await db.getClub(t.db, 9)).toBeNull()
+  })
+
+  it('getPlayerRoles', async () => {
+    expect((await db.getPlayerRoles(t.db, 1)).sort()).toEqual([
+      'admin',
+      'owner',
+    ])
+    expect(await db.getPlayerRoles(t.db, 3)).toEqual(['scorer'])
+    expect(await db.getPlayerRoles(t.db, 4)).toEqual([])
+  })
+})
+
+describe('writes', () => {
+  beforeEach(async () => {
+    await t.clear()
+    await seed(t.db)
+  })
+
+  it('createSession + setSessionRanks (as POST /api/sessions does)', async () => {
+    const ladder = await db.getLeaderboardPlayers(t.db, 1)
+    const id = await db.createSession(t.db, 1, '2026-01-20')
+    await db.setSessionRanks(
+      t.db,
+      id,
+      ladder.map((p) => p.id),
+      'before',
+    )
+    expect(id).toBe(4)
+    expect(await db.getLeaderboardPlayers(t.db, 1)).toEqual(ladder)
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('setSessionRanks: replaces one session+phase, or all seed rows; ignores an empty list', async () => {
+    await db.setSessionRanks(t.db, 2, [3, 1, 2], 'after')
+    await db.setSessionRanks(t.db, null, [5, 4])
+    await db.setSessionRanks(t.db, 1, [], 'before')
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('replaceLeaderboard: re-ranks, archives omitted players, revives and adds by name', async () => {
+    await db.replaceLeaderboard(t.db, 1, [
+      'Chloe Wu',
+      'Liam Gone',
+      'Aroha Ngata',
+      'New Person',
+      'Ben Carter',
+    ])
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+    expect(await db.getLeaderboardPlayers(t.db, 1)).toMatchSnapshot()
+  })
+
+  it('updateSessionStatus: with and without closed_at', async () => {
+    await db.updateSessionStatus(t.db, 2, 'closed', '2026-01-13T10:00:00.000Z')
+    await db.updateSessionStatus(t.db, 1, 'games')
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('setAttendance: add (idempotent) and remove', async () => {
+    await db.setAttendance(t.db, 2, 8, true)
+    await db.setAttendance(t.db, 2, 8, true)
+    await db.setAttendance(t.db, 2, 1, false)
+    await db.setAttendance(t.db, 2, 99, false)
+    expect(await db.getAttendees(t.db, 2)).toMatchSnapshot()
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('clearBoxes: removes a session’s boxes, matches, sets and match players only', async () => {
+    await db.clearBoxes(t.db, 2)
+    await db.clearBoxes(t.db, 3)
+    expect(await db.getBoxes(t.db, 2)).toEqual([])
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('saveBoxes: boxes, positions, matches, match players and non-blank sets', async () => {
+    await db.clearBoxes(t.db, 2)
+    await db.saveBoxes(t.db, 2, [
+      {
+        players: [1, 2, 14, 5, 6],
+        matches: getPairingsWithSets(5, {
+          0: [
+            [21, 10],
+            ['', 21],
+          ],
+          2: [['', '']],
+        }),
+        finalPlacings: null,
+      },
+      {
+        players: [3, 4, 7, 10],
+        matches: getPairingsWithSets(4, {}),
+        finalPlacings: null,
+      },
+    ])
+    expect(await db.getBoxes(t.db, 2)).toMatchSnapshot()
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('updateSetScore: insert, replace, delete; false for an unknown match', async () => {
+    expect(await db.updateSetScore(t.db, 2, 0, 1, 1, 21, 9)).toBe(true)
+    expect(await db.updateSetScore(t.db, 2, 0, 0, 0, 21, 16)).toBe(true)
+    expect(await db.updateSetScore(t.db, 2, 1, 2, 0, null, null)).toBe(true)
+    expect(await db.updateSetScore(t.db, 2, 1, 3, 0, 15, null)).toBe(true)
+    expect(await db.updateSetScore(t.db, 2, 5, 0, 0, 21, 0)).toBe(false)
+    expect(await db.getBoxes(t.db, 2)).toMatchSnapshot()
+  })
+
+  it('addPlayerMidSession: shifts the before-ladder, ranks and marks the new player attending', async () => {
+    const id = await db.addPlayerMidSession(t.db, 1, 2, 'Nina New', 2)
+    expect(id).toBe(17)
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('updatePlayerProfile: only the fields given; blank name ignored', async () => {
+    await db.updatePlayerProfile(t.db, 2, {
+      email: 'ben@example.test',
+      preferred_name: null,
+    })
+    await db.updatePlayerProfile(t.db, 3, {
+      name: 'Chloe Wu-Smith',
+      hc_member_id: null,
+    })
+    await db.updatePlayerProfile(t.db, 4, { name: '' })
+    await db.updatePlayerProfile(t.db, 5, {})
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('deletePlayer: refuses players with game data; otherwise removes them and their ranks', async () => {
+    expect(await db.deletePlayer(t.db, 1)).toEqual({
+      deleted: false,
+      reason: 'Player has game data',
+    })
+    expect(await db.deletePlayer(t.db, 12)).toEqual({ deleted: true })
+    expect(await db.deletePlayer(t.db, 99)).toEqual({ deleted: true })
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('deleteSession: removes everything belonging to the session', async () => {
+    await db.deleteSession(t.db, 2)
+    expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+})
+
+// Matches for a box as the client sends them: pairings plus sets.
+function getPairingsWithSets(
+  size: number,
+  sets: Record<number, (number | '')[][]>,
+) {
+  return Array.from({ length: size === 4 ? 3 : size }, (_, i) => ({
+    ...db.getPairing(size, i),
+    sets: (sets[i] ?? []) as [number | '', number | ''][],
+  }))
+}

@@ -1,0 +1,1913 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`admin > GET /api/players/:id 1`] = `
+{
+  "body": {
+    "email": "aroha@example.test",
+    "hc_member_id": "hc-0001",
+    "id": 1,
+    "name": "Aroha Ngata",
+    "preferred_name": null,
+  },
+  "status": 200,
+}
+`;
+
+exports[`admin > a whole session night: create, attend, add a player, boxes, scores, close, reopen 1`] = `
+[
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "close previous",
+    "status": 200,
+  },
+  {
+    "body": {
+      "attendees": [],
+      "boxes": [],
+      "date": "2026-01-20",
+      "leaderboardAfter": null,
+      "leaderboardBefore": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "status": "attendance",
+    },
+    "label": "create",
+    "status": 201,
+  },
+  {
+    "body": {
+      "error": "Session already exists",
+    },
+    "label": "create again",
+    "status": 409,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 2",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 1",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 14",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 5",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 6",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 3",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 4",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "attend 7",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "unattend 7",
+    "status": 200,
+  },
+  {
+    "body": {
+      "id": 17,
+      "ok": true,
+    },
+    "label": "add player",
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Player already exists",
+    },
+    "label": "add existing",
+    "status": 409,
+  },
+  {
+    "body": {
+      "attendees": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+      ],
+      "boxes": [],
+      "date": "2026-01-20",
+      "leaderboardAfter": null,
+      "leaderboardBefore": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "status": "attendance",
+    },
+    "label": "get in attendance",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "boxes",
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Cannot change attendance in this state",
+    },
+    "label": "attend during games",
+    "status": 400,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "score",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "score",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "clear score",
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Match not found",
+    },
+    "label": "score unknown match",
+    "status": 404,
+  },
+  {
+    "body": {
+      "attendees": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+      ],
+      "boxes": [
+        {
+          "finalPlacings": null,
+          "matches": [
+            {
+              "pair1": [
+                0,
+                1,
+              ],
+              "pair2": [
+                2,
+                3,
+              ],
+              "sets": [
+                [
+                  21,
+                  12,
+                ],
+              ],
+            },
+            {
+              "pair1": [
+                0,
+                2,
+              ],
+              "pair2": [
+                1,
+                3,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                3,
+              ],
+              "pair2": [
+                1,
+                2,
+              ],
+              "sets": [],
+            },
+          ],
+          "players": [
+            {
+              "id": 2,
+              "name": "Ben Carter",
+            },
+            {
+              "id": 1,
+              "name": "Aroha Ngata",
+            },
+            {
+              "id": 17,
+              "name": "Nina New",
+            },
+            {
+              "id": 14,
+              "name": "Mia Late",
+            },
+          ],
+        },
+        {
+          "finalPlacings": null,
+          "matches": [
+            {
+              "pair1": [
+                0,
+                1,
+              ],
+              "pair2": [
+                2,
+                3,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                2,
+              ],
+              "pair2": [
+                1,
+                3,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                3,
+              ],
+              "pair2": [
+                1,
+                2,
+              ],
+              "sets": [],
+            },
+          ],
+          "players": [
+            {
+              "id": 5,
+              "name": "Dev Singh",
+            },
+            {
+              "id": 6,
+              "name": "Ella Brown",
+            },
+            {
+              "id": 3,
+              "name": "Chloe Wu",
+            },
+            {
+              "id": 4,
+              "name": "Dev Patel",
+            },
+          ],
+        },
+      ],
+      "date": "2026-01-20",
+      "leaderboardAfter": null,
+      "leaderboardBefore": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "status": "games",
+    },
+    "label": "get in games",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "reopen attendance",
+    "status": 200,
+  },
+  {
+    "body": {
+      "attendees": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+      ],
+      "boxes": [],
+      "date": "2026-01-20",
+      "leaderboardAfter": null,
+      "leaderboardBefore": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "status": "attendance",
+    },
+    "label": "get after reopen attendance",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "boxes again",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "close",
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Session is closed",
+    },
+    "label": "score when closed",
+    "status": 400,
+  },
+  {
+    "body": {
+      "attendees": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+      ],
+      "boxes": [
+        {
+          "finalPlacings": null,
+          "matches": [
+            {
+              "pair1": [
+                0,
+                1,
+              ],
+              "pair2": [
+                2,
+                4,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                2,
+                3,
+              ],
+              "pair2": [
+                1,
+                4,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                2,
+              ],
+              "pair2": [
+                3,
+                4,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                3,
+              ],
+              "pair2": [
+                1,
+                2,
+              ],
+              "sets": [],
+            },
+            {
+              "pair1": [
+                0,
+                4,
+              ],
+              "pair2": [
+                1,
+                3,
+              ],
+              "sets": [],
+            },
+          ],
+          "players": [
+            {
+              "id": 2,
+              "name": "Ben Carter",
+            },
+            {
+              "id": 1,
+              "name": "Aroha Ngata",
+            },
+            {
+              "id": 17,
+              "name": "Nina New",
+            },
+            {
+              "id": 14,
+              "name": "Mia Late",
+            },
+            {
+              "id": 5,
+              "name": "Dev Singh",
+            },
+          ],
+        },
+      ],
+      "date": "2026-01-20",
+      "leaderboardAfter": [
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "leaderboardBefore": [
+        {
+          "id": 2,
+          "name": "Ben Carter",
+        },
+        {
+          "id": 1,
+          "name": "Aroha Ngata",
+        },
+        {
+          "id": 14,
+          "name": "Mia Late",
+        },
+        {
+          "id": 17,
+          "name": "Nina New",
+        },
+        {
+          "id": 5,
+          "name": "Dev Singh",
+        },
+        {
+          "id": 6,
+          "name": "Ella Brown",
+        },
+        {
+          "id": 3,
+          "name": "Chloe Wu",
+        },
+        {
+          "id": 4,
+          "name": "Dev Patel",
+        },
+        {
+          "id": 7,
+          "name": "Finn O’Neill",
+        },
+        {
+          "id": 8,
+          "name": "Grace Hohaia",
+        },
+        {
+          "id": 9,
+          "name": "Hemi Walker",
+        },
+        {
+          "id": 10,
+          "name": "Isla Martin",
+        },
+        {
+          "id": 11,
+          "name": "Jack Lee",
+        },
+        {
+          "id": 12,
+          "name": "Kiri Tane",
+        },
+      ],
+      "status": "closed",
+    },
+    "label": "get closed",
+    "status": 200,
+  },
+  {
+    "body": {
+      "players": [
+        {
+          "hc_member_id": "hc-0001",
+          "id": 1,
+          "name": "Aroha Ngata",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 2,
+          "name": "Ben Carter",
+          "preferred_name": "Benny",
+        },
+        {
+          "hc_member_id": null,
+          "id": 17,
+          "name": "Nina New",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 14,
+          "name": "Mia Late",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 5,
+          "name": "Dev Singh",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 6,
+          "name": "Ella Brown",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": "hc-0003",
+          "id": 3,
+          "name": "Chloe Wu",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 4,
+          "name": "Dev Patel",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 7,
+          "name": "Finn O’Neill",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 8,
+          "name": "Grace Hohaia",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 9,
+          "name": "Hemi Walker",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 10,
+          "name": "Isla Martin",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 11,
+          "name": "Jack Lee",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": null,
+          "id": 12,
+          "name": "Kiri Tane",
+          "preferred_name": null,
+        },
+      ],
+      "updatedAt": "<today>",
+    },
+    "label": "leaderboard",
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "label": "reopen",
+    "status": 200,
+  },
+  {
+    "body": [
+      {
+        "attendee_count": 8,
+        "date": "2026-01-20",
+        "status": "games",
+      },
+      {
+        "attendee_count": 9,
+        "date": "2026-01-13",
+        "status": "closed",
+      },
+      {
+        "attendee_count": 9,
+        "date": "2026-01-06",
+        "status": "closed",
+      },
+    ],
+    "label": "list",
+    "status": 200,
+  },
+]
+`;
+
+exports[`admin > a whole session night: create, attend, add a player, boxes, scores, close, reopen 2`] = `
+[
+  {
+    "closed_at": "<set>",
+    "club_id": 1,
+    "created_at": "2026-01-06 05:00:00",
+    "date": "2026-01-06",
+    "id": 1,
+    "status": "closed",
+  },
+  {
+    "closed_at": "<set>",
+    "club_id": 1,
+    "created_at": "2026-01-13 05:00:00",
+    "date": "2026-01-13",
+    "id": 2,
+    "status": "closed",
+  },
+  {
+    "closed_at": null,
+    "club_id": 2,
+    "created_at": "2026-01-13 06:00:00",
+    "date": "2026-01-13",
+    "id": 3,
+    "status": "attendance",
+  },
+  {
+    "closed_at": "<set>",
+    "club_id": 1,
+    "created_at": "<now>",
+    "date": "2026-01-20",
+    "id": 4,
+    "status": "games",
+  },
+]
+`;
+
+exports[`admin > players: update profile, delete with and without game data; leaderboard import; delete session 1`] = `
+[
+  {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "email": "ben@example.test",
+      "hc_member_id": "hc-0002",
+      "id": 2,
+      "name": "Ben Carter",
+      "preferred_name": "Benny",
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Player has game data",
+    },
+    "status": 409,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "players array required",
+    },
+    "status": 400,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "error": "Not found",
+    },
+    "status": 404,
+  },
+  {
+    "body": [
+      {
+        "attendee_count": 9,
+        "date": "2026-01-06",
+        "status": "closed",
+      },
+    ],
+    "status": 200,
+  },
+  {
+    "body": {
+      "players": [
+        {
+          "hc_member_id": "hc-0001",
+          "id": 1,
+          "name": "Aroha Ngata",
+          "preferred_name": null,
+        },
+        {
+          "hc_member_id": "hc-0002",
+          "id": 2,
+          "name": "Ben Carter",
+          "preferred_name": "Benny",
+        },
+        {
+          "hc_member_id": "hc-0003",
+          "id": 3,
+          "name": "Chloe Wu",
+          "preferred_name": null,
+        },
+      ],
+      "updatedAt": "<today>",
+    },
+    "status": 200,
+  },
+]
+`;
+
+exports[`public reads > GET /api/leaderboard 1`] = `
+{
+  "body": {
+    "players": [
+      {
+        "hc_member_id": "hc-0001",
+        "id": 1,
+        "name": "Aroha Ngata",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 2,
+        "name": "Ben Carter",
+        "preferred_name": "Benny",
+      },
+      {
+        "hc_member_id": null,
+        "id": 14,
+        "name": "Mia Late",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 5,
+        "name": "Dev Singh",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 6,
+        "name": "Ella Brown",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": "hc-0003",
+        "id": 3,
+        "name": "Chloe Wu",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 4,
+        "name": "Dev Patel",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 7,
+        "name": "Finn O’Neill",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 8,
+        "name": "Grace Hohaia",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 9,
+        "name": "Hemi Walker",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 10,
+        "name": "Isla Martin",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 11,
+        "name": "Jack Lee",
+        "preferred_name": null,
+      },
+      {
+        "hc_member_id": null,
+        "id": 12,
+        "name": "Kiri Tane",
+        "preferred_name": null,
+      },
+    ],
+    "updatedAt": "<today>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`public reads > GET /api/sessions 1`] = `
+{
+  "body": [
+    {
+      "attendee_count": 9,
+      "date": "2026-01-13",
+      "status": "games",
+    },
+    {
+      "attendee_count": 9,
+      "date": "2026-01-06",
+      "status": "closed",
+    },
+  ],
+  "status": 200,
+}
+`;
+
+exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] = `
+{
+  "body": {
+    "attendees": [
+      {
+        "id": 1,
+        "name": "Aroha Ngata",
+      },
+      {
+        "id": 2,
+        "name": "Ben Carter",
+      },
+      {
+        "id": 3,
+        "name": "Chloe Wu",
+      },
+      {
+        "id": 4,
+        "name": "Dev Patel",
+      },
+      {
+        "id": 5,
+        "name": "Dev Singh",
+      },
+      {
+        "id": 6,
+        "name": "Ella Brown",
+      },
+      {
+        "id": 7,
+        "name": "Finn O’Neill",
+      },
+      {
+        "id": 8,
+        "name": "Grace Hohaia",
+      },
+      {
+        "id": 9,
+        "name": "Hemi Walker",
+      },
+    ],
+    "boxes": [
+      {
+        "finalPlacings": null,
+        "matches": [
+          {
+            "pair1": [
+              0,
+              1,
+            ],
+            "pair2": [
+              2,
+              3,
+            ],
+            "sets": [
+              [
+                21,
+                15,
+              ],
+              [
+                21,
+                18,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              2,
+            ],
+            "pair2": [
+              1,
+              3,
+            ],
+            "sets": [
+              [
+                19,
+                21,
+              ],
+              [
+                21,
+                17,
+              ],
+              [
+                21,
+                12,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              3,
+            ],
+            "pair2": [
+              1,
+              2,
+            ],
+            "sets": [
+              [
+                30,
+                29,
+              ],
+              [
+                15,
+                21,
+              ],
+              [
+                11,
+                7,
+              ],
+            ],
+          },
+        ],
+        "players": [
+          {
+            "id": 1,
+            "name": "Aroha Ngata",
+          },
+          {
+            "id": 2,
+            "name": "Ben Carter",
+          },
+          {
+            "id": 3,
+            "name": "Chloe Wu",
+          },
+          {
+            "id": 4,
+            "name": "Dev Patel",
+          },
+        ],
+      },
+      {
+        "finalPlacings": null,
+        "matches": [
+          {
+            "pair1": [
+              0,
+              1,
+            ],
+            "pair2": [
+              2,
+              4,
+            ],
+            "sets": [
+              [
+                21,
+                10,
+              ],
+              [
+                21,
+                9,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              2,
+              3,
+            ],
+            "pair2": [
+              1,
+              4,
+            ],
+            "sets": [
+              [
+                22,
+                20,
+              ],
+              [
+                21,
+                19,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              2,
+            ],
+            "pair2": [
+              3,
+              4,
+            ],
+            "sets": [
+              [
+                15,
+                13,
+              ],
+              [
+                15,
+                9,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              3,
+            ],
+            "pair2": [
+              1,
+              2,
+            ],
+            "sets": [
+              [
+                21,
+                23,
+              ],
+              [
+                21,
+                11,
+              ],
+              [
+                21,
+                16,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              4,
+            ],
+            "pair2": [
+              1,
+              3,
+            ],
+            "sets": [
+              [
+                12,
+                21,
+              ],
+              [
+                9,
+                21,
+              ],
+            ],
+          },
+        ],
+        "players": [
+          {
+            "id": 5,
+            "name": "Dev Singh",
+          },
+          {
+            "id": 6,
+            "name": "Ella Brown",
+          },
+          {
+            "id": 7,
+            "name": "Finn O’Neill",
+          },
+          {
+            "id": 8,
+            "name": "Grace Hohaia",
+          },
+          {
+            "id": 9,
+            "name": "Hemi Walker",
+          },
+        ],
+      },
+    ],
+    "date": "2026-01-06",
+    "leaderboardAfter": [
+      {
+        "id": 1,
+        "name": "Aroha Ngata",
+      },
+      {
+        "id": 2,
+        "name": "Ben Carter",
+      },
+      {
+        "id": 5,
+        "name": "Dev Singh",
+      },
+      {
+        "id": 6,
+        "name": "Ella Brown",
+      },
+      {
+        "id": 3,
+        "name": "Chloe Wu",
+      },
+      {
+        "id": 4,
+        "name": "Dev Patel",
+      },
+      {
+        "id": 7,
+        "name": "Finn O’Neill",
+      },
+      {
+        "id": 8,
+        "name": "Grace Hohaia",
+      },
+      {
+        "id": 9,
+        "name": "Hemi Walker",
+      },
+      {
+        "id": 10,
+        "name": "Isla Martin",
+      },
+      {
+        "id": 11,
+        "name": "Jack Lee",
+      },
+      {
+        "id": 12,
+        "name": "Kiri Tane",
+      },
+    ],
+    "leaderboardBefore": [
+      {
+        "id": 1,
+        "name": "Aroha Ngata",
+      },
+      {
+        "id": 2,
+        "name": "Ben Carter",
+      },
+      {
+        "id": 3,
+        "name": "Chloe Wu",
+      },
+      {
+        "id": 4,
+        "name": "Dev Patel",
+      },
+      {
+        "id": 5,
+        "name": "Dev Singh",
+      },
+      {
+        "id": 6,
+        "name": "Ella Brown",
+      },
+      {
+        "id": 7,
+        "name": "Finn O’Neill",
+      },
+      {
+        "id": 8,
+        "name": "Grace Hohaia",
+      },
+      {
+        "id": 9,
+        "name": "Hemi Walker",
+      },
+      {
+        "id": 10,
+        "name": "Isla Martin",
+      },
+      {
+        "id": 11,
+        "name": "Jack Lee",
+      },
+      {
+        "id": 12,
+        "name": "Kiri Tane",
+      },
+    ],
+    "status": "closed",
+  },
+  "status": 200,
+}
+`;
+
+exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] = `
+{
+  "body": {
+    "attendees": [
+      {
+        "id": 1,
+        "name": "Aroha Ngata",
+      },
+      {
+        "id": 2,
+        "name": "Ben Carter",
+      },
+      {
+        "id": 14,
+        "name": "Mia Late",
+      },
+      {
+        "id": 5,
+        "name": "Dev Singh",
+      },
+      {
+        "id": 6,
+        "name": "Ella Brown",
+      },
+      {
+        "id": 3,
+        "name": "Chloe Wu",
+      },
+      {
+        "id": 4,
+        "name": "Dev Patel",
+      },
+      {
+        "id": 7,
+        "name": "Finn O’Neill",
+      },
+      {
+        "id": 10,
+        "name": "Isla Martin",
+      },
+    ],
+    "boxes": [
+      {
+        "finalPlacings": null,
+        "matches": [
+          {
+            "pair1": [
+              0,
+              1,
+            ],
+            "pair2": [
+              2,
+              3,
+            ],
+            "sets": [
+              [
+                21,
+                15,
+              ],
+              [
+                18,
+                21,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              2,
+            ],
+            "pair2": [
+              1,
+              3,
+            ],
+            "sets": [
+              [
+                21,
+                "",
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              3,
+            ],
+            "pair2": [
+              1,
+              2,
+            ],
+            "sets": [],
+          },
+        ],
+        "players": [
+          {
+            "id": 1,
+            "name": "Aroha Ngata",
+          },
+          {
+            "id": 2,
+            "name": "Ben Carter",
+          },
+          {
+            "id": 14,
+            "name": "Mia Late",
+          },
+          {
+            "id": 5,
+            "name": "Dev Singh",
+          },
+        ],
+      },
+      {
+        "finalPlacings": null,
+        "matches": [
+          {
+            "pair1": [
+              0,
+              1,
+            ],
+            "pair2": [
+              2,
+              4,
+            ],
+            "sets": [
+              [
+                21,
+                19,
+              ],
+              [
+                21,
+                17,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              2,
+              3,
+            ],
+            "pair2": [
+              1,
+              4,
+            ],
+            "sets": [],
+          },
+          {
+            "pair1": [
+              0,
+              2,
+            ],
+            "pair2": [
+              3,
+              4,
+            ],
+            "sets": [
+              [
+                "",
+                11,
+              ],
+            ],
+          },
+          {
+            "pair1": [
+              0,
+              3,
+            ],
+            "pair2": [
+              1,
+              2,
+            ],
+            "sets": [],
+          },
+          {
+            "pair1": [
+              0,
+              4,
+            ],
+            "pair2": [
+              1,
+              3,
+            ],
+            "sets": [],
+          },
+        ],
+        "players": [
+          {
+            "id": 6,
+            "name": "Ella Brown",
+          },
+          {
+            "id": 3,
+            "name": "Chloe Wu",
+          },
+          {
+            "id": 4,
+            "name": "Dev Patel",
+          },
+          {
+            "id": 7,
+            "name": "Finn O’Neill",
+          },
+          {
+            "id": 10,
+            "name": "Isla Martin",
+          },
+        ],
+      },
+    ],
+    "date": "2026-01-13",
+    "leaderboardAfter": null,
+    "leaderboardBefore": [
+      {
+        "id": 1,
+        "name": "Aroha Ngata",
+      },
+      {
+        "id": 2,
+        "name": "Ben Carter",
+      },
+      {
+        "id": 14,
+        "name": "Mia Late",
+      },
+      {
+        "id": 5,
+        "name": "Dev Singh",
+      },
+      {
+        "id": 6,
+        "name": "Ella Brown",
+      },
+      {
+        "id": 3,
+        "name": "Chloe Wu",
+      },
+      {
+        "id": 4,
+        "name": "Dev Patel",
+      },
+      {
+        "id": 7,
+        "name": "Finn O’Neill",
+      },
+      {
+        "id": 8,
+        "name": "Grace Hohaia",
+      },
+      {
+        "id": 9,
+        "name": "Hemi Walker",
+      },
+      {
+        "id": 10,
+        "name": "Isla Martin",
+      },
+      {
+        "id": 11,
+        "name": "Jack Lee",
+      },
+      {
+        "id": 12,
+        "name": "Kiri Tane",
+      },
+    ],
+    "status": "games",
+  },
+  "status": 200,
+}
+`;

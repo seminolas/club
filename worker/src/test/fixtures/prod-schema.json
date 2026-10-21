@@ -1,0 +1,104 @@
+[
+  {
+    "type": "index",
+    "name": "boxes_session",
+    "tbl_name": "boxes",
+    "sql": "CREATE INDEX boxes_session ON boxes(session_id, box_number)"
+  },
+  {
+    "type": "index",
+    "name": "matches_box",
+    "tbl_name": "matches",
+    "sql": "CREATE INDEX matches_box ON matches(box_id, match_number)"
+  },
+  {
+    "type": "index",
+    "name": "session_ranks_session_phase",
+    "tbl_name": "session_ranks",
+    "sql": "CREATE INDEX session_ranks_session_phase ON session_ranks(session_id, phase, rank_position)"
+  },
+  {
+    "type": "index",
+    "name": "sessions_club_date",
+    "tbl_name": "sessions",
+    "sql": "CREATE UNIQUE INDEX sessions_club_date ON sessions(club_id, date)"
+  },
+  {
+    "type": "table",
+    "name": "attendees",
+    "tbl_name": "attendees",
+    "sql": "CREATE TABLE attendees (\n  session_id INTEGER NOT NULL REFERENCES sessions(id),\n  player_id  INTEGER NOT NULL REFERENCES players(id),\n  PRIMARY KEY (session_id, player_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "box_players",
+    "tbl_name": "box_players",
+    "sql": "CREATE TABLE box_players (\n  box_id     INTEGER NOT NULL REFERENCES boxes(id),\n  player_id  INTEGER NOT NULL REFERENCES players(id),\n  position   INTEGER NOT NULL,  \n  PRIMARY KEY (box_id, player_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "boxes",
+    "tbl_name": "boxes",
+    "sql": "CREATE TABLE boxes (\n  id         INTEGER PRIMARY KEY,\n  session_id INTEGER NOT NULL REFERENCES sessions(id),\n  box_number INTEGER NOT NULL\n)"
+  },
+  {
+    "type": "table",
+    "name": "clubs",
+    "tbl_name": "clubs",
+    "sql": "CREATE TABLE clubs (\n  id         INTEGER PRIMARY KEY,\n  name       TEXT NOT NULL,\n  short_name TEXT,\n  config     TEXT NOT NULL  \n)"
+  },
+  {
+    "type": "table",
+    "name": "match_players",
+    "tbl_name": "match_players",
+    "sql": "CREATE TABLE match_players (match_id INTEGER NOT NULL REFERENCES matches(id), player_id INTEGER NOT NULL REFERENCES players(id), side INTEGER NOT NULL, PRIMARY KEY (match_id, player_id))"
+  },
+  {
+    "type": "table",
+    "name": "match_sets",
+    "tbl_name": "match_sets",
+    "sql": "CREATE TABLE match_sets (\n  match_id   INTEGER NOT NULL REFERENCES matches(id),\n  set_number INTEGER NOT NULL,\n  score_a    INTEGER,\n  score_b    INTEGER,\n  PRIMARY KEY (match_id, set_number)\n)"
+  },
+  {
+    "type": "table",
+    "name": "matches",
+    "tbl_name": "matches",
+    "sql": "CREATE TABLE matches (\n  id           INTEGER PRIMARY KEY,\n  box_id       INTEGER NOT NULL REFERENCES boxes(id),\n  match_number INTEGER NOT NULL\n)"
+  },
+  {
+    "type": "table",
+    "name": "player_auth_profiles",
+    "tbl_name": "player_auth_profiles",
+    "sql": "CREATE TABLE player_auth_profiles (\n  id          INTEGER PRIMARY KEY AUTOINCREMENT,\n  player_id   INTEGER NOT NULL REFERENCES players(id),\n  provider    TEXT NOT NULL,   -- 'google', 'facebook', etc.\n  provider_id TEXT NOT NULL,   -- stable ID from the identity provider\n  email       TEXT,            -- provider email at time of HC linking\n  UNIQUE(provider, provider_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "player_roles",
+    "tbl_name": "player_roles",
+    "sql": "CREATE TABLE player_roles (\n  player_id INTEGER NOT NULL REFERENCES players(id),\n  role_id   INTEGER NOT NULL REFERENCES roles(id),\n  PRIMARY KEY (player_id, role_id)\n)"
+  },
+  {
+    "type": "table",
+    "name": "players",
+    "tbl_name": "players",
+    "sql": "CREATE TABLE players (\n  id           INTEGER PRIMARY KEY,\n  club_id      INTEGER NOT NULL REFERENCES clubs(id),\n  name         TEXT NOT NULL,\n  hc_member_id TEXT,\n  archived_at  TEXT\n, email TEXT, preferred_name TEXT)"
+  },
+  {
+    "type": "table",
+    "name": "roles",
+    "tbl_name": "roles",
+    "sql": "CREATE TABLE roles (\n  id   INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL UNIQUE\n)"
+  },
+  {
+    "type": "table",
+    "name": "session_ranks",
+    "tbl_name": "session_ranks",
+    "sql": "CREATE TABLE \"session_ranks\" (\n  session_id    INTEGER REFERENCES sessions(id),\n  player_id     INTEGER NOT NULL REFERENCES players(id),\n  rank_position INTEGER NOT NULL,\n  phase         TEXT NOT NULL DEFAULT 'after',\n  UNIQUE(session_id, player_id, phase)\n)"
+  },
+  {
+    "type": "table",
+    "name": "sessions",
+    "tbl_name": "sessions",
+    "sql": "CREATE TABLE sessions (\n  id         INTEGER PRIMARY KEY,\n  club_id    INTEGER NOT NULL REFERENCES clubs(id),\n  date       TEXT NOT NULL,\n  status     TEXT NOT NULL,  \n  created_at TEXT NOT NULL,\n  closed_at  TEXT\n)"
+  }
+]
