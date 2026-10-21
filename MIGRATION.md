@@ -78,7 +78,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
   - A manual "Load a backup into staging" workflow (staging-refresh with a chosen dump) as the restore drill.
   - Alternative to decide on when building: **R2** (Cloudflare's own suggestion). Its free tier (10 GB-month storage, 1M writes, 10M reads a month, free egress) easily covers a ~1 MB nightly dump. Activating it reportedly asks for a card or PayPal as verification, charging only beyond the free tier (per third-party guides; check the dashboard). For: stays in Cloudflare, no GitHub token, lifecycle rules can expire old dumps. Against: a payment method on file with no hard spending cap, and plain files rather than a browsable, diffable history. Cloudflare only offers alerts, not caps (budget alerts by dollar amount; R2 usage notifications by bytes/requests). If we choose R2: private bucket, an API token that can only write to that bucket, and a $1 budget alert.
 
-- **Two known bugs, deliberately not fixed yet** (the requirements may change; see AGENTS.md, Known issues): deleting a player fails with a server error when they have a login or role but no game data (so in practice never succeeds), and a ladder import while a session is open doesn't show. Revisit with the features that touch them (V16 people admin; ladder import).
+- **A known bug, deliberately not fixed yet** (the requirements may change; see AGENTS.md, Known issues): a ladder import while a session is open doesn't show. Revisit with ladder import. (The other one, deleting a player with a login or role but no game data failing, went away in S4b: 0012 dropped the tables that blocked it.)
 
 ## Where things are in `club-next` (reference)
 

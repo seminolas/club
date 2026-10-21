@@ -12,7 +12,8 @@ GitHub repo: seminolas/club  (branch: master)
 ├── Static assets (index.html, js/) ← served by Cloudflare Workers assets
 └── worker/                                ← Cloudflare Worker (Hono API)
     ├── src/index.ts                       ← all API routes
-    ├── src/auth.ts                        ← Google JWT verification + requireAdmin middleware
+    ├── src/better-auth.ts                 ← BetterAuth (sign-in) setup
+    ├── src/auth.ts                        ← requireAdmin middleware, getSession
     ├── src/db.ts                          ← all D1 queries (Drizzle)
     ├── src/db/schema.ts                   ← Drizzle schema (typed mirror of the migrations)
     ├── src/types.ts                       ← shared TypeScript types
@@ -68,10 +69,11 @@ Staging receives prod's already-migrated schema via the dump, so **apply new mig
 **If you add a new table to the schema**, update the wipe step in `staging-refresh.yml`. Add the table to the `DROP TABLE IF EXISTS` list in child-before-parent order (leaf/child tables before the parent tables they reference). Missing entries cause the wipe to fail with `FOREIGN KEY constraint failed` on whichever parent table is dropped before its child. The current order:
 
 ```
-match_players → match_sets → matches → box_players → boxes
-→ attendees → player_roles → player_auth_profiles → session_ranks
-→ session_lb → sessions → club_admins → roles → players → clubs → d1_migrations
+match_players → match_sets → matches → box_players → boxes → attendees
+→ session_ranks → sessions → players → session → account → verification
+→ user → clubs → d1_migrations
 ```
+(The list also still drops long-gone tables, e.g. `session_lb`, `roles`; harmless with `IF EXISTS`.)
 
 ---
 
@@ -138,7 +140,7 @@ D1 (SQLite). All queries are in `worker/src/db.ts`. They use **Drizzle** (`drizz
 
 ```sql
 clubs           -- id, name, short_name, config (JSON)
-players         -- id, club_id, name, hc_member_id, archived_at, email, preferred_name
+players         -- id, club_id, name, hc_member_id, archived_at, email, preferred_name, user_id (→ user)
 sessions        -- id, club_id, date (YYYY-MM-DD), status, created_at, closed_at
 session_ranks   -- session_id, player_id, rank_position, phase ('before'|'after')  (replaces old session_lb)
 attendees       -- session_id, player_id
@@ -147,9 +149,8 @@ box_players     -- box_id, player_id, position (0-indexed)
 matches         -- id, box_id, match_number
 match_sets      -- match_id, set_number, score_a, score_b
 match_players   -- match_id, player_id, side (0 = pair A, 1 = pair B)
-player_auth_profiles -- id, player_id, provider ('google'), provider_id, email
-roles           -- id, name ('owner'|'admin'|'scorer'|'player')
-player_roles    -- player_id, role_id
+user            -- BetterAuth: id (text), name, email, role ('admin'|'user'), ...
+session, account, verification  -- BetterAuth (account: provider_id 'google'|'credential', account_id = Google sub)
 ```
 
 `club_id = 1` is hard-coded throughout (`CLUB_ID = 1` in `index.ts`). Multi-club support is noted as future work.
@@ -184,12 +185,13 @@ State is stored in `sessions.status`. The frontend reflects this with different 
 
 ## API routes
 
-All under `/api/*`. Auth routes are open; everything else requires `Authorization: Bearer <JWT>` via `requireAdmin` middleware (checks `roles` array includes `owner` or `admin`).
+All under `/api/*`. Routes marked admin need a BetterAuth session whose user is `admin` (`requireAdmin`); the browser sends the session cookie automatically. BetterAuth's own endpoints are under `/api/auth/*`.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| POST | `/api/auth/login` | — | Exchange Google id_token for app JWT |
-| GET | `/api/config` | — | Club config + Google client ID |
+| POST/GET | `/api/auth/*` | — | BetterAuth: `sign-in/social` (Google), `callback/google`, `sign-out`, `get-session`; on staging also `sign-in/email` (test accounts) |
+| GET | `/api/me` | — | Who's signed in: `{ signedIn, isAdmin, name?, player? }` |
+| GET | `/api/config` | — | Club config |
 | GET | `/api/leaderboard` | — | Ranked players with id, name, hc_member_id, preferred_name |
 | POST | `/api/leaderboard/import` | admin | Replace full leaderboard from names array |
 | GET | `/api/sessions` | — | List sessions (date, status, attendee_count) |
@@ -253,7 +255,7 @@ Single-page app. No framework build step — Alpine.js and Tailwind are loaded f
 
 Routing is hash-based: `/` home, `/:date` session, `/players` leaderboard tab, `/players/:id` player profile.
 
-**`js/storage.js`** — thin HTTP client. All API calls go through `apiJSON(path, opts)` which attaches the Bearer token from `localStorage`. `autoLogin()` restores the JWT from storage on page load.
+**`js/storage.js`** — thin HTTP client. All API calls go through `apiJSON(path, opts)`; the BetterAuth session cookie goes with them automatically. `me()` asks who's signed in, `signInWithGoogle()` starts the redirect, `logout()` ends the session.
 
 **Rules (`js/dist/rules.js`)** — the box-night rules live in `worker/src/domain/` (pairings, box sizes, custom layouts, set and match scoring, standings, 2-up-2-down), ported from `club-next` in S1 and shared by the Worker and the browser. `worker/src/browser/algorithm.ts` exposes them to `app.js` as the same globals the old `js/algorithm.js` had: `boxSizeOptions(n)`, `splitBySizes(sortedPlayers, sizes)`, `buildBoxesFromLayout(layout)`, `parseBoxLayout(text, nameByDisplay)`, `getPairings(size)`, `getSitout(box, matchIndex)`, `computeBoxStandings(box, lbBefore)`, `isValidSet`, `getMatchStatus`, `allScoresComplete`, `applyLeaderboardUpdate(boxes, lbBefore)`, `nextTuesday`, `formatDate`. Players are names and scores are numbers or `''`, as before. A set is valid if it's a finished 21-, 15- or 11-point set. Live standings count a game as won only once it's finished, and ignore games with an invalid score.
 
@@ -294,7 +296,6 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 ## Known issues
 
 - **Ladder import while a session is open:** `replaceLeaderboard` writes the imported order to the latest session's *after* ladder, but an open session (attendance/games) shows its *before* ladder, so the imported order doesn't appear (the ladder shows the old order, minus anyone the import archived). Fine when the latest session is closed (the usual case). Found in S2; behaviour kept as-is for now.
-- **Deleting a player fails with a server error** when they have no game data but do have a login or a role. `deletePlayer` checks attendance, boxes and games, but not `player_auth_profiles` / `player_roles`, so the final delete hits a foreign key. On prod data every player without game data has a role, so in practice deleting a player never succeeds (players with game data are refused cleanly). Found in S2b; behaviour kept as-is for now.
 
 ## Future work
 

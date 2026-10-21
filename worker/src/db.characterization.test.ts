@@ -287,6 +287,19 @@ describe('writes', () => {
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 
+  it('deletePlayer: a player with a login but no game data is deleted (since 0012)', async () => {
+    await t.raw
+      .prepare(
+        "INSERT INTO user (id, name, email, email_verified, role, created_at, updated_at) VALUES ('u-12', 'Kiri', 'k@example.test', 1, 'user', 0, 0)",
+      )
+      .run()
+    await t.raw
+      .prepare("UPDATE players SET user_id = 'u-12' WHERE id = 12")
+      .run()
+    expect(await db.deletePlayer(t.db, 12)).toEqual({ deleted: true })
+    expect(await db.getPlayerById(t.db, 1, 12)).toBeNull()
+  })
+
   it('deleteSession: removes everything belonging to the session', async () => {
     await db.deleteSession(t.db, 2)
     expect(await snapshotTables(t.db)).toMatchSnapshot()
