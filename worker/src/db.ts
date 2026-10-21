@@ -1,11 +1,27 @@
-// D1 query helpers — all queries parameterised, no string interpolation.
+// D1 queries. Reads use Drizzle (S2a); writes are still raw, parameterised
+// SQL until S2b.
 
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/d1'
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import * as t from './db/schema'
 import { getPairings, SUPPORTED_BOX_SIZES } from './domain/pairings'
 import type { Box, BoxInput, Match, SessionStatus } from './types'
 
 // Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
 // withSession('first-primary') wrapper) — both expose prepare()/batch().
 export type DB = Pick<D1Database, 'prepare' | 'batch'>
+
+// Drizzle over the same connection (Drizzle only needs prepare()/batch()).
+const orms = new WeakMap<DB, DrizzleD1Database<typeof t>>()
+function orm(db: DB): DrizzleD1Database<typeof t> {
+  let o = orms.get(db)
+  if (!o) {
+    o = drizzle(db as D1Database, { schema: t })
+    orms.set(db, o)
+  }
+  return o
+}
 
 // ── Leaderboard / session_ranks ───────────────────────────────────────────────
 
@@ -21,26 +37,33 @@ export async function getLeaderboardPlayers(
     preferred_name: string | null
   }[]
 > {
-  const { results } = await db
-    .prepare(
-      `
-      SELECT p.id, p.name, p.hc_member_id, p.preferred_name FROM players p
-      JOIN session_ranks sr ON sr.player_id = p.id
-      LEFT JOIN sessions s ON s.id = sr.session_id
-      WHERE p.club_id = ? AND p.archived_at IS NULL
-        AND sr.session_id IS (SELECT id FROM sessions WHERE club_id = ? ORDER BY date DESC LIMIT 1)
-        AND sr.phase = CASE WHEN COALESCE(s.status, 'closed') = 'closed' THEN 'after' ELSE 'before' END
-      ORDER BY sr.rank_position
-    `,
+  const latestSession = orm(db)
+    .select({ id: t.sessions.id })
+    .from(t.sessions)
+    .where(eq(t.sessions.clubId, clubId))
+    .orderBy(desc(t.sessions.date))
+    .limit(1)
+  return orm(db)
+    .select({
+      id: t.players.id,
+      name: t.players.name,
+      hc_member_id: t.players.hcMemberId,
+      preferred_name: t.players.preferredName,
+    })
+    .from(t.players)
+    .innerJoin(t.sessionRanks, eq(t.sessionRanks.playerId, t.players.id))
+    .leftJoin(t.sessions, eq(t.sessions.id, t.sessionRanks.sessionId))
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        isNull(t.players.archivedAt),
+        // IS: also matches the seed rows (NULL) when there are no sessions.
+        sql`${t.sessionRanks.sessionId} IS (${latestSession})`,
+        // An open session's ladder is its 'before'; a closed one's its 'after'.
+        sql`${t.sessionRanks.phase} = CASE WHEN COALESCE(${t.sessions.status}, 'closed') = 'closed' THEN 'after' ELSE 'before' END`,
+      ),
     )
-    .bind(clubId, clubId)
-    .all<{
-      id: number
-      name: string
-      hc_member_id: string | null
-      preferred_name: string | null
-    }>()
-  return results
+    .orderBy(asc(t.sessionRanks.rankPosition))
 }
 
 export async function getPlayerByName(
@@ -48,12 +71,18 @@ export async function getPlayerByName(
   clubId: number,
   name: string,
 ): Promise<{ id: number; name: string } | null> {
-  return db
-    .prepare(
-      'SELECT id, name FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL',
+  const row = await orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.players)
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        eq(t.players.name, name),
+        isNull(t.players.archivedAt),
+      ),
     )
-    .bind(clubId, name)
-    .first<{ id: number; name: string }>()
+    .get()
+  return row ?? null
 }
 
 // Get ranked players for a given session_id and phase.
@@ -63,30 +92,19 @@ export async function getSessionRanks(
   sessionId: number | null,
   phase: 'before' | 'after' = 'after',
 ): Promise<{ id: number; name: string }[]> {
-  const { results } =
-    sessionId === null
-      ? await db
-          .prepare(
-            `
-          SELECT p.id, p.name FROM session_ranks sr
-          JOIN players p ON p.id = sr.player_id
-          WHERE sr.session_id IS NULL
-          ORDER BY sr.rank_position
-        `,
-          )
-          .all<{ id: number; name: string }>()
-      : await db
-          .prepare(
-            `
-          SELECT p.id, p.name FROM session_ranks sr
-          JOIN players p ON p.id = sr.player_id
-          WHERE sr.session_id = ? AND sr.phase = ?
-          ORDER BY sr.rank_position
-        `,
-          )
-          .bind(sessionId, phase)
-          .all<{ id: number; name: string }>()
-  return results
+  return orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.sessionRanks)
+    .innerJoin(t.players, eq(t.players.id, t.sessionRanks.playerId))
+    .where(
+      sessionId === null
+        ? isNull(t.sessionRanks.sessionId)
+        : and(
+            eq(t.sessionRanks.sessionId, sessionId),
+            eq(t.sessionRanks.phase, phase),
+          ),
+    )
+    .orderBy(asc(t.sessionRanks.rankPosition))
 }
 
 // Replace all session_ranks rows for a given session_id and phase.
@@ -205,32 +223,35 @@ export async function getSessionByDate(
   created_at: string
   closed_at: string | null
 } | null> {
-  return db
-    .prepare(
-      'SELECT id, date, status, created_at, closed_at FROM sessions WHERE club_id = ? AND date = ?',
-    )
-    .bind(clubId, date)
-    .first()
+  const row = await orm(db)
+    .select({
+      id: t.sessions.id,
+      date: t.sessions.date,
+      status: t.sessions.status,
+      created_at: t.sessions.createdAt,
+      closed_at: t.sessions.closedAt,
+    })
+    .from(t.sessions)
+    .where(and(eq(t.sessions.clubId, clubId), eq(t.sessions.date, date)))
+    .get()
+  return row ?? null
 }
 
 export async function listSessions(
   db: DB,
   clubId: number,
 ): Promise<{ date: string; status: SessionStatus; attendee_count: number }[]> {
-  const { results } = await db
-    .prepare(
-      `
-      SELECT s.date, s.status, COUNT(a.player_id) AS attendee_count
-      FROM sessions s
-      LEFT JOIN attendees a ON a.session_id = s.id
-      WHERE s.club_id = ?
-      GROUP BY s.id
-      ORDER BY s.date DESC
-    `,
-    )
-    .bind(clubId)
-    .all<{ date: string; status: SessionStatus; attendee_count: number }>()
-  return results
+  return orm(db)
+    .select({
+      date: t.sessions.date,
+      status: t.sessions.status,
+      attendee_count: count(t.attendees.playerId),
+    })
+    .from(t.sessions)
+    .leftJoin(t.attendees, eq(t.attendees.sessionId, t.sessions.id))
+    .where(eq(t.sessions.clubId, clubId))
+    .groupBy(t.sessions.id)
+    .orderBy(desc(t.sessions.date))
 }
 
 export async function createSession(
@@ -272,19 +293,20 @@ export async function getAttendees(
   db: DB,
   sessionId: number,
 ): Promise<{ id: number; name: string }[]> {
-  const { results } = await db
-    .prepare(
-      `
-      SELECT p.id, p.name FROM attendees a
-      JOIN players p ON p.id = a.player_id
-      LEFT JOIN session_ranks sr ON sr.player_id = p.id AND sr.session_id = a.session_id AND sr.phase = 'before'
-      WHERE a.session_id = ?
-      ORDER BY COALESCE(sr.rank_position, 9999)
-    `,
+  return orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.attendees)
+    .innerJoin(t.players, eq(t.players.id, t.attendees.playerId))
+    .leftJoin(
+      t.sessionRanks,
+      and(
+        eq(t.sessionRanks.playerId, t.players.id),
+        eq(t.sessionRanks.sessionId, t.attendees.sessionId),
+        eq(t.sessionRanks.phase, 'before'),
+      ),
     )
-    .bind(sessionId)
-    .all<{ id: number; name: string }>()
-  return results
+    .where(eq(t.attendees.sessionId, sessionId))
+    .orderBy(sql`COALESCE(${t.sessionRanks.rankPosition}, 9999)`)
 }
 
 export async function setAttendance(
@@ -330,46 +352,43 @@ interface SetRow {
 }
 
 export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
-  const { results: boxRows } = await db
-    .prepare(
-      `
-      SELECT b.id as box_id, b.box_number, p.id as player_id, p.name as player_name, bp.position
-      FROM boxes b
-      JOIN box_players bp ON bp.box_id = b.id
-      JOIN players p ON p.id = bp.player_id
-      WHERE b.session_id = ?
-      ORDER BY b.box_number, bp.position
-    `,
-    )
-    .bind(sessionId)
-    .all<BoxRow>()
+  const boxRows: BoxRow[] = await orm(db)
+    .select({
+      box_id: t.boxes.id,
+      box_number: t.boxes.boxNumber,
+      player_id: t.players.id,
+      player_name: t.players.name,
+      position: t.boxPlayers.position,
+    })
+    .from(t.boxes)
+    .innerJoin(t.boxPlayers, eq(t.boxPlayers.boxId, t.boxes.id))
+    .innerJoin(t.players, eq(t.players.id, t.boxPlayers.playerId))
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(asc(t.boxes.boxNumber), asc(t.boxPlayers.position))
 
-  const { results: matchRows } = await db
-    .prepare(
-      `
-      SELECT m.id as match_id, m.box_id, m.match_number
-      FROM matches m
-      JOIN boxes b ON b.id = m.box_id
-      WHERE b.session_id = ?
-      ORDER BY m.box_id, m.match_number
-    `,
-    )
-    .bind(sessionId)
-    .all<MatchRow>()
+  const matchRows: MatchRow[] = await orm(db)
+    .select({
+      match_id: t.matches.id,
+      box_id: t.matches.boxId,
+      match_number: t.matches.matchNumber,
+    })
+    .from(t.matches)
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(asc(t.matches.boxId), asc(t.matches.matchNumber))
 
-  const { results: setRows } = await db
-    .prepare(
-      `
-      SELECT ms.match_id, ms.set_number, ms.score_a, ms.score_b
-      FROM match_sets ms
-      JOIN matches m ON m.id = ms.match_id
-      JOIN boxes b ON b.id = m.box_id
-      WHERE b.session_id = ?
-      ORDER BY ms.match_id, ms.set_number
-    `,
-    )
-    .bind(sessionId)
-    .all<SetRow>()
+  const setRows: SetRow[] = await orm(db)
+    .select({
+      match_id: t.matchSets.matchId,
+      set_number: t.matchSets.setNumber,
+      score_a: t.matchSets.scoreA,
+      score_b: t.matchSets.scoreB,
+    })
+    .from(t.matchSets)
+    .innerJoin(t.matches, eq(t.matches.id, t.matchSets.matchId))
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(asc(t.matchSets.matchId), asc(t.matchSets.setNumber))
 
   const boxMap = new Map<
     number,
@@ -705,12 +724,24 @@ export async function getPlayerById(
   hc_member_id: string | null
   preferred_name: string | null
 } | null> {
-  return db
-    .prepare(
-      'SELECT id, name, email, hc_member_id, preferred_name FROM players WHERE club_id = ? AND id = ? AND archived_at IS NULL',
+  const row = await orm(db)
+    .select({
+      id: t.players.id,
+      name: t.players.name,
+      email: t.players.email,
+      hc_member_id: t.players.hcMemberId,
+      preferred_name: t.players.preferredName,
+    })
+    .from(t.players)
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        eq(t.players.id, id),
+        isNull(t.players.archivedAt),
+      ),
     )
-    .bind(clubId, id)
-    .first()
+    .get()
+  return row ?? null
 }
 
 export async function updatePlayerProfile(
@@ -774,50 +805,31 @@ export async function deletePlayer(
 
 // ── Auth profiles ─────────────────────────────────────────────────────────────
 
-export async function getAuthProfiles(
-  db: DB,
-  playerId: number,
-): Promise<{ provider: string; provider_id: string; email: string | null }[]> {
-  const { results } = await db
-    .prepare(
-      'SELECT provider, provider_id, email FROM player_auth_profiles WHERE player_id = ?',
-    )
-    .bind(playerId)
-    .all<{ provider: string; provider_id: string; email: string | null }>()
-  return results
-}
-
 export async function findPlayerByAuthProfile(
   db: DB,
   provider: string,
   providerId: string,
 ): Promise<{ id: number; name: string; preferred_name: string | null } | null> {
-  return db
-    .prepare(
-      `SELECT p.id, p.name, p.preferred_name
-      FROM players p
-      JOIN player_auth_profiles a ON a.player_id = p.id
-      WHERE a.provider = ? AND a.provider_id = ? AND p.archived_at IS NULL`,
+  const row = await orm(db)
+    .select({
+      id: t.players.id,
+      name: t.players.name,
+      preferred_name: t.players.preferredName,
+    })
+    .from(t.players)
+    .innerJoin(
+      t.playerAuthProfiles,
+      eq(t.playerAuthProfiles.playerId, t.players.id),
     )
-    .bind(provider, providerId)
-    .first<{ id: number; name: string; preferred_name: string | null }>()
-}
-
-export async function upsertAuthProfile(
-  db: DB,
-  playerId: number,
-  provider: string,
-  providerId: string,
-  email: string | null,
-): Promise<void> {
-  await db
-    .prepare(
-      `INSERT INTO player_auth_profiles (player_id, provider, provider_id, email)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(provider, provider_id) DO UPDATE SET email = excluded.email`,
+    .where(
+      and(
+        eq(t.playerAuthProfiles.provider, provider),
+        eq(t.playerAuthProfiles.providerId, providerId),
+        isNull(t.players.archivedAt),
+      ),
     )
-    .bind(playerId, provider, providerId, email ?? null)
-    .run()
+    .get()
+  return row ?? null
 }
 
 // ── Club ──────────────────────────────────────────────────────────────────────
@@ -831,10 +843,17 @@ export async function getClub(
   short_name: string | null
   config: string
 } | null> {
-  return db
-    .prepare('SELECT id, name, short_name, config FROM clubs WHERE id = ?')
-    .bind(clubId)
-    .first()
+  const row = await orm(db)
+    .select({
+      id: t.clubs.id,
+      name: t.clubs.name,
+      short_name: t.clubs.shortName,
+      config: t.clubs.config,
+    })
+    .from(t.clubs)
+    .where(eq(t.clubs.id, clubId))
+    .get()
+  return row ?? null
 }
 
 // ── Roles ─────────────────────────────────────────────────────────────────────
@@ -845,54 +864,10 @@ export async function getPlayerRoles(
   db: DB,
   playerId: number,
 ): Promise<RoleName[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT r.name FROM player_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.player_id = ?`,
-    )
-    .bind(playerId)
-    .all<{ name: string }>()
-  return results.map((r) => r.name as RoleName)
-}
-
-export async function addPlayerRole(
-  db: DB,
-  playerId: number,
-  role: RoleName,
-): Promise<void> {
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO player_roles (player_id, role_id)
-      SELECT ?, id FROM roles WHERE name = ?`,
-    )
-    .bind(playerId, role)
-    .run()
-}
-
-export async function removePlayerRole(
-  db: DB,
-  playerId: number,
-  role: RoleName,
-): Promise<void> {
-  await db
-    .prepare(
-      `DELETE FROM player_roles WHERE player_id = ?
-      AND role_id = (SELECT id FROM roles WHERE name = ?)`,
-    )
-    .bind(playerId, role)
-    .run()
-}
-
-export async function hasPlayerRole(
-  db: DB,
-  playerId: number,
-  role: RoleName,
-): Promise<boolean> {
-  const row = await db
-    .prepare(
-      `SELECT 1 FROM player_roles pr JOIN roles r ON r.id = pr.role_id
-      WHERE pr.player_id = ? AND r.name = ?`,
-    )
-    .bind(playerId, role)
-    .first()
-  return row !== null
+  const rows = await orm(db)
+    .select({ name: t.roles.name })
+    .from(t.playerRoles)
+    .innerJoin(t.roles, eq(t.roles.id, t.playerRoles.roleId))
+    .where(eq(t.playerRoles.playerId, playerId))
+  return rows.map((r) => r.name as RoleName)
 }

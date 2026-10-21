@@ -13,7 +13,8 @@ GitHub repo: seminolas/club  (branch: master)
 └── worker/                                ← Cloudflare Worker (Hono API)
     ├── src/index.ts                       ← all API routes
     ├── src/auth.ts                        ← Google JWT verification + requireAdmin middleware
-    ├── src/db.ts                          ← all D1 queries
+    ├── src/db.ts                          ← all D1 queries (Drizzle reads; raw SQL writes until S2b)
+    ├── src/db/schema.ts                   ← Drizzle schema (typed mirror of the migrations)
     ├── src/types.ts                       ← shared TypeScript types
     └── migrations/                        ← D1 schema migrations (tracked by wrangler)
 ```
@@ -95,11 +96,12 @@ match_players → match_sets → matches → box_players → boxes
     ├── src/
     │   ├── index.ts    # Hono app, all route handlers
     │   ├── auth.ts     # verifyGoogleToken, signJwt, requireAdmin middleware
-    │   ├── db.ts       # all D1 queries (no ORM)
+    │   ├── db.ts       # all D1 queries
+    │   ├── db/schema.ts # Drizzle schema, mirrors what the migrations create
     │   ├── types.ts    # Env, JwtPayload, BoxInput, SessionStatus, etc.
     │   ├── domain/     # the box-night rules (pure TypeScript), shared by Worker and browser
     │   ├── browser/    # the old algorithm.js API on top of domain/, bundled to js/dist/rules.js
-    │   ├── test/       # test helpers, incl. a frozen copy of the pre-S1 algorithm.js
+    │   ├── test/       # test helpers: local D1 (d1.ts), fixture club (fixtures/seed.ts), prod schema snapshot, frozen pre-S1 algorithm.js
     │   └── *.test.ts   # Vitest tests
     ├── migrations/     # SQL migration files, applied with `wrangler d1 migrations apply`
     └── scripts/        # one-off data repair scripts (not production code)
@@ -119,9 +121,10 @@ npx tsx scripts/replay-ladder.mts   # replay every closed session through old an
 cd e2e              # first time: npm install && npx playwright install chromium
 node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"go":"/#/2026-10-20/games","shot":"session"}]'
 node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod vs staging, diff the on-screen text
+node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
 ```
 
-CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` is the regression check for a change on staging: right after a staging refresh both sites hold the same data, so any text difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly.
+CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
 
 **Legacy:** `C:/dev/src/temp-badminton/` is the old GitHub Pages version backed by GitHub API for storage. It is no longer active. All production work happens in this repo.
 
@@ -129,7 +132,7 @@ CI runs typecheck, lint, format check and tests on every push to `master` and ev
 
 ## Database schema
 
-D1 (SQLite). All queries are in `worker/src/db.ts` — no ORM.
+D1 (SQLite). All queries are in `worker/src/db.ts`. Since S2a the reads use **Drizzle** (`drizzle-orm/d1`) over the same D1 session; the writes are still raw, parameterised SQL until S2b. `worker/src/db/schema.ts` is the Drizzle schema: a typed mirror of the tables, not the source of truth. The migrations are, and `schema.test.ts` fails if the two drift (or if the migrations stop reproducing prod's schema, captured in `src/test/fixtures/prod-schema.json`). Changing the schema means a new migration **and** a matching `schema.ts` change.
 
 ```sql
 clubs           -- id, name, short_name, config (JSON)
@@ -283,6 +286,10 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - i want to increase visual consistency/increase code re-use across pages. if the same or similar job is being done by multiple components or in different ways, look for opportunities to reduce duplication.
 - new code should fit neatly into existing architecture; if it doesn't we might need to refactor first
 
+
+## Known issues
+
+- **Ladder import while a session is open:** `replaceLeaderboard` writes the imported order to the latest session's *after* ladder, but an open session (attendance/games) shows its *before* ladder, so the imported order doesn't appear (the ladder shows the old order, minus anyone the import archived). Fine when the latest session is closed (the usual case). Found in S2; behaviour kept as-is for now.
 
 ## Future work
 

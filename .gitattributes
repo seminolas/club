@@ -1,0 +1,4 @@
+# Keep LF everywhere (Prettier writes LF; Windows checkouts otherwise get CRLF)
+* text=auto eol=lf
+*.png binary
+*.pdf binary
