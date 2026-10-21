@@ -1,9 +1,9 @@
-// Characterization tests: what the box-night rules do today, as the live app
-// relies on them. Written against js/algorithm.js before S1 replaced it; the
-// replacement must pass them unchanged (apart from changes agreed in
-// MIGRATION.md, which are called out where they apply).
+// Characterization tests: what the box-night rules do, as the live app relies
+// on them. Written against js/algorithm.js before S1 replaced it; the
+// replacement passes them unchanged apart from changes agreed in MIGRATION.md,
+// which are called out where they apply.
 import { describe, expect, it } from 'vitest';
-import { rules } from './test/rules-under-test';
+import { legacy, rules } from './test/rules-under-test';
 import type { Box, SetPair } from './test/rules-under-test';
 
 const names = (n: number, prefix = 'P') => Array.from({ length: n }, (_, i) => `${prefix}${i + 1}`);
@@ -337,17 +337,19 @@ describe('box standings (finished games)', () => {
 });
 
 describe('box standings (games still being played)', () => {
-  // Agreed change in S1 (MIGRATION.md, decision B): these describe today's
-  // behaviour, which counts a 1–0 lead as a win and counts invalid scores.
-  it('count a game as won by whoever leads', () => {
+  // Changed in S1 (MIGRATION.md, decision B). Before: a 1–0 lead counted as a
+  // win, and points from invalid sets counted.
+  it('count a game as won only once it is finished', () => {
     const box = boxWith(names(4), [[[21, 10]]]);
-    expect(rules.computeBoxStandings(box, names(4)).find(s => s.name === 'P1')!.matchesWon).toBe(1);
+    const p1 = rules.computeBoxStandings(box, names(4)).find(s => s.name === 'P1')!;
+    expect([p1.matchesWon, p1.setsWon, p1.pointsFor]).toEqual([0, 1, 21]);
+    expect(legacy.computeBoxStandings(box, names(4)).find(s => s.name === 'P1')!.matchesWon).toBe(1);
   });
 
-  it('count points from invalid sets', () => {
-    const box = boxWith(names(4), [[[22, 19]]]);
+  it('ignore a game with an invalid score until it is fixed', () => {
+    const box = boxWith(names(4), [[[21, 10], [22, 19]]]);
     const p1 = rules.computeBoxStandings(box, names(4)).find(s => s.name === 'P1')!;
-    expect([p1.pointsFor, p1.pointsAgainst, p1.setsWon]).toEqual([22, 19, 1]);
+    expect([p1.pointsFor, p1.pointsAgainst, p1.setsWon]).toEqual([0, 0, 0]);
   });
 
   it('skip half-entered sets', () => {

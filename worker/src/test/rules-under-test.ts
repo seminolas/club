@@ -1,8 +1,10 @@
-// The rules implementation the characterization tests run against. Today it's
-// the live browser script js/algorithm.js (loaded via its CommonJS export).
+// The rules implementations the tests run against: the adapter the browser now
+// uses (built on ../domain), and a frozen copy of js/algorithm.js as it was
+// before S1, kept as the reference for side-by-side comparison.
 import { createRequire } from 'node:module';
+import * as adapter from '../browser/algorithm';
 
-export type Score = number | string | null;
+export type Score = number | string | null | undefined;
 export type SetPair = [Score, Score];
 export interface Match { pair1: number[]; pair2: number[]; sets: SetPair[] }
 export interface Box { players: string[]; matches: Match[]; finalPlacings?: null }
@@ -29,4 +31,5 @@ export interface Rules {
   formatDate(isoDate: string): string;
 }
 
-export const rules = createRequire(import.meta.url)('../../../js/algorithm.js') as Rules;
+export const legacy = createRequire(import.meta.url)('./legacy-algorithm.cjs') as Rules;
+export const rules: Rules = adapter;

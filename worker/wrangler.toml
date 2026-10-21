@@ -3,6 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Bundles the shared rules for the browser (js/dist/rules.js, not committed)
+# before every deploy, so a deploy can never ship a stale bundle.
+[build]
+command = "npm run build:web"
+
 [assets]
 directory = ".."          # repo root — serves index.html, js/, data/
 
