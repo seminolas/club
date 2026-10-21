@@ -248,6 +248,10 @@ describe('writes', () => {
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 
+  it('saveBoxes: fails with no boxes (so PUT /boxes doesn’t move the session to games)', async () => {
+    await expect(db.saveBoxes(t.db, 2, [])).rejects.toThrow()
+  })
+
   it('updateSetScore: insert, replace, delete; false for an unknown match', async () => {
     expect(await db.updateSetScore(t.db, 2, 0, 1, 1, 21, 9)).toBe(true)
     expect(await db.updateSetScore(t.db, 2, 0, 0, 0, 21, 16)).toBe(true)
