@@ -58,30 +58,30 @@ describe('pairings', () => {
 
 describe('scoring', () => {
   it('validates sets per points setting', () => {
-    expect(isValidSet(21, 19, 21)).toBe(true)
-    expect(isValidSet(21, 20, 21)).toBe(false)
-    expect(isValidSet(21, 18, 21)).toBe(true)
-    expect(isValidSet(22, 20, 21)).toBe(true)
-    expect(isValidSet(30, 29, 21)).toBe(true)
-    expect(isValidSet(31, 29, 21)).toBe(false)
-    expect(isValidSet(15, 13, 15)).toBe(true)
-    expect(isValidSet(15, 14, 15)).toBe(false)
-    expect(isValidSet(16, 14, 15)).toBe(true)
-    expect(isValidSet(21, 20, 15)).toBe(true)
-    expect(isValidSet(15, 14, 11)).toBe(true)
-    expect(isValidSet(11, 9, 11)).toBe(true)
-    expect(isValidSet(21, 0, 15)).toBe(false)
+    expect(isValidSet(21, 19, [21])).toBe(true)
+    expect(isValidSet(21, 20, [21])).toBe(false)
+    expect(isValidSet(21, 18, [21])).toBe(true)
+    expect(isValidSet(22, 20, [21])).toBe(true)
+    expect(isValidSet(30, 29, [21])).toBe(true)
+    expect(isValidSet(31, 29, [21])).toBe(false)
+    expect(isValidSet(15, 13, [15])).toBe(true)
+    expect(isValidSet(15, 14, [15])).toBe(false)
+    expect(isValidSet(16, 14, [15])).toBe(true)
+    expect(isValidSet(21, 20, [15])).toBe(true)
+    expect(isValidSet(15, 14, [11])).toBe(true)
+    expect(isValidSet(11, 9, [11])).toBe(true)
+    expect(isValidSet(21, 0, [15])).toBe(false)
   })
   it('evaluates match status', () => {
-    expect(evaluateMatch([], 21).status).toBe('not_started')
-    expect(evaluateMatch([[21, 10]], 21).status).toBe('in_progress')
+    expect(evaluateMatch([], [21]).status).toBe('not_started')
+    expect(evaluateMatch([[21, 10]], [21]).status).toBe('in_progress')
     expect(
       evaluateMatch(
         [
           [21, 10],
           [21, 15],
         ],
-        21,
+        [21],
       ),
     ).toMatchObject({ status: 'complete', winner: 1 })
     expect(
@@ -91,11 +91,19 @@ describe('scoring', () => {
           [15, 21],
           [19, 21],
         ],
-        21,
+        [21],
       ),
     ).toMatchObject({ status: 'complete', winner: 2 })
-    expect(evaluateMatch([[21, 20]], 21).status).toBe('invalid')
-    expect(evaluateMatch([[21, null]], 21).status).toBe('in_progress')
+    expect(evaluateMatch([[21, 20]], [21]).status).toBe('invalid')
+    expect(evaluateMatch([[21, null]], [21]).status).toBe('in_progress')
+    // club: a half-entered set wins over an invalid one (old app behaviour)
+    expect(evaluateMatch([[21, 20], [5, null]], [21]).status).toBe('in_progress')
+  })
+  it('accepts a set under any allowed format', () => {
+    expect(isValidSet(21, 20, [21])).toBe(false)
+    expect(isValidSet(21, 20, [21, 15])).toBe(true)
+    expect(isValidSet(11, 5, [21, 15])).toBe(false)
+    expect(isValidSet(11, 5, [21, 15, 11])).toBe(true)
   })
   it('fills walkovers after completed sets', () => {
     expect(walkoverSets([], 1, 21)).toEqual([
@@ -147,7 +155,7 @@ describe('standings', () => {
     ]
     const st = computeStandings(
       { players: ['A', 'B', 'C', 'D'], matchSets: sets },
-      21,
+      [21],
       (p) => 'ABCD'.indexOf(p),
     )
     expect(st[0]).toMatchObject({ player: 'A', gamesWon: 3, placing: 1 })
@@ -158,7 +166,7 @@ describe('standings', () => {
   it('falls back to ladder position on a full tie', () => {
     const st = computeStandings(
       { players: ['A', 'B', 'C', 'D'], matchSets: [] },
-      21,
+      [21],
       (p) => 'DCBA'.indexOf(p),
     )
     expect(st.map((s) => s.player)).toEqual(['D', 'C', 'B', 'A'])

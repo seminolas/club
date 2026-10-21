@@ -5,7 +5,7 @@
 
 import { getPairings } from './pairings'
 import { evaluateMatch } from './scoring'
-import type { PointsPerSet, SetScore } from './scoring'
+import type { SetFormats, SetScore } from './scoring'
 
 export interface BoxInput<TPlayer> {
   /** Players in box order (position 0..n-1). */
@@ -28,7 +28,7 @@ export interface Standing<TPlayer> {
 
 export function computeStandings<TPlayer>(
   box: BoxInput<TPlayer>,
-  pointsPerSet: PointsPerSet,
+  formats: SetFormats,
   ladderRank: (player: TPlayer) => number,
 ): Standing<TPlayer>[] {
   const pairings = getPairings(box.players.length)
@@ -45,7 +45,7 @@ export function computeStandings<TPlayer>(
   }))
 
   pairings.forEach((pairing, i) => {
-    const r = evaluateMatch(box.matchSets[i] ?? [], pointsPerSet)
+    const r = evaluateMatch(box.matchSets[i] ?? [], formats)
     if (r.status === 'not_started' || r.status === 'invalid') return
     const sides = [pairing.pair1, pairing.pair2] as const
     sides.forEach((pair, side) => {
@@ -80,10 +80,10 @@ export function computeStandings<TPlayer>(
 
 export function isBoxComplete(
   box: BoxInput<unknown>,
-  pointsPerSet: PointsPerSet,
+  formats: SetFormats,
 ): boolean {
   return getPairings(box.players.length).every(
     (_, i) =>
-      evaluateMatch(box.matchSets[i] ?? [], pointsPerSet).status === 'complete',
+      evaluateMatch(box.matchSets[i] ?? [], formats).status === 'complete',
   )
 }

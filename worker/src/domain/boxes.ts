@@ -71,3 +71,56 @@ export function buildBoxes<T>(
   }
   return boxes
 }
+
+/**
+ * Parse a typed box layout: one box per line, comma-separated display names.
+ * `byDisplay` maps each attendee's display name, exactly as printed, to the
+ * player; anything else is rejected rather than guessed at. Every attendee
+ * must be placed exactly once, in a box of 4–7 (the sizes with pairings).
+ * The layout is only usable when `errors` is empty. Ported from club's
+ * `parseBoxLayout` (custom box layouts, 2026-10-14), which club-next lacks.
+ */
+export function parseBoxLayout<T>(
+  text: string,
+  byDisplay: ReadonlyMap<string, T>,
+): { layout: T[][]; errors: string[] } {
+  const errors: string[] = []
+  const layout: T[][] = []
+  const seen = new Set<T>()
+
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  lines.forEach((line, li) => {
+    const box: T[] = []
+    for (const token of line
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)) {
+      const player = byDisplay.get(token)
+      if (player === undefined) {
+        errors.push(`Box ${li + 1}: unknown player "${token}"`)
+      } else if (seen.has(player)) {
+        errors.push(`Box ${li + 1}: "${token}" is already in a box`)
+      } else {
+        seen.add(player)
+        box.push(player)
+      }
+    }
+    if (box.length < 4 || box.length > 7) {
+      errors.push(
+        `Box ${li + 1} has ${box.length} player${box.length !== 1 ? 's' : ''} (must be 4–7)`,
+      )
+    }
+    layout.push(box)
+  })
+
+  const missing = [...byDisplay]
+    .filter(([, player]) => !seen.has(player))
+    .map(([display]) => display)
+  if (missing.length) errors.push(`Not in any box: ${missing.join(', ')}`)
+  if (!lines.length) errors.push('No boxes entered')
+
+  return { layout, errors }
+}

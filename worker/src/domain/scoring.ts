@@ -1,6 +1,11 @@
-// Set and game (match) scoring rules. Points per set is a club setting
-// (11 / 15 / 21); caps follow standard rules: 11→15, 15→21, 21→30, win by 2,
-// sudden death at cap-1 all. Ported from the old app's `isValidSetForRules`.
+// Set and game (match) scoring rules. A set is played to 11, 15 or 21 points;
+// caps follow standard rules: 11→15, 15→21, 21→30, win by 2, sudden death at
+// cap-1 all. Ported from the old app's `isValidSetForRules`.
+//
+// club adaptation (S1, decision A): sessions mix formats (real data has sets
+// to 21, 15 and 11 in the same night), so validation takes the list of
+// allowed formats and a set is valid under any of them, instead of club-next's
+// single points-per-set setting.
 
 export type PointsPerSet = 11 | 15 | 21
 export const POINTS_PER_SET_OPTIONS: readonly PointsPerSet[] = [11, 15, 21]
@@ -13,14 +18,23 @@ export function capFor(pointsPerSet: PointsPerSet): number {
   return CAPS[pointsPerSet]
 }
 
+/** The set formats a session accepts. */
+export type SetFormats = readonly PointsPerSet[]
+/** Every format played at club sessions (what the old app accepted). */
+export const ALL_SET_FORMATS: SetFormats = [21, 15, 11]
+
 /** A set score as stored; null means "not entered". */
 export type SetScore = readonly [number | null, number | null]
 
 export function isValidSet(
   a: number,
   b: number,
-  pointsPerSet: PointsPerSet,
+  formats: SetFormats,
 ): boolean {
+  return formats.some((f) => isValidSetFor(a, b, f))
+}
+
+function isValidSetFor(a: number, b: number, pointsPerSet: PointsPerSet) {
   if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a === b)
     return false
   const hi = Math.max(a, b)
@@ -38,11 +52,12 @@ export function isValidSet(
 export function setProblem(
   a: number,
   b: number,
-  pointsPerSet: PointsPerSet,
+  formats: SetFormats,
 ): string | null {
-  if (isValidSet(a, b, pointsPerSet)) return null
+  if (isValidSet(a, b, formats)) return null
   if (a === b) return 'A set can’t end level'
-  return `${a}–${b} isn’t a finished set (to ${pointsPerSet}, cap ${CAPS[pointsPerSet]})`
+  const rules = formats.map((f) => `to ${f}, cap ${CAPS[f]}`).join('; or ')
+  return `${a}–${b} isn’t a finished set (${rules})`
 }
 
 export type MatchStatus = 'not_started' | 'in_progress' | 'invalid' | 'complete'
@@ -55,9 +70,13 @@ export interface MatchResult {
   points: [number, number]
 }
 
+/**
+ * A half-entered set makes the match `in_progress` even if another set is
+ * invalid (someone is still typing); the old app behaved this way.
+ */
 export function evaluateMatch(
   sets: readonly SetScore[],
-  pointsPerSet: PointsPerSet,
+  formats: SetFormats,
 ): MatchResult {
   let any = false
   let invalid = false
@@ -71,7 +90,7 @@ export function evaluateMatch(
       partial = true
       continue
     }
-    if (!isValidSet(a, b, pointsPerSet)) {
+    if (!isValidSet(a, b, formats)) {
       invalid = true
       continue
     }
@@ -82,8 +101,9 @@ export function evaluateMatch(
   }
   let status: MatchStatus
   if (!any) status = 'not_started'
+  else if (partial) status = 'in_progress'
   else if (invalid) status = 'invalid'
-  else if (!partial && (setsWon[0] >= SETS_TO_WIN || setsWon[1] >= SETS_TO_WIN))
+  else if (setsWon[0] >= SETS_TO_WIN || setsWon[1] >= SETS_TO_WIN)
     status = 'complete'
   else status = 'in_progress'
   const winner =
@@ -105,7 +125,7 @@ export function walkoverSets(
   const won: [number, number] = [0, 0]
   for (const s of sets.slice(0, SETS_PER_MATCH)) {
     const [a, b] = s
-    if (a != null && b != null && isValidSet(a, b, pointsPerSet)) {
+    if (a != null && b != null && isValidSet(a, b, [pointsPerSet])) {
       out.push(s)
       if (a > b) won[0]++
       else won[1]++
