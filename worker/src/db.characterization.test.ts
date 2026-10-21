@@ -354,7 +354,7 @@ describe('writes at real scale', () => {
     steps.afterAdd = await counts()
 
     const players = (await db.getAttendees(t.db, sessionId)).map((p) => p.id)
-    const boxes = Array.from({ length: 8 }, (_, b) => {
+    const boxes = Array.from({ length: 8 }, (_box, b) => {
       const ids = players.slice(b * 5, b * 5 + 5)
       return {
         players: ids,
