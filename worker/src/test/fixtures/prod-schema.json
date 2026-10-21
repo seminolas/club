@@ -109,27 +109,9 @@
   },
   {
     "type": "table",
-    "name": "player_auth_profiles",
-    "tbl_name": "player_auth_profiles",
-    "sql": "CREATE TABLE player_auth_profiles (\n  id          INTEGER PRIMARY KEY AUTOINCREMENT,\n  player_id   INTEGER NOT NULL REFERENCES players(id),\n  provider    TEXT NOT NULL,   -- 'google', 'facebook', etc.\n  provider_id TEXT NOT NULL,   -- stable ID from the identity provider\n  email       TEXT,            -- provider email at time of HC linking\n  UNIQUE(provider, provider_id)\n)"
-  },
-  {
-    "type": "table",
-    "name": "player_roles",
-    "tbl_name": "player_roles",
-    "sql": "CREATE TABLE player_roles (\n  player_id INTEGER NOT NULL REFERENCES players(id),\n  role_id   INTEGER NOT NULL REFERENCES roles(id),\n  PRIMARY KEY (player_id, role_id)\n)"
-  },
-  {
-    "type": "table",
     "name": "players",
     "tbl_name": "players",
     "sql": "CREATE TABLE players (\n  id           INTEGER PRIMARY KEY,\n  club_id      INTEGER NOT NULL REFERENCES clubs(id),\n  name         TEXT NOT NULL,\n  hc_member_id TEXT,\n  archived_at  TEXT\n, email TEXT, preferred_name TEXT, `user_id` text REFERENCES user(id))"
-  },
-  {
-    "type": "table",
-    "name": "roles",
-    "tbl_name": "roles",
-    "sql": "CREATE TABLE roles (\n  id   INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL UNIQUE\n)"
   },
   {
     "type": "table",
