@@ -26,11 +26,7 @@ export const ALL_SET_FORMATS: SetFormats = [21, 15, 11]
 /** A set score as stored; null means "not entered". */
 export type SetScore = readonly [number | null, number | null]
 
-export function isValidSet(
-  a: number,
-  b: number,
-  formats: SetFormats,
-): boolean {
+export function isValidSet(a: number, b: number, formats: SetFormats): boolean {
   return formats.some((f) => isValidSetFor(a, b, f))
 }
 

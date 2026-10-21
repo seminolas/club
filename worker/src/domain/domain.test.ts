@@ -97,7 +97,15 @@ describe('scoring', () => {
     expect(evaluateMatch([[21, 20]], [21]).status).toBe('invalid')
     expect(evaluateMatch([[21, null]], [21]).status).toBe('in_progress')
     // club: a half-entered set wins over an invalid one (old app behaviour)
-    expect(evaluateMatch([[21, 20], [5, null]], [21]).status).toBe('in_progress')
+    expect(
+      evaluateMatch(
+        [
+          [21, 20],
+          [5, null],
+        ],
+        [21],
+      ).status,
+    ).toBe('in_progress')
   })
   it('accepts a set under any allowed format', () => {
     expect(isValidSet(21, 20, [21])).toBe(false)
