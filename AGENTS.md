@@ -13,7 +13,7 @@ GitHub repo: seminolas/club  (branch: master)
 └── worker/                                ← Cloudflare Worker (Hono API)
     ├── src/index.ts                       ← all API routes
     ├── src/auth.ts                        ← Google JWT verification + requireAdmin middleware
-    ├── src/db.ts                          ← all D1 queries (Drizzle reads; raw SQL writes until S2b)
+    ├── src/db.ts                          ← all D1 queries (Drizzle)
     ├── src/db/schema.ts                   ← Drizzle schema (typed mirror of the migrations)
     ├── src/types.ts                       ← shared TypeScript types
     └── migrations/                        ← D1 schema migrations (tracked by wrangler)
@@ -132,7 +132,7 @@ CI runs typecheck, lint, format check and tests on every push to `master` and ev
 
 ## Database schema
 
-D1 (SQLite). All queries are in `worker/src/db.ts`. Since S2a the reads use **Drizzle** (`drizzle-orm/d1`) over the same D1 session; the writes are still raw, parameterised SQL until S2b. `worker/src/db/schema.ts` is the Drizzle schema: a typed mirror of the tables, not the source of truth. The migrations are, and `schema.test.ts` fails if the two drift (or if the migrations stop reproducing prod's schema, captured in `src/test/fixtures/prod-schema.json`). Changing the schema means a new migration **and** a matching `schema.ts` change.
+D1 (SQLite). All queries are in `worker/src/db.ts`. They use **Drizzle** (`drizzle-orm/d1`) over the request's D1 session (S2). Multi-row writes go in one D1 batch, one statement per row: D1 allows at most 100 bound parameters per statement, so don't bundle ladder or box rows into a single insert (a real-scale test catches it). `worker/src/db/schema.ts` is the Drizzle schema: a typed mirror of the tables, not the source of truth. The migrations are, and `schema.test.ts` fails if the two drift (or if the migrations stop reproducing prod's schema, captured in `src/test/fixtures/prod-schema.json`). Changing the schema means a new migration **and** a matching `schema.ts` change.
 
 ```sql
 clubs           -- id, name, short_name, config (JSON)
@@ -290,6 +290,7 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 ## Known issues
 
 - **Ladder import while a session is open:** `replaceLeaderboard` writes the imported order to the latest session's *after* ladder, but an open session (attendance/games) shows its *before* ladder, so the imported order doesn't appear (the ladder shows the old order, minus anyone the import archived). Fine when the latest session is closed (the usual case). Found in S2; behaviour kept as-is for now.
+- **Deleting a player fails with a server error** when they have no game data but do have a login or a role. `deletePlayer` checks attendance, boxes and games, but not `player_auth_profiles` / `player_roles`, so the final delete hits a foreign key. On prod data every player without game data has a role, so in practice deleting a player never succeeds (players with game data are refused cleanly). Found in S2b; behaviour kept as-is for now.
 
 ## Future work
 
