@@ -48,7 +48,7 @@ There is no build step for the frontend. The Worker compiles `src/index.ts` via 
 
 **Assets:** the Worker serves the repo root as static files, minus what `.assetsignore` lists (docs, `temp/`, `e2e/`, `worker/`, tooling). Anything new at the root that isn't part of the site must be added there, or it becomes public.
 
-**Every push to `master` deploys to prod automatically** (Cloudflare Workers Builds is connected to the repo; it shows up as a "Workers Builds: club" check). Builds for other branches are switched off: before 2026-10-21 they were on and deployed branches straight to prod. So merging a PR is the prod deploy, and a manual `npx wrangler deploy` is only needed to redeploy without a commit. `deploy.sh` is a leftover from Cloudflare Pages.
+**Every push to `master` deploys to prod automatically** (Cloudflare Workers Builds is connected to the repo; it shows up as a "Workers Builds: club" check). Builds for other branches are switched off: before 2026-10-21 they were on and deployed branches straight to prod. So merging a PR is the prod deploy, and a manual `npx wrangler deploy` is only needed to redeploy without a commit. The build runs `sh deploy.sh` (`npm ci` + `wrangler deploy` in `worker/`).
 
 **Usual flow:** branch → CI green → deploy to staging → browser checks (`e2e/`) → merge (deploys to prod) → check prod.
 

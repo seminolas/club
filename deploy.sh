@@ -1,9 +1,6 @@
 #!/bin/sh
+# Workers Builds deploy command ("sh deploy.sh"); runs on every push to master.
 set -e
 cd worker
-npm install
-if [ "$CF_PAGES_BRANCH" = "staging" ]; then
-  npx wrangler deploy --env staging
-else
-  npx wrangler deploy
-fi
+npm ci
+npx wrangler deploy
