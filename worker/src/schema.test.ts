@@ -3,10 +3,10 @@ import prodSchema from './test/fixtures/prod-schema.json'
 import { createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
 
-// prod-schema.json: sqlite_master from club-prod (structure only), captured
-// 2026-10-21 when prod's latest migration was PROD_SCHEMA_AT. After applying a
+// prod-schema.json: sqlite_master from club-prod (structure only), re-captured
+// 2026-10-22 when prod's latest migration was PROD_SCHEMA_AT. After applying a
 // new migration to prod, re-capture it and move PROD_SCHEMA_AT forward.
-const PROD_SCHEMA_AT = '0010_session_indexes.sql'
+const PROD_SCHEMA_AT = '0011_better_auth.sql'
 // Compares structure, not formatting: prod's stored SQL keeps comments and
 // layout on some tables but not others (applied different ways over time).
 const normalise = (sql: string | null) =>
