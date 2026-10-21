@@ -51,13 +51,15 @@ export interface TestDb {
   dispose: () => Promise<void>
 }
 
-export async function createTestDb(): Promise<TestDb> {
+export async function createTestDb({
+  migrations = true,
+}: { migrations?: boolean } = {}): Promise<TestDb> {
   const proxy = await getPlatformProxy<{ DB: D1Database }>({
     configPath: `${workerDir}/wrangler.toml`,
     persist: false,
   })
   const raw = proxy.env.DB
-  for (const file of migrationFiles()) {
+  for (const file of migrations ? migrationFiles() : []) {
     const stmts = migrationStatements(file)
     if (stmts.length) await raw.batch(stmts.map((s) => raw.prepare(s)))
   }

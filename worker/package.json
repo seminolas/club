@@ -17,12 +17,14 @@
     "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261019.1",
     "@tanstack/eslint-config": "^0.4.0",
     "@types/node": "^24.19.2",
+    "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "fast-check": "^4.10.2",
