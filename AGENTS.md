@@ -38,13 +38,13 @@ npx wrangler deploy                    # prod
 npx wrangler deploy --env staging      # staging
 ```
 
-There is no build step for the frontend. The Worker compiles `src/index.ts` via wrangler on deploy.
+The Worker compiles `src/index.ts` via wrangler on deploy. The only frontend build is the rules bundle: `wrangler.toml`'s `[build]` runs `npm run build:web` (esbuild) before every deploy, writing `js/dist/rules.js` (gitignored). Everything else under `js/` is served as written.
 
 **If wrangler prompts to create `wrangler.jsonc`:** decline. The existing `wrangler.toml` is correct. The proposed config uses `directory: "."` (worker subdirectory) instead of `directory: ".."` (repo root), which would break static asset serving.
 
 **Commit before deploying** — wrangler deploys from the filesystem, not from git. It's easy to deploy uncommitted changes. Check `git status` first.
 
-**Staging from GitHub:** the "Deploy branch to staging" workflow (`.github/workflows/deploy-staging.yml`, run from the Actions tab or `gh workflow run deploy-staging.yml --ref <branch>`) typechecks, tests and deploys a committed branch to staging.
+**Staging from GitHub:** the "Deploy branch to staging" workflow (`.github/workflows/deploy-staging.yml`, run from the Actions tab or `gh workflow run deploy-staging.yml --ref <branch>`) typechecks, lints, tests and deploys a committed branch to staging.
 
 **Assets:** the Worker serves the repo root as static files, minus what `.assetsignore` lists (docs, `temp/`, `e2e/`, `worker/`, tooling). Anything new at the root that isn't part of the site must be added there, or it becomes public.
 
@@ -82,14 +82,14 @@ match_players → match_sets → matches → box_players → boxes
 ├── js/
 │   ├── app.js          # Alpine.js app component (all UI logic)
 │   ├── storage.js      # HTTP client — wraps all /api/* calls
-│   ├── algorithm.js    # box assignment + leaderboard update logic (pure functions)
+│   ├── dist/rules.js   # built rules bundle (from worker/src/browser; not committed)
 │   └── csv.js          # CSV import/export helpers
 ├── temp/               # scratch/experimental files (not served by Worker)
 │   ├── stats.html      # analytics dashboard experiment (Observable Plot + Grid.js)
 │   └── stats2.html     # analytics dashboard v2 experiment
 ├── e2e/                # Playwright browser checks (own package.json; not served)
 │   └── shot.mjs        # open pages, screenshot, report console errors
-├── .github/workflows/  # ci.yml (typecheck + tests), deploy-staging.yml, staging-refresh.yml
+├── .github/workflows/  # ci.yml (typecheck, lint, format, tests), deploy-staging.yml, staging-refresh.yml
 └── worker/
     ├── wrangler.toml
     ├── src/
@@ -97,6 +97,9 @@ match_players → match_sets → matches → box_players → boxes
     │   ├── auth.ts     # verifyGoogleToken, signJwt, requireAdmin middleware
     │   ├── db.ts       # all D1 queries (no ORM)
     │   ├── types.ts    # Env, JwtPayload, BoxInput, SessionStatus, etc.
+    │   ├── domain/     # the box-night rules (pure TypeScript), shared by Worker and browser
+    │   ├── browser/    # the old algorithm.js API on top of domain/, bundled to js/dist/rules.js
+    │   ├── test/       # test helpers, incl. a frozen copy of the pre-S1 algorithm.js
     │   └── *.test.ts   # Vitest tests
     ├── migrations/     # SQL migration files, applied with `wrangler d1 migrations apply`
     └── scripts/        # one-off data repair scripts (not production code)
@@ -108,12 +111,16 @@ match_players → match_sets → matches → box_players → boxes
 cd worker
 npm run typecheck   # worker code (workers types) + tests (also node types, via tsconfig.test.json)
 npm test            # vitest
+npm run lint        # ESLint (club-next's config)
+npm run format      # Prettier + eslint --fix (CI runs format:check)
+npm run build:web   # bundle the rules for the browser (deploys do this automatically)
+npx tsx scripts/replay-ladder.mts   # replay every closed session through old and new rules
 
 cd e2e              # first time: npm install && npx playwright install chromium
 node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"go":"/#/2026-10-20/games","shot":"session"}]'
 ```
 
-CI runs typecheck and tests on every push to `master` and every PR. `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `src/pairings.test.ts` checks that the server and client pairing tables agree (see the pairing-table note below).
+CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly.
 
 **Legacy:** `C:/dev/src/temp-badminton/` is the old GitHub Pages version backed by GitHub API for storage. It is no longer active. All production work happens in this repo.
 
@@ -230,7 +237,7 @@ Flow:
 
 ## Frontend
 
-Single-page app. No framework build step — Alpine.js and Tailwind are loaded from CDN in `index.html`.
+Single-page app. No framework build step — Alpine.js and Tailwind are loaded from CDN in `index.html`. The rules come from the bundled `js/dist/rules.js` (see below).
 
 **`js/app.js`** — one large `appData()` function that is the Alpine component. Key state:
 - `view` — `'home' | 'session' | 'player'`
@@ -243,7 +250,7 @@ Routing is hash-based: `/` home, `/:date` session, `/players` leaderboard tab, `
 
 **`js/storage.js`** — thin HTTP client. All API calls go through `apiJSON(path, opts)` which attaches the Bearer token from `localStorage`. `autoLogin()` restores the JWT from storage on page load.
 
-**`js/algorithm.js`** — pure functions: `boxSizeOptions(n)`, `splitBySizes(sortedPlayers, sizes)`, `buildBoxesFromLayout(layout)`, `parseBoxLayout(text, nameByDisplay)`, `getPairings(size)`, `getSitout(box, matchIndex)`, `computeBoxStandings(box, lbBefore)`, `applyLeaderboardUpdate(boxes, lbBefore)`. No side effects. (Note: the `temp-badminton/tests/algorithm.test.js` unit tests mentioned in older notes belong to a separate, no-longer-synced sibling project — `club` itself has no test suite yet.)
+**Rules (`js/dist/rules.js`)** — the box-night rules live in `worker/src/domain/` (pairings, box sizes, custom layouts, set and match scoring, standings, 2-up-2-down), ported from `club-next` in S1 and shared by the Worker and the browser. `worker/src/browser/algorithm.ts` exposes them to `app.js` as the same globals the old `js/algorithm.js` had: `boxSizeOptions(n)`, `splitBySizes(sortedPlayers, sizes)`, `buildBoxesFromLayout(layout)`, `parseBoxLayout(text, nameByDisplay)`, `getPairings(size)`, `getSitout(box, matchIndex)`, `computeBoxStandings(box, lbBefore)`, `isValidSet`, `getMatchStatus`, `allScoresComplete`, `applyLeaderboardUpdate(boxes, lbBefore)`, `nextTuesday`, `formatDate`. Players are names and scores are numbers or `''`, as before. A set is valid if it's a finished 21-, 15- or 11-point set. Live standings count a game as won only once it's finished, and ignore games with an invalid score.
 
 ---
 
@@ -263,12 +270,12 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Development notes
 
-- **No local dev server for the Worker** — changes are checked with `npm run typecheck` and `npm test` locally, then by deploying to staging. The frontend can be opened directly as a file for layout work, but API calls will fail without the Worker.
+- **No local dev server for the Worker** — changes are checked with `npm run typecheck` and `npm test` locally, then by deploying to staging. The frontend can be opened directly as a file for layout work, but API calls will fail without the Worker, and `npm run build:web` must have run once for the rules bundle.
 - **CRLF warnings** — the repo uses LF line endings but the Windows working copy triggers CRLF conversion warnings on `git add`. These are harmless; the committed content is correct.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
 - **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. (There is no `players.current_rank` column any more; 0002 dropped it.)
-- **Box assignment algorithm:** each player plays every other player within their box; sizes 5/6/7 sit out 1/2/3 players per match — derived generically by `getSitout()` from each match's pairing (nobody hardcodes sit-out indices per size). Pairing schedules for all four sizes (`PAIRINGS_4/5/6/7` in `algorithm.js`) come from the club's printed score-sheet PDFs (`box6.pdf`, `box7.pdf` — the 4/5 originals aren't kept in-repo). Clicking "Assign Boxes" opens a modal (always, even when there's only one option — see future-work note below) offering every way to split attendees into boxes of 4/5/6, computed by `boxSizeOptions(n)` and ordered most-boxes-first (default selection); exactly 7 attendees instead get the single box-of-7 option, since a 7-box is only ever used as a last resort. Each option's layout (player names per box) comes from `splitBySizes(sortedAttendees, sizes)`, which slices attendees (sorted by leaderboard rank, boxes ascending in size) into the chosen boxes. If there's a previous layout for the session — the current boxes on Reassign, or the boxes cleared by Re-open Attendance (kept in memory only, as `_previousBoxLayout`, so lost on reload) — it's offered first, minus anyone no longer attending, and selected by default. A "Custom" option copies the selected option's layout into an editable textbox (one box per line, comma-separated display names exactly as printed — full names are rejected); re-selecting an option then Custom resets it. Every option is validated through `parseBoxLayout` (every attendee placed exactly once, boxes of 4–7) before `buildBoxesFromLayout` turns it into boxes with fresh pairings. Typical mid-session use: someone leaves → Re-open Attendance → untick them → Assign Boxes (previous layout is preselected, minus them). `boxSizeOptions` also fixed a latent gap: 11 attendees used to be Frobenius-non-representable by 4s/5s alone and hit a dead-end fallback — now resolved as 1 box of 5 + 1 box of 6.
-- **⚠️ Pairing tables are duplicated client + server — keep them in sync.** `worker/src/db.ts` has its own copy of `PAIRINGS_4/5/6/7` and a `getPairing(boxSize, matchNumber)` lookup, used only when *reading* boxes back from D1 (pairing is a pure function of box size + match number, so it's regenerated on read rather than persisted). Adding box sizes 6/7 to `js/algorithm.js` without updating this server copy shipped a real bug: any box of 6/7 rendered fine right after assignment (client used its own in-memory copy) but came back as all-empty pairings (grid all greyed out, "v" with no player numbers) the next time the session was loaded from the API, because `getPairing` only knew sizes 4/5 and fell back to `{pair1:[],pair2:[]}` for everything else. If you ever change a `PAIRINGS_*` table or add a new box size, update both copies — there's no shared import between the Workers backend and the plain-script frontend.
+- **Box assignment algorithm:** each player plays every other player within their box; sizes 5/6/7 sit out 1/2/3 players per match — derived generically by `getSitout()` from each match's pairing (nobody hardcodes sit-out indices per size). Pairing schedules for all four sizes (`worker/src/domain/pairings.ts`) come from the club's printed score-sheet PDFs (`box6.pdf`, `box7.pdf` — the 4/5 originals aren't kept in-repo). Clicking "Assign Boxes" opens a modal (always, even when there's only one option — see future-work note below) offering every way to split attendees into boxes of 4/5/6, computed by `boxSizeOptions(n)` and ordered most-boxes-first (default selection); exactly 7 attendees instead get the single box-of-7 option, since a 7-box is only ever used as a last resort. Each option's layout (player names per box) comes from `splitBySizes(sortedAttendees, sizes)`, which slices attendees (sorted by leaderboard rank, boxes ascending in size) into the chosen boxes. If there's a previous layout for the session — the current boxes on Reassign, or the boxes cleared by Re-open Attendance (kept in memory only, as `_previousBoxLayout`, so lost on reload) — it's offered first, minus anyone no longer attending, and selected by default. A "Custom" option copies the selected option's layout into an editable textbox (one box per line, comma-separated display names exactly as printed — full names are rejected); re-selecting an option then Custom resets it. Every option is validated through `parseBoxLayout` (every attendee placed exactly once, boxes of 4–7) before `buildBoxesFromLayout` turns it into boxes with fresh pairings. Typical mid-session use: someone leaves → Re-open Attendance → untick them → Assign Boxes (previous layout is preselected, minus them). `boxSizeOptions` also fixed a latent gap: 11 attendees used to be Frobenius-non-representable by 4s/5s alone and hit a dead-end fallback — now resolved as 1 box of 5 + 1 box of 6.
+- **Pairing tables live in one place** (`worker/src/domain/pairings.ts`). They used to be duplicated in `js/algorithm.js` and `worker/src/db.ts`, and adding sizes 6/7 to only the client copy shipped a bug: those boxes came back from the API with empty pairings. Since S1 both the browser bundle and `db.ts` (`getPairing`, used when reading boxes back from D1) import the shared tables.
 
 ## Considerations for future work
 
