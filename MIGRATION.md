@@ -70,6 +70,14 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 ---
 
+## Follow-ups (not steps, but don't lose them)
+
+- **Data backups beyond 7 days.** D1 Time Travel already lets us restore prod to any minute in the last 7 days (free plan; `wrangler d1 time-travel restore club-prod --timestamp=...`, which rolls back the whole database). For longer, agreed design (2026-10-22), not yet built:
+  - A nightly GitHub Action (about 3am NZ) runs `wrangler d1 export club-prod` and commits the dump to a **private** repo, e.g. `seminolas/club-backups`; git history keeps every night's copy. Never store dumps in `club` itself or its Action artifacts: that repo is public and the data has names, emails and HelloClub ids.
+  - Needs: the private repo, and a fine-grained token limited to it ("Contents: read and write") stored as a secret in `club`, created by the developer in the browser. Reuses the existing Cloudflare secrets.
+  - A manual "Load a backup into staging" workflow (staging-refresh with a chosen dump) as the restore drill.
+  - R2 (Cloudflare's suggestion) was set aside: enabling it likely needs a payment method on file.
+
 ## Where things are in `club-next` (reference)
 
 - `decisions.md`, `guidelines.md`, `architecture.md`, `user-stories.md`, `open-questions.md`: the thinking behind it all. Still valid unless a migration step changes it.
