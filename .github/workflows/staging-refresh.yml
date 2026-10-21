@@ -36,6 +36,10 @@ jobs:
           DROP TABLE IF EXISTS club_admins;
           DROP TABLE IF EXISTS roles;
           DROP TABLE IF EXISTS players;
+          DROP TABLE IF EXISTS session;
+          DROP TABLE IF EXISTS account;
+          DROP TABLE IF EXISTS verification;
+          DROP TABLE IF EXISTS user;
           DROP TABLE IF EXISTS clubs;
           DROP TABLE IF EXISTS d1_migrations;
           EOF
@@ -47,5 +51,28 @@ jobs:
       - name: Load prod dump into staging
         run: wrangler d1 execute club-staging --remote --file prod-dump.sql
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # Staging-only test accounts (Test Admin, Test Player), which prod's
+      # data doesn't have. Skipped until the schema has the sign-in tables.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Create the test accounts
+        working-directory: worker
+        run: |
+          if ! grep -qiE 'CREATE TABLE [`"]?user[`"]? ' ../prod-dump.sql; then
+            echo "No sign-in tables in prod yet; skipping."
+            exit 0
+          fi
+          npm ci
+          npx tsx scripts/seed-test-users.mts > ../test-users.sql
+          # From the repo root, like the steps above (no wrangler.toml there).
+          cd .. && wrangler d1 execute club-staging --remote --file test-users.sql
+        env:
+          TEST_LOGIN_PASSWORD: ${{ secrets.TEST_LOGIN_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

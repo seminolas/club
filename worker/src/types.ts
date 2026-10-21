@@ -5,6 +5,14 @@ export interface Env {
   HC_CLUB_SLUG: string
   GOOGLE_CLIENT_ID: string
   JWT_SECRET: string
+  /** BetterAuth: signs session cookies. */
+  BETTER_AUTH_SECRET: string
+  /** BetterAuth: this deployment's origin, e.g. https://club.….workers.dev */
+  BETTER_AUTH_URL: string
+  /** BetterAuth's Google sign-in (redirect flow, S4b). */
+  GOOGLE_CLIENT_SECRET?: string
+  /** '1' enables the test accounts' email + password sign-in (staging only). */
+  TEST_LOGIN?: string
 }
 
 export interface JwtPayload {

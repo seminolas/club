@@ -19,17 +19,104 @@ export const clubs = sqliteTable('clubs', {
   config: text('config').notNull(),
 })
 
-export const players = sqliteTable('players', {
-  id: integer('id').primaryKey(),
-  clubId: integer('club_id')
-    .notNull()
-    .references(() => clubs.id),
+// ── BetterAuth (S4) ──────────────────────────────────────────────────────────
+// Its core tables plus the admin plugin's columns. `user.role` ('admin' |
+// 'user') is the app's role: admin or player.
+
+export const user = sqliteTable('user', {
+  id: text('id').primaryKey(),
   name: text('name').notNull(),
-  hcMemberId: text('hc_member_id'),
-  archivedAt: text('archived_at'),
-  email: text('email'),
-  preferredName: text('preferred_name'),
+  email: text('email').notNull().unique(),
+  emailVerified: integer('email_verified', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  image: text('image'),
+  role: text('role').default('user'),
+  banned: integer('banned', { mode: 'boolean' }),
+  banReason: text('ban_reason'),
+  banExpires: integer('ban_expires', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
+
+export const session = sqliteTable(
+  'session',
+  {
+    id: text('id').primaryKey(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    token: text('token').notNull().unique(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    impersonatedBy: text('impersonated_by'),
+  },
+  (t) => [index('session_user_id').on(t.userId)],
+)
+
+export const account = sqliteTable(
+  'account',
+  {
+    id: text('id').primaryKey(),
+    /** The provider's id for the person (Google: `sub`). */
+    accountId: text('account_id').notNull(),
+    /** 'google', 'facebook', or 'credential' (email + password). */
+    providerId: text('provider_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: integer('access_token_expires_at', {
+      mode: 'timestamp',
+    }),
+    refreshTokenExpiresAt: integer('refresh_token_expires_at', {
+      mode: 'timestamp',
+    }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [index('account_user_id').on(t.userId)],
+)
+
+export const verification = sqliteTable(
+  'verification',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+  },
+  (t) => [index('verification_identifier').on(t.identifier)],
+)
+
+// ── Club data ────────────────────────────────────────────────────────────────
+
+export const players = sqliteTable(
+  'players',
+  {
+    id: integer('id').primaryKey(),
+    clubId: integer('club_id')
+      .notNull()
+      .references(() => clubs.id),
+    name: text('name').notNull(),
+    hcMemberId: text('hc_member_id'),
+    archivedAt: text('archived_at'),
+    email: text('email'),
+    preferredName: text('preferred_name'),
+    /** The login (BetterAuth user) this player signs in with, if any. */
+    userId: text('user_id').references(() => user.id),
+  },
+  (t) => [uniqueIndex('players_user_id').on(t.userId)],
+)
 
 export const sessions = sqliteTable(
   'sessions',

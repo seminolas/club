@@ -23,6 +23,8 @@ beforeAll(async () => {
     HC_API_KEY: 'unused',
     HC_CLUB_ID: 'unused',
     HC_CLUB_SLUG: 'unused',
+    BETTER_AUTH_SECRET: 'test-better-auth-secret-0123456789abcdef',
+    BETTER_AUTH_URL: 'http://localhost',
   }
   token = await signJwt(
     { sub: '1', player_id: 1, club_id: 1, roles: ['owner', 'admin'] },

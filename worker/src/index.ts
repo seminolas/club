@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { BoxInput, Env, JwtPayload } from './types'
 import { requireAdmin, signJwt, verifyGoogleToken } from './auth'
+import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
 
@@ -66,6 +67,12 @@ app.post('/api/auth/login', async (c) => {
     player: { id: profile.id, name: profile.name },
   })
 })
+
+// BetterAuth's own endpoints (sign-in, sign-out, session, ...). Registered
+// after /api/auth/login above, which keeps serving the old app until S4b.
+app.on(['GET', 'POST'], '/api/auth/*', (c) =>
+  createAuth(c.env, c.get('db')).handler(c.req.raw),
+)
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

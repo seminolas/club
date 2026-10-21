@@ -1684,6 +1684,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1693,6 +1694,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1702,6 +1704,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1711,6 +1714,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1720,6 +1724,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1729,6 +1734,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1738,6 +1744,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1747,6 +1754,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1756,6 +1764,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1765,6 +1774,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1774,6 +1784,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1783,6 +1794,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -1792,6 +1804,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1801,6 +1814,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1810,6 +1824,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1819,6 +1834,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1828,6 +1844,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1837,6 +1854,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -1846,6 +1864,7 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "id": 19,
       "name": "Nina New",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -2753,6 +2772,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2762,6 +2782,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2771,6 +2792,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2780,6 +2802,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2789,6 +2812,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2798,6 +2822,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2807,6 +2832,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2816,6 +2842,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2825,6 +2852,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2834,6 +2862,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2843,6 +2872,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2852,6 +2882,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -2861,6 +2892,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2870,6 +2902,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2879,6 +2912,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2888,6 +2922,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2897,6 +2932,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -2906,6 +2942,7 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -4098,6 +4135,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4107,6 +4145,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4116,6 +4155,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4125,6 +4165,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4134,6 +4175,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4143,6 +4185,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4152,6 +4195,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4161,6 +4205,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4170,6 +4215,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4179,6 +4225,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4188,6 +4235,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4197,6 +4245,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -4206,6 +4255,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4215,6 +4265,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4224,6 +4275,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4233,6 +4285,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4242,6 +4295,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -4251,6 +4305,7 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -5529,6 +5584,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5538,6 +5594,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5547,6 +5604,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5556,6 +5614,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5565,6 +5624,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5574,6 +5634,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5583,6 +5644,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5592,6 +5654,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5601,6 +5664,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5610,6 +5674,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5619,6 +5684,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -5628,6 +5694,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5637,6 +5704,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5646,6 +5714,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5655,6 +5724,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5664,6 +5734,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -5673,6 +5744,7 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -6514,6 +6586,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6523,6 +6596,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6532,6 +6606,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6541,6 +6616,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6550,6 +6626,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6559,6 +6636,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6568,6 +6646,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6577,6 +6656,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6586,6 +6666,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6595,6 +6676,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6604,6 +6686,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6613,6 +6696,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -6622,6 +6706,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6631,6 +6716,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6640,6 +6726,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6649,6 +6736,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6658,6 +6746,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -6667,6 +6756,7 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -7773,6 +7863,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7782,6 +7873,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7791,6 +7883,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7800,6 +7893,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7809,6 +7903,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7818,6 +7913,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7827,6 +7923,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7836,6 +7933,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7845,6 +7943,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7854,6 +7953,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7863,6 +7963,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7872,6 +7973,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7881,6 +7983,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "<today>",
@@ -7890,6 +7993,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7899,6 +8003,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7908,6 +8013,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7917,6 +8023,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7926,6 +8033,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -7935,6 +8043,7 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "id": 19,
       "name": "New Person",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -9248,6 +9357,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9257,6 +9367,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9266,6 +9377,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9275,6 +9387,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9284,6 +9397,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9293,6 +9407,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9302,6 +9417,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9311,6 +9427,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9320,6 +9437,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9329,6 +9447,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9338,6 +9457,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9347,6 +9467,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -9356,6 +9477,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9365,6 +9487,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9374,6 +9497,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9383,6 +9507,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9392,6 +9517,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -9401,6 +9527,7 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -10634,6 +10761,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10643,6 +10771,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10652,6 +10781,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10661,6 +10791,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10670,6 +10801,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10679,6 +10811,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10688,6 +10821,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10697,6 +10831,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10706,6 +10841,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10715,6 +10851,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10724,6 +10861,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10733,6 +10871,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -10742,6 +10881,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10751,6 +10891,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10760,6 +10901,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10769,6 +10911,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10778,6 +10921,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -10787,6 +10931,7 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -11979,6 +12124,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -11988,6 +12134,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -11997,6 +12144,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12006,6 +12154,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12015,6 +12164,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12024,6 +12174,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12033,6 +12184,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12042,6 +12194,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12051,6 +12204,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12060,6 +12214,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12069,6 +12224,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12078,6 +12234,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -12087,6 +12244,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12096,6 +12254,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12105,6 +12264,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12114,6 +12274,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12123,6 +12284,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -12132,6 +12294,7 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -13264,6 +13427,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13273,6 +13437,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13282,6 +13447,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 3,
       "name": "Chloe Wu-Smith",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13291,6 +13457,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13300,6 +13467,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13309,6 +13477,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13318,6 +13487,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13327,6 +13497,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13336,6 +13507,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13345,6 +13517,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13354,6 +13527,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13363,6 +13537,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -13372,6 +13547,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13381,6 +13557,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13390,6 +13567,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13399,6 +13577,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13408,6 +13587,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -13417,6 +13597,7 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [
@@ -14609,6 +14790,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 1,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14618,6 +14800,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 2,
       "name": "Ben Carter",
       "preferred_name": "Benny",
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14627,6 +14810,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 3,
       "name": "Chloe Wu",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14636,6 +14820,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 4,
       "name": "Dev Patel",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14645,6 +14830,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 5,
       "name": "Dev Singh",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14654,6 +14840,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 6,
       "name": "Ella Brown",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14663,6 +14850,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 7,
       "name": "Finn O’Neill",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14672,6 +14860,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 8,
       "name": "Grace Hohaia",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14681,6 +14870,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 9,
       "name": "Hemi Walker",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14690,6 +14880,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 10,
       "name": "Isla Martin",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14699,6 +14890,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 11,
       "name": "Jack Lee",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14708,6 +14900,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 12,
       "name": "Kiri Tane",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": "2026-01-02",
@@ -14717,6 +14910,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 13,
       "name": "Liam Gone",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14726,6 +14920,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 14,
       "name": "Mia Late",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14735,6 +14930,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 15,
       "name": "Aroha Ngata",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14744,6 +14940,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 16,
       "name": "Zed Other",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14753,6 +14950,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 17,
       "name": "Nora First",
       "preferred_name": null,
+      "user_id": null,
     },
     {
       "archived_at": null,
@@ -14762,6 +14960,7 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "id": 18,
       "name": "Otis Second",
       "preferred_name": null,
+      "user_id": null,
     },
   ],
   "roles": [

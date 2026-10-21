@@ -63,7 +63,7 @@ The Worker compiles `src/index.ts` via wrangler on deploy. The only frontend bui
 2. Wipes staging — drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`
 3. Loads the prod dump into staging
 
-Staging receives prod's already-migrated schema via the dump, so **apply new migrations to prod before pushing to master** — the refresh picks them up automatically from the dump.
+Staging receives prod's already-migrated schema via the dump, so **apply new migrations to prod before pushing to master** — the refresh picks them up automatically from the dump. After loading, the refresh re-creates the staging test accounts (see Authentication). It also drops the BetterAuth tables in its wipe step.
 
 **If you add a new table to the schema**, update the wipe step in `staging-refresh.yml`. Add the table to the `DROP TABLE IF EXISTS` list in child-before-parent order (leaf/child tables before the parent tables they reference). Missing entries cause the wipe to fail with `FOREIGN KEY constraint failed` on whichever parent table is dropped before its child. The current order:
 
@@ -122,6 +122,7 @@ cd e2e              # first time: npm install && npx playwright install chromium
 node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"go":"/#/2026-10-20/games","shot":"session"}]'
 node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod vs staging, diff the on-screen text
 node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
+node admin-flow.mjs    # a whole admin session night on staging as Test Admin, checked, then cleaned up
 ```
 
 CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
@@ -211,15 +212,14 @@ All under `/api/*`. Auth routes are open; everything else requires `Authorizatio
 
 ## Authentication
 
-Google Identity Services (GIS) handles the OAuth flow entirely client-side. The browser receives a Google `id_token`, which is POSTed to `/api/auth/login`. The Worker verifies it against Google's public keys (fetched and cached), then issues a signed app JWT.
+**Two sign-ins coexist until S4b (MIGRATION.md):**
 
-JWT payload:
-```typescript
-{ sub: string; player_id: number; club_id: number; roles: string[]; exp: number }
-```
+- **Old (the current UI):** Google Identity Services in the browser returns an `id_token`, POSTed to `/api/auth/login`; the Worker verifies it, finds the player through `player_auth_profiles`, and issues an app JWT (roles `owner`/`admin`/`scorer`/`player` from `player_roles`). The UI sends it as `Authorization: Bearer`.
+- **BetterAuth (S4a, `worker/src/better-auth.ts`):** mounted at `/api/auth/*` (Drizzle adapter on D1, `admin` plugin, Google provider). Sessions are an HttpOnly cookie (`__Secure-better-auth.session_token` on https). Tables `user`, `session`, `account`, `verification`; `players.user_id` links a player to their login. `user.role` is the app role: `admin` or `user` (player). Migration 0011 carried over every Google link (Google's `sub` is the account id, so the same Google account signs in to the same user) and made owners/admins `admin`. Facebook links weren't carried over (per-app ids).
 
-Roles: `owner`, `admin`, `scorer`, `player`. Only `owner` and `admin` pass `requireAdmin`. A player must have a `player_auth_profiles` row linking their Google `sub` to a `players` row — this is set up by an admin via the player profile UI.
+`requireAdmin` accepts either: a Bearer app JWT with `owner`/`admin`, or a BetterAuth session whose user is `admin`.
 
+**Staging test accounts.** On staging only, `TEST_LOGIN = "1"` (in `[env.staging.vars]`) turns on email + password sign-in for two synthetic accounts: **Test Admin** (`test-admin@staging.invalid`, admin) and **Test Player** (`test-player@staging.invalid`, player). Sign-up is off; `testLoginEnabled` refuses to start it for any URL that isn't staging or localhost, and a test checks prod-like config rejects password sign-in. Their password is the `TEST_LOGIN_PASSWORD` GitHub secret (the staging refresh re-creates the accounts after loading prod's data, via `worker/scripts/seed-test-users.mts`) and, for local scripts, `e2e/.env.staging` (gitignored). Passwords use PBKDF2 via WebCrypto (`src/test-login.ts`), because BetterAuth's default scrypt is too CPU-heavy for the free plan. Sign in from scripts with `POST /api/auth/sign-in/email` (send an `Origin` header), or `{ "as": "test-admin" }` in `e2e/shot.mjs`.
 ---
 
 ## HelloClub sync
@@ -264,7 +264,11 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 | Name | Type | Purpose |
 |------|------|---------|
-| `JWT_SECRET` | Secret | Signs and verifies app JWTs |
+| `JWT_SECRET` | Secret | Signs and verifies the old app JWTs (removed in S4b) |
+| `BETTER_AUTH_SECRET` | Secret | BetterAuth: signs session cookies (different on prod and staging) |
+| `BETTER_AUTH_URL` | Var (toml) | BetterAuth: the deployment's origin (prod and staging differ) |
+| `GOOGLE_CLIENT_SECRET` | Secret | BetterAuth's Google sign-in (redirect flow, from S4b) |
+| `TEST_LOGIN` | Var (toml) | `"1"` on **staging only**: password sign-in for the test accounts |
 | `HC_API_KEY` | Secret | HelloClub API key — **prod only**, staging value is nonsense |
 | `GOOGLE_CLIENT_ID` | Secret | Google OAuth client ID for GIS |
 | `HC_CLUB_ID` | Var (toml) | `northlandbadminton` — used in HC API base URL |

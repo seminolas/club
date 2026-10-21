@@ -1,6 +1,12 @@
 [
   {
     "type": "index",
+    "name": "account_user_id",
+    "tbl_name": "account",
+    "sql": "CREATE INDEX `account_user_id` ON `account` (`user_id`)"
+  },
+  {
+    "type": "index",
     "name": "boxes_session",
     "tbl_name": "boxes",
     "sql": "CREATE INDEX boxes_session ON boxes(session_id, box_number)"
@@ -13,15 +19,51 @@
   },
   {
     "type": "index",
+    "name": "players_user_id",
+    "tbl_name": "players",
+    "sql": "CREATE UNIQUE INDEX `players_user_id` ON `players` (`user_id`)"
+  },
+  {
+    "type": "index",
     "name": "session_ranks_session_phase",
     "tbl_name": "session_ranks",
     "sql": "CREATE INDEX session_ranks_session_phase ON session_ranks(session_id, phase, rank_position)"
   },
   {
     "type": "index",
+    "name": "session_token_unique",
+    "tbl_name": "session",
+    "sql": "CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`)"
+  },
+  {
+    "type": "index",
+    "name": "session_user_id",
+    "tbl_name": "session",
+    "sql": "CREATE INDEX `session_user_id` ON `session` (`user_id`)"
+  },
+  {
+    "type": "index",
     "name": "sessions_club_date",
     "tbl_name": "sessions",
     "sql": "CREATE UNIQUE INDEX sessions_club_date ON sessions(club_id, date)"
+  },
+  {
+    "type": "index",
+    "name": "user_email_unique",
+    "tbl_name": "user",
+    "sql": "CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`)"
+  },
+  {
+    "type": "index",
+    "name": "verification_identifier",
+    "tbl_name": "verification",
+    "sql": "CREATE INDEX `verification_identifier` ON `verification` (`identifier`)"
+  },
+  {
+    "type": "table",
+    "name": "account",
+    "tbl_name": "account",
+    "sql": "CREATE TABLE `account` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`account_id` text NOT NULL,\n\t`provider_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`access_token` text,\n\t`refresh_token` text,\n\t`id_token` text,\n\t`access_token_expires_at` integer,\n\t`refresh_token_expires_at` integer,\n\t`scope` text,\n\t`password` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade\n)"
   },
   {
     "type": "table",
@@ -81,13 +123,19 @@
     "type": "table",
     "name": "players",
     "tbl_name": "players",
-    "sql": "CREATE TABLE players (\n  id           INTEGER PRIMARY KEY,\n  club_id      INTEGER NOT NULL REFERENCES clubs(id),\n  name         TEXT NOT NULL,\n  hc_member_id TEXT,\n  archived_at  TEXT\n, email TEXT, preferred_name TEXT)"
+    "sql": "CREATE TABLE players (\n  id           INTEGER PRIMARY KEY,\n  club_id      INTEGER NOT NULL REFERENCES clubs(id),\n  name         TEXT NOT NULL,\n  hc_member_id TEXT,\n  archived_at  TEXT\n, email TEXT, preferred_name TEXT, `user_id` text REFERENCES user(id))"
   },
   {
     "type": "table",
     "name": "roles",
     "tbl_name": "roles",
     "sql": "CREATE TABLE roles (\n  id   INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL UNIQUE\n)"
+  },
+  {
+    "type": "table",
+    "name": "session",
+    "tbl_name": "session",
+    "sql": "CREATE TABLE `session` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`token` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`ip_address` text,\n\t`user_agent` text,\n\t`user_id` text NOT NULL,\n\t`impersonated_by` text,\n\tFOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade\n)"
   },
   {
     "type": "table",
@@ -100,5 +148,17 @@
     "name": "sessions",
     "tbl_name": "sessions",
     "sql": "CREATE TABLE sessions (\n  id         INTEGER PRIMARY KEY,\n  club_id    INTEGER NOT NULL REFERENCES clubs(id),\n  date       TEXT NOT NULL,\n  status     TEXT NOT NULL,  \n  created_at TEXT NOT NULL,\n  closed_at  TEXT\n)"
+  },
+  {
+    "type": "table",
+    "name": "user",
+    "tbl_name": "user",
+    "sql": "CREATE TABLE `user` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`email_verified` integer DEFAULT false NOT NULL,\n\t`image` text,\n\t`role` text DEFAULT 'user',\n\t`banned` integer,\n\t`ban_reason` text,\n\t`ban_expires` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n)"
+  },
+  {
+    "type": "table",
+    "name": "verification",
+    "tbl_name": "verification",
+    "sql": "CREATE TABLE `verification` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`identifier` text NOT NULL,\n\t`value` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer,\n\t`updated_at` integer\n)"
   }
 ]

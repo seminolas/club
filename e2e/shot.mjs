@@ -1,11 +1,24 @@
 // Dev helper: open pages in a real browser and screenshot them.
 // Usage: node shot.mjs <outDir> <json steps>
-//   steps (also { "scheme": "dark" } to emulate the device setting): [{ "go": "/#/2026-10-20", "shot": "session", "mobile": true }, { "click": "text=Players" }, ...]
+//   steps (also { "scheme": "dark" } to emulate the device setting): [{ "as": "test-admin" }, { "go": "/#/2026-10-20", "shot": "session", "mobile": true }, { "click": "text=Players" }, ...]
 // BASE defaults to staging; set BASE=https://club.vilhelmas-f78.workers.dev for prod (read-only checks only).
-// Ported from club-next/e2e/shot.mjs, minus its email sign-in steps: this app uses
-// Google sign-in only, so these checks run signed out.
+// { "as": "test-admin" | "test-player" } signs in as a staging test account
+// (password: TEST_LOGIN_PASSWORD in e2e/.env.staging, gitignored); { "signout": true }.
+// Ported from club-next/e2e/shot.mjs.
 import { chromium } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+
+// KEY=value lines from e2e/.env.staging, if present.
+const envFile = new URL('./.env.staging', import.meta.url)
+const localEnv = existsSync(envFile)
+  ? Object.fromEntries(
+      readFileSync(envFile, 'utf8')
+        .split(/\r?\n/)
+        .filter((l) => /^\w+=/.test(l))
+        .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+    )
+  : {}
+const PASSWORD = process.env.TEST_LOGIN_PASSWORD ?? localEnv.TEST_LOGIN_PASSWORD
 
 const [, , outDir, stepsJson] = process.argv
 const steps = JSON.parse(stepsJson)
@@ -43,6 +56,18 @@ for (const s of steps) {
       page = await context.newPage()
       watch(page)
     }
+    if (s.as) {
+      const r = await page.request.post(`${BASE}/api/auth/sign-in/email`, {
+        data: { email: `${s.as}@staging.invalid`, password: PASSWORD },
+        headers: { origin: BASE },
+      })
+      if (!r.ok()) errors.push(`sign in as ${s.as}: ${r.status()} ${await r.text()}`)
+    }
+    if (s.signout)
+      await page.request.post(`${BASE}/api/auth/sign-out`, {
+        data: {},
+        headers: { origin: BASE },
+      })
     if (s.scheme) await page.emulateMedia({ colorScheme: s.scheme })
     if (s.go) await page.goto(BASE + s.go, { waitUntil: 'networkidle' })
     if (s.click) await page.locator(s.click).first().click()
