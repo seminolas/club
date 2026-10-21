@@ -47,7 +47,7 @@ async function structure(raw: D1Database) {
     await q<{ name: string }>(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name <> 'd1_migrations' ORDER BY name",
     )
-  ).map((t) => t.name)
+  ).map((row) => row.name)
   const out: Record<string, unknown> = {}
   for (const table of tables) {
     const cols = await q<{

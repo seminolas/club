@@ -3,7 +3,8 @@
 // seed ladder rows (session_id NULL), a closed session with full scores and
 // before/after ladders, a session mid-games with partial scores and a player
 // added mid-session, an archived player, a second club sharing a name and a
-// date, and sign-in profiles and roles.
+// date, a club with a seed ladder but no sessions, and sign-in profiles
+// and roles.
 import { getPairings } from '../../domain/pairings'
 import type { DB } from '../../db'
 
@@ -32,6 +33,9 @@ const players: Row[] = [
   { id: 14, club_id: 1, name: 'Mia Late' },
   { id: 15, club_id: 2, name: 'Aroha Ngata' },
   { id: 16, club_id: 2, name: 'Zed Other' },
+  // A new club with a seed ladder but no sessions yet.
+  { id: 17, club_id: 3, name: 'Nora First' },
+  { id: 18, club_id: 3, name: 'Otis Second' },
 ]
 
 // Boxes: player ids in box order, and per match the sets (pair1 score first).
@@ -155,6 +159,19 @@ const sessions: {
     attendees: [15],
     boxes: [],
   },
+  {
+    // An older session nobody was marked at (no attendees, ladders or boxes).
+    row: {
+      id: 4,
+      club_id: 1,
+      date: '2025-12-30',
+      status: 'attendance',
+      created_at: '2025-12-30 05:00:00',
+      closed_at: null,
+    },
+    attendees: [],
+    boxes: [],
+  },
 ]
 
 const insert = (db: DB, table: string, row: Row) => {
@@ -183,7 +200,22 @@ export async function seed(db: DB): Promise<void> {
       short_name: null,
       config: '{}',
     }),
+    insert(db, 'clubs', {
+      id: 3,
+      name: 'New Club',
+      short_name: null,
+      config: '{}',
+    }),
     ...players.map((p) => insert(db, 'players', p)),
+    // The new club's seed ladder (seed rows are one list across clubs).
+    ...[18, 17].map((pid, i) =>
+      insert(db, 'session_ranks', {
+        session_id: null,
+        player_id: pid,
+        rank_position: 14 + i,
+        phase: 'after',
+      }),
+    ),
     // Seed ladder (before any session); includes the archived player.
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((pid, i) =>
       insert(db, 'session_ranks', {

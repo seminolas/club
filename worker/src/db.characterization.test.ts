@@ -23,20 +23,16 @@ const TABLES = [
   'roles',
 ]
 
+const SEEDED_SESSIONS = 4
+
 // Rows of every table, with "now" timestamps masked (shape-checked first).
 async function snapshotTables(d: db.DB) {
   const out: Record<string, unknown[]> = {}
   for (const table of TABLES) {
     out[table] = (await tableRows(d, table)).map((row) => {
       const r = { ...row }
-      if (
-        table === 'sessions' &&
-        typeof r.created_at === 'string' &&
-        r.created_at.startsWith('20') &&
-        r.id !== 1 &&
-        r.id !== 2 &&
-        r.id !== 3
-      ) {
+      // Sessions the tests create (the fixture has ids 1-4).
+      if (table === 'sessions' && Number(r.id) > SEEDED_SESSIONS) {
         expect(r.created_at).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
         r.created_at = '<now>'
       }
@@ -69,6 +65,11 @@ describe('reads', () => {
   it('getLeaderboardPlayers: latest session’s ladder (before-phase while not closed), active players only', async () => {
     expect(await db.getLeaderboardPlayers(t.db, 1)).toMatchSnapshot()
     expect(await db.getLeaderboardPlayers(t.db, 2)).toMatchSnapshot()
+    // No sessions yet: the seed ladder (rows with no session).
+    expect(await db.getLeaderboardPlayers(t.db, 3)).toEqual([
+      { id: 18, name: 'Otis Second', hc_member_id: null, preferred_name: null },
+      { id: 17, name: 'Nora First', hc_member_id: null, preferred_name: null },
+    ])
   })
 
   it('getPlayerByName: active players in the club only', async () => {
@@ -106,6 +107,7 @@ describe('reads', () => {
     expect(await db.listSessions(t.db, 1)).toEqual([
       { date: '2026-01-13', status: 'games', attendee_count: 9 },
       { date: '2026-01-06', status: 'closed', attendee_count: 9 },
+      { date: '2025-12-30', status: 'attendance', attendee_count: 0 },
     ])
     expect(await db.listSessions(t.db, 2)).toEqual([
       { date: '2026-01-13', status: 'attendance', attendee_count: 1 },
@@ -115,6 +117,7 @@ describe('reads', () => {
   it('getAttendees: in ladder-before order', async () => {
     expect(await db.getAttendees(t.db, 1)).toMatchSnapshot()
     expect(await db.getAttendees(t.db, 2)).toMatchSnapshot()
+    expect(await db.getAttendees(t.db, 4)).toEqual([])
     expect(await db.getAttendees(t.db, 99)).toEqual([])
   })
 
@@ -122,6 +125,7 @@ describe('reads', () => {
     expect(await db.getBoxes(t.db, 1)).toMatchSnapshot()
     expect(await db.getBoxes(t.db, 2)).toMatchSnapshot()
     expect(await db.getBoxes(t.db, 3)).toEqual([])
+    expect(await db.getBoxes(t.db, 4)).toEqual([])
   })
 
   it('getPlayerById: active players in the club only', async () => {
@@ -174,7 +178,7 @@ describe('writes', () => {
       ladder.map((p) => p.id),
       'before',
     )
-    expect(id).toBe(4)
+    expect(id).toBe(SEEDED_SESSIONS + 1)
     expect(await db.getLeaderboardPlayers(t.db, 1)).toEqual(ladder)
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
@@ -255,7 +259,7 @@ describe('writes', () => {
 
   it('addPlayerMidSession: shifts the before-ladder, ranks and marks the new player attending', async () => {
     const id = await db.addPlayerMidSession(t.db, 1, 2, 'Nina New', 2)
-    expect(id).toBe(17)
+    expect(id).toBe(19)
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 

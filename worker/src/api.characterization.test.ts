@@ -152,7 +152,7 @@ describe('admin', () => {
       }))
     await step('boxes', 'PUT', '/api/sessions/2026-01-20/boxes', {
       boxes: [
-        { players: [2, 1, 17, 14], matches: matches(4), finalPlacings: null },
+        { players: [2, 1, 19, 14], matches: matches(4), finalPlacings: null },
         { players: [5, 6, 3, 4], matches: matches(4), finalPlacings: null },
       ],
     })
@@ -200,14 +200,14 @@ describe('admin', () => {
     await step('boxes again', 'PUT', '/api/sessions/2026-01-20/boxes', {
       boxes: [
         {
-          players: [2, 1, 17, 14, 5],
+          players: [2, 1, 19, 14, 5],
           matches: matches(5),
           finalPlacings: null,
         },
       ],
     })
     await step('close', 'POST', '/api/sessions/2026-01-20/close', {
-      leaderboard_after: [1, 2, 17, 14, 5, 6, 3, 4, 7, 8, 9, 10, 11, 12],
+      leaderboard_after: [1, 2, 19, 14, 5, 6, 3, 4, 7, 8, 9, 10, 11, 12],
     })
     await step('score when closed', 'PUT', '/api/sessions/2026-01-20/score', {
       box_number: 0,
@@ -229,7 +229,7 @@ describe('admin', () => {
     expect(masked).toMatchSnapshot()
     const sessions = (await tableRows(t.db, 'sessions')).map((s) => ({
       ...s,
-      created_at: s.id === 4 ? '<now>' : s.created_at,
+      created_at: s.id === 5 ? '<now>' : s.created_at,
       closed_at: s.closed_at ? '<set>' : null,
     }))
     expect(sessions).toMatchSnapshot()
