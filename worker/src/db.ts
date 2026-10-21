@@ -1,7 +1,17 @@
-// D1 queries. Reads use Drizzle (S2a); writes are still raw, parameterised
-// SQL until S2b.
+// D1 queries, via Drizzle.
 
-import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  sql,
+} from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import { drizzle } from 'drizzle-orm/d1'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import * as t from './db/schema'
@@ -21,6 +31,15 @@ function orm(db: DB): DrizzleD1Database<typeof t> {
     orms.set(db, o)
   }
   return o
+}
+
+type Query = BatchItem<'sqlite'>
+
+// Runs the statements atomically (one D1 batch). Many-row writes are one
+// statement per row: D1 allows at most 100 bound parameters per statement.
+async function runBatch(db: DB, queries: Query[]): Promise<void> {
+  if (queries.length === 0) return
+  await orm(db).batch(queries as [Query, ...Query[]])
 }
 
 // ── Leaderboard / session_ranks ───────────────────────────────────────────────
@@ -116,22 +135,24 @@ export async function setSessionRanks(
   phase: 'before' | 'after' = 'after',
 ): Promise<void> {
   if (playerIds.length === 0) return
-  const deleteStmt =
-    sessionId === null
-      ? db.prepare('DELETE FROM session_ranks WHERE session_id IS NULL')
-      : db
-          .prepare(
-            'DELETE FROM session_ranks WHERE session_id = ? AND phase = ?',
-          )
-          .bind(sessionId, phase)
-  const insertStmts = playerIds.map((pid, i) =>
-    db
-      .prepare(
-        'INSERT INTO session_ranks (session_id, player_id, rank_position, phase) VALUES (?, ?, ?, ?)',
-      )
-      .bind(sessionId, pid, i + 1, phase),
-  )
-  await db.batch([deleteStmt, ...insertStmts])
+  const d = orm(db)
+  await runBatch(db, [
+    d
+      .delete(t.sessionRanks)
+      .where(
+        sessionId === null
+          ? isNull(t.sessionRanks.sessionId)
+          : and(
+              eq(t.sessionRanks.sessionId, sessionId),
+              eq(t.sessionRanks.phase, phase),
+            ),
+      ),
+    ...playerIds.map((playerId, i) =>
+      d
+        .insert(t.sessionRanks)
+        .values({ sessionId, playerId, rankPosition: i + 1, phase }),
+    ),
+  ])
 }
 
 // Replace the full leaderboard: re-rank all listed players, archive omitted ones.
@@ -142,49 +163,45 @@ export async function replaceLeaderboard(
   clubId: number,
   names: string[],
 ): Promise<void> {
+  const d = orm(db)
   // Build name → lowest-id map across all players (including archived).
   // Lowest id = the "original" record; duplicates created by past buggy imports stay archived.
-  const { results: allPlayers } = await db
-    .prepare('SELECT id, name FROM players WHERE club_id = ? ORDER BY id ASC')
-    .bind(clubId)
-    .all<{ id: number; name: string }>()
+  const allPlayers = await d
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.players)
+    .where(eq(t.players.clubId, clubId))
+    .orderBy(asc(t.players.id))
   const existingByName = new Map<string, number>()
   for (const p of allPlayers) {
     if (!existingByName.has(p.name)) existingByName.set(p.name, p.id)
   }
 
   // Archive everyone active, then unarchive existing players by id or insert new ones.
-  const stmts: D1PreparedStatement[] = [
-    db
-      .prepare(
-        "UPDATE players SET archived_at = date('now') WHERE club_id = ? AND archived_at IS NULL",
-      )
-      .bind(clubId),
+  const queries: Query[] = [
+    d
+      .update(t.players)
+      .set({ archivedAt: sql`date('now')` })
+      .where(and(eq(t.players.clubId, clubId), isNull(t.players.archivedAt))),
   ]
   for (const name of names) {
-    if (existingByName.has(name)) {
-      stmts.push(
-        db
-          .prepare('UPDATE players SET archived_at = NULL WHERE id = ?')
-          .bind(existingByName.get(name)!),
-      )
-    } else {
-      stmts.push(
-        db
-          .prepare('INSERT INTO players (club_id, name) VALUES (?, ?)')
-          .bind(clubId, name),
-      )
-    }
+    const id = existingByName.get(name)
+    queries.push(
+      id !== undefined
+        ? d
+            .update(t.players)
+            .set({ archivedAt: null })
+            .where(eq(t.players.id, id))
+        : d.insert(t.players).values({ clubId, name }),
+    )
   }
-  await db.batch(stmts)
+  await runBatch(db, queries)
 
   // Re-query active players to pick up newly inserted IDs.
-  const { results: active } = await db
-    .prepare(
-      'SELECT id, name FROM players WHERE club_id = ? AND archived_at IS NULL ORDER BY id ASC',
-    )
-    .bind(clubId)
-    .all<{ id: number; name: string }>()
+  const active = await d
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.players)
+    .where(and(eq(t.players.clubId, clubId), isNull(t.players.archivedAt)))
+    .orderBy(asc(t.players.id))
   const activeByName = new Map<string, number>()
   for (const p of active) {
     if (!activeByName.has(p.name)) activeByName.set(p.name, p.id)
@@ -199,12 +216,13 @@ export async function replaceLeaderboard(
 
   // Also overwrite the most recent session's ranks so getLeaderboardPlayers
   // returns the imported order immediately (not just after the next session).
-  const latest = await db
-    .prepare(
-      'SELECT id FROM sessions WHERE club_id = ? ORDER BY date DESC LIMIT 1',
-    )
-    .bind(clubId)
-    .first<{ id: number }>()
+  const latest = await d
+    .select({ id: t.sessions.id })
+    .from(t.sessions)
+    .where(eq(t.sessions.clubId, clubId))
+    .orderBy(desc(t.sessions.date))
+    .limit(1)
+    .get()
   if (latest) {
     await setSessionRanks(db, latest.id, playerIds)
   }
@@ -259,13 +277,16 @@ export async function createSession(
   clubId: number,
   date: string,
 ): Promise<number> {
-  const result = await db
-    .prepare(
-      "INSERT INTO sessions (club_id, date, status, created_at) VALUES (?, ?, 'attendance', datetime('now'))",
-    )
-    .bind(clubId, date)
-    .run()
-  return result.meta.last_row_id
+  const [row] = await orm(db)
+    .insert(t.sessions)
+    .values({
+      clubId,
+      date,
+      status: 'attendance',
+      createdAt: sql`datetime('now')`,
+    })
+    .returning({ id: t.sessions.id })
+  return row.id
 }
 
 export async function updateSessionStatus(
@@ -274,17 +295,10 @@ export async function updateSessionStatus(
   status: SessionStatus,
   closedAt?: string,
 ): Promise<void> {
-  if (closedAt) {
-    await db
-      .prepare('UPDATE sessions SET status = ?, closed_at = ? WHERE id = ?')
-      .bind(status, closedAt, sessionId)
-      .run()
-  } else {
-    await db
-      .prepare('UPDATE sessions SET status = ? WHERE id = ?')
-      .bind(status, sessionId)
-      .run()
-  }
+  await orm(db)
+    .update(t.sessions)
+    .set(closedAt ? { status, closedAt } : { status })
+    .where(eq(t.sessions.id, sessionId))
 }
 
 // ── Attendees ─────────────────────────────────────────────────────────────────
@@ -315,18 +329,21 @@ export async function setAttendance(
   playerId: number,
   attending: boolean,
 ): Promise<void> {
+  const d = orm(db)
   if (attending) {
-    await db
-      .prepare(
-        'INSERT OR IGNORE INTO attendees (session_id, player_id) VALUES (?, ?)',
-      )
-      .bind(sessionId, playerId)
-      .run()
+    await d
+      .insert(t.attendees)
+      .values({ sessionId, playerId })
+      .onConflictDoNothing()
   } else {
-    await db
-      .prepare('DELETE FROM attendees WHERE session_id = ? AND player_id = ?')
-      .bind(sessionId, playerId)
-      .run()
+    await d
+      .delete(t.attendees)
+      .where(
+        and(
+          eq(t.attendees.sessionId, sessionId),
+          eq(t.attendees.playerId, playerId),
+        ),
+      )
   }
 }
 
@@ -441,74 +458,37 @@ export function getPairing(
 }
 
 export async function clearBoxes(db: DB, sessionId: number): Promise<void> {
-  const { results: boxIds } = await db
-    .prepare('SELECT id FROM boxes WHERE session_id = ?')
-    .bind(sessionId)
-    .all<{ id: number }>()
-
-  if (boxIds.length === 0) return
-
-  const { results: matchIds } = await db
-    .prepare(
-      `SELECT id FROM matches WHERE box_id IN (${boxIds.map(() => '?').join(',')})`,
-    )
-    .bind(...boxIds.map((b) => b.id))
-    .all<{ id: number }>()
-
-  const stmts: D1PreparedStatement[] = []
-
-  if (matchIds.length > 0) {
-    for (const m of matchIds) {
-      stmts.push(
-        db.prepare('DELETE FROM match_players WHERE match_id = ?').bind(m.id),
-      )
-      stmts.push(
-        db.prepare('DELETE FROM match_sets WHERE match_id = ?').bind(m.id),
-      )
-    }
-    for (const m of matchIds) {
-      stmts.push(db.prepare('DELETE FROM matches WHERE id = ?').bind(m.id))
-    }
-  }
-  for (const b of boxIds) {
-    stmts.push(
-      db.prepare('DELETE FROM box_players WHERE box_id = ?').bind(b.id),
-    )
-    stmts.push(db.prepare('DELETE FROM boxes WHERE id = ?').bind(b.id))
-  }
-
-  await db.batch(stmts)
+  await runBatch(db, deleteBoxesQueries(db, sessionId))
 }
 
 export async function deleteSession(db: DB, sessionId: number): Promise<void> {
-  await db.batch([
-    db
-      .prepare(
-        'DELETE FROM match_players WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)',
-      )
-      .bind(sessionId),
-    db
-      .prepare(
-        'DELETE FROM match_sets WHERE match_id IN (SELECT m.id FROM matches m JOIN boxes b ON b.id = m.box_id WHERE b.session_id = ?)',
-      )
-      .bind(sessionId),
-    db
-      .prepare(
-        'DELETE FROM matches WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)',
-      )
-      .bind(sessionId),
-    db
-      .prepare(
-        'DELETE FROM box_players WHERE box_id IN (SELECT id FROM boxes WHERE session_id = ?)',
-      )
-      .bind(sessionId),
-    db.prepare('DELETE FROM boxes WHERE session_id = ?').bind(sessionId),
-    db.prepare('DELETE FROM attendees WHERE session_id = ?').bind(sessionId),
-    db
-      .prepare('DELETE FROM session_ranks WHERE session_id = ?')
-      .bind(sessionId),
-    db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId),
+  const d = orm(db)
+  await runBatch(db, [
+    ...deleteBoxesQueries(db, sessionId),
+    d.delete(t.attendees).where(eq(t.attendees.sessionId, sessionId)),
+    d.delete(t.sessionRanks).where(eq(t.sessionRanks.sessionId, sessionId)),
+    d.delete(t.sessions).where(eq(t.sessions.id, sessionId)),
   ])
+}
+
+// Deletes a session's boxes and everything under them, children first.
+function deleteBoxesQueries(db: DB, sessionId: number): Query[] {
+  const d = orm(db)
+  const boxIds = d
+    .select({ id: t.boxes.id })
+    .from(t.boxes)
+    .where(eq(t.boxes.sessionId, sessionId))
+  const matchIds = d
+    .select({ id: t.matches.id })
+    .from(t.matches)
+    .where(inArray(t.matches.boxId, boxIds))
+  return [
+    d.delete(t.matchPlayers).where(inArray(t.matchPlayers.matchId, matchIds)),
+    d.delete(t.matchSets).where(inArray(t.matchSets.matchId, matchIds)),
+    d.delete(t.matches).where(inArray(t.matches.boxId, boxIds)),
+    d.delete(t.boxPlayers).where(inArray(t.boxPlayers.boxId, boxIds)),
+    d.delete(t.boxes).where(eq(t.boxes.sessionId, sessionId)),
+  ]
 }
 
 export async function saveBoxes(
@@ -516,65 +496,51 @@ export async function saveBoxes(
   sessionId: number,
   boxes: BoxInput[],
 ): Promise<void> {
-  const stmts: D1PreparedStatement[] = []
+  // As before (D1 rejected the empty batch): an empty layout is an error, so
+  // PUT /boxes doesn't move the session to games with no boxes.
+  if (boxes.length === 0) throw new Error('No boxes to save')
+  const d = orm(db)
 
-  for (let bi = 0; bi < boxes.length; bi++) {
-    stmts.push(
-      db
-        .prepare('INSERT INTO boxes (session_id, box_number) VALUES (?, ?)')
-        .bind(sessionId, bi),
-    )
-  }
+  await runBatch(
+    db,
+    boxes.map((_, bi) =>
+      d.insert(t.boxes).values({ sessionId, boxNumber: bi }),
+    ),
+  )
 
-  await db.batch(stmts)
+  const boxRows = await d
+    .select({ id: t.boxes.id, box_number: t.boxes.boxNumber })
+    .from(t.boxes)
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(asc(t.boxes.boxNumber))
 
-  const { results: boxRows } = await db
-    .prepare(
-      'SELECT id, box_number FROM boxes WHERE session_id = ? ORDER BY box_number',
-    )
-    .bind(sessionId)
-    .all<{ id: number; box_number: number }>()
-
-  const stmts2: D1PreparedStatement[] = []
-
+  const playersAndMatches: Query[] = []
   for (let bi = 0; bi < boxes.length; bi++) {
     const box = boxes[bi]
     const boxId = boxRows[bi].id
-
-    for (let pi = 0; pi < box.players.length; pi++) {
-      const pid = box.players[pi]
-      stmts2.push(
-        db
-          .prepare(
-            'INSERT INTO box_players (box_id, player_id, position) VALUES (?, ?, ?)',
-          )
-          .bind(boxId, pid, pi),
-      )
-    }
-
-    for (let mi = 0; mi < box.matches.length; mi++) {
-      stmts2.push(
-        db
-          .prepare('INSERT INTO matches (box_id, match_number) VALUES (?, ?)')
-          .bind(boxId, mi),
-      )
-    }
-  }
-
-  await db.batch(stmts2)
-
-  const { results: matchRows } = await db
-    .prepare(
-      `
-      SELECT m.id, m.box_id, m.match_number
-      FROM matches m
-      JOIN boxes b ON b.id = m.box_id
-      WHERE b.session_id = ?
-      ORDER BY m.box_id, m.match_number
-    `,
+    box.players.forEach((playerId, position) =>
+      playersAndMatches.push(
+        d.insert(t.boxPlayers).values({ boxId, playerId, position }),
+      ),
     )
-    .bind(sessionId)
-    .all<{ id: number; box_id: number; match_number: number }>()
+    box.matches.forEach((_, matchNumber) =>
+      playersAndMatches.push(
+        d.insert(t.matches).values({ boxId, matchNumber }),
+      ),
+    )
+  }
+  await runBatch(db, playersAndMatches)
+
+  const matchRows = await d
+    .select({
+      id: t.matches.id,
+      box_id: t.matches.boxId,
+      match_number: t.matches.matchNumber,
+    })
+    .from(t.matches)
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(asc(t.matches.boxId), asc(t.matches.matchNumber))
 
   const matchesByBoxId = new Map<number, typeof matchRows>()
   for (const m of matchRows) {
@@ -582,52 +548,62 @@ export async function saveBoxes(
     matchesByBoxId.get(m.box_id)!.push(m)
   }
 
-  const stmts3: D1PreparedStatement[] = []
-
+  const sidesAndSets: Query[] = []
   for (let bi = 0; bi < boxes.length; bi++) {
     const box = boxes[bi]
-    const boxId = boxRows[bi].id
-    const boxMatches = matchesByBoxId.get(boxId) ?? []
+    const boxMatches = matchesByBoxId.get(boxRows[bi].id) ?? []
 
     for (let mi = 0; mi < box.matches.length; mi++) {
       const match = box.matches[mi]
       const matchId = boxMatches[mi]?.id
       if (matchId === undefined) continue
 
-      for (const pos of match.pair1) {
-        stmts3.push(
-          db
-            .prepare(
-              'INSERT INTO match_players (match_id, player_id, side) VALUES (?, ?, 0)',
-            )
-            .bind(matchId, box.players[pos]),
-        )
-      }
-      for (const pos of match.pair2) {
-        stmts3.push(
-          db
-            .prepare(
-              'INSERT INTO match_players (match_id, player_id, side) VALUES (?, ?, 1)',
-            )
-            .bind(matchId, box.players[pos]),
-        )
+      for (const [side, pair] of [
+        [0, match.pair1],
+        [1, match.pair2],
+      ] as const) {
+        for (const pos of pair) {
+          sidesAndSets.push(
+            d
+              .insert(t.matchPlayers)
+              .values({ matchId, playerId: box.players[pos], side }),
+          )
+        }
       }
 
       for (let si = 0; si < match.sets.length; si++) {
         const [a, b] = match.sets[si]
         if (a === '' && b === '') continue
-        stmts3.push(
-          db
-            .prepare(
-              'INSERT OR REPLACE INTO match_sets (match_id, set_number, score_a, score_b) VALUES (?, ?, ?, ?)',
-            )
-            .bind(matchId, si, a === '' ? null : a, b === '' ? null : b),
+        sidesAndSets.push(
+          setScoreQuery(
+            db,
+            matchId,
+            si,
+            a === '' ? null : a,
+            b === '' ? null : b,
+          ),
         )
       }
     }
   }
+  await runBatch(db, sidesAndSets)
+}
 
-  if (stmts3.length > 0) await db.batch(stmts3)
+// Inserts or replaces one set's score.
+function setScoreQuery(
+  db: DB,
+  matchId: number,
+  setNumber: number,
+  scoreA: number | null,
+  scoreB: number | null,
+) {
+  return orm(db)
+    .insert(t.matchSets)
+    .values({ matchId, setNumber, scoreA, scoreB })
+    .onConflictDoUpdate({
+      target: [t.matchSets.matchId, t.matchSets.setNumber],
+      set: { scoreA, scoreB },
+    })
 }
 
 export async function updateSetScore(
@@ -639,31 +615,33 @@ export async function updateSetScore(
   scoreA: number | null,
   scoreB: number | null,
 ): Promise<boolean> {
-  const match = await db
-    .prepare(
-      `
-      SELECT m.id FROM matches m
-      JOIN boxes b ON b.id = m.box_id
-      WHERE b.session_id = ? AND b.box_number = ? AND m.match_number = ?
-    `,
+  const d = orm(db)
+  const match = await d
+    .select({ id: t.matches.id })
+    .from(t.matches)
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .where(
+      and(
+        eq(t.boxes.sessionId, sessionId),
+        eq(t.boxes.boxNumber, boxNumber),
+        eq(t.matches.matchNumber, matchNumber),
+      ),
     )
-    .bind(sessionId, boxNumber, matchNumber)
-    .first<{ id: number }>()
+    .get()
 
   if (!match) return false
 
   if (scoreA === null && scoreB === null) {
-    await db
-      .prepare('DELETE FROM match_sets WHERE match_id = ? AND set_number = ?')
-      .bind(match.id, setNumber)
-      .run()
-  } else {
-    await db
-      .prepare(
-        'INSERT OR REPLACE INTO match_sets (match_id, set_number, score_a, score_b) VALUES (?, ?, ?, ?)',
+    await d
+      .delete(t.matchSets)
+      .where(
+        and(
+          eq(t.matchSets.matchId, match.id),
+          eq(t.matchSets.setNumber, setNumber),
+        ),
       )
-      .bind(match.id, setNumber, scoreA, scoreB)
-      .run()
+  } else {
+    await setScoreQuery(db, match.id, setNumber, scoreA, scoreB)
   }
 
   return true
@@ -678,36 +656,33 @@ export async function addPlayerMidSession(
   name: string,
   insertRank: number,
 ): Promise<number> {
-  await db.batch([
+  const d = orm(db)
+  await runBatch(db, [
     // Shift ranks down in the open session's before-state
-    db
-      .prepare(
-        "UPDATE session_ranks SET rank_position = rank_position + 1 WHERE session_id = ? AND phase = 'before' AND rank_position >= ?",
-      )
-      .bind(sessionId, insertRank),
-    db
-      .prepare('INSERT INTO players (club_id, name) VALUES (?, ?)')
-      .bind(clubId, name),
+    d
+      .update(t.sessionRanks)
+      .set({ rankPosition: sql`${t.sessionRanks.rankPosition} + 1` })
+      .where(
+        and(
+          eq(t.sessionRanks.sessionId, sessionId),
+          eq(t.sessionRanks.phase, 'before'),
+          gte(t.sessionRanks.rankPosition, insertRank),
+        ),
+      ),
+    d.insert(t.players).values({ clubId, name }),
   ])
 
-  const newPlayer = await db
-    .prepare(
-      'SELECT id FROM players WHERE club_id = ? AND name = ? AND archived_at IS NULL',
-    )
-    .bind(clubId, name)
-    .first<{ id: number }>()
-
+  const newPlayer = await getPlayerByName(db, clubId, name)
   if (!newPlayer) throw new Error('Failed to insert player')
 
-  await db.batch([
-    db
-      .prepare(
-        "INSERT INTO session_ranks (session_id, player_id, rank_position, phase) VALUES (?, ?, ?, 'before')",
-      )
-      .bind(sessionId, newPlayer.id, insertRank),
-    db
-      .prepare('INSERT INTO attendees (session_id, player_id) VALUES (?, ?)')
-      .bind(sessionId, newPlayer.id),
+  await runBatch(db, [
+    d.insert(t.sessionRanks).values({
+      sessionId,
+      playerId: newPlayer.id,
+      rankPosition: insertRank,
+      phase: 'before',
+    }),
+    d.insert(t.attendees).values({ sessionId, playerId: newPlayer.id }),
   ])
 
   return newPlayer.id
@@ -754,51 +729,32 @@ export async function updatePlayerProfile(
     preferred_name?: string | null
   },
 ): Promise<void> {
-  const setParts: string[] = []
-  const values: unknown[] = []
-  if ('name' in fields && fields.name) {
-    setParts.push('name = ?')
-    values.push(fields.name)
-  }
-  if ('email' in fields) {
-    setParts.push('email = ?')
-    values.push(fields.email ?? null)
-  }
-  if ('hc_member_id' in fields) {
-    setParts.push('hc_member_id = ?')
-    values.push(fields.hc_member_id ?? null)
-  }
-  if ('preferred_name' in fields) {
-    setParts.push('preferred_name = ?')
-    values.push(fields.preferred_name ?? null)
-  }
-  if (setParts.length === 0) return
-  values.push(id)
-  await db
-    .prepare(`UPDATE players SET ${setParts.join(', ')} WHERE id = ?`)
-    .bind(...values)
-    .run()
+  // Only the fields given; a blank name is ignored.
+  const set: Partial<typeof t.players.$inferInsert> = {}
+  if ('name' in fields && fields.name) set.name = fields.name
+  if ('email' in fields) set.email = fields.email ?? null
+  if ('hc_member_id' in fields) set.hcMemberId = fields.hc_member_id ?? null
+  if ('preferred_name' in fields)
+    set.preferredName = fields.preferred_name ?? null
+  if (Object.keys(set).length === 0) return
+  await orm(db).update(t.players).set(set).where(eq(t.players.id, id))
 }
 
 export async function deletePlayer(
   db: DB,
   id: number,
 ): Promise<{ deleted: boolean; reason?: string }> {
-  const counts = await db
-    .prepare(
-      `SELECT
-      (SELECT COUNT(*) FROM attendees     WHERE player_id = ?) +
-      (SELECT COUNT(*) FROM box_players   WHERE player_id = ?) +
-      (SELECT COUNT(*) FROM match_players WHERE player_id = ?) AS total`,
-    )
-    .bind(id, id, id)
-    .first<{ total: number }>()
-  if (counts && counts.total > 0) {
+  const d = orm(db)
+  const gameData =
+    (await d.$count(t.attendees, eq(t.attendees.playerId, id))) +
+    (await d.$count(t.boxPlayers, eq(t.boxPlayers.playerId, id))) +
+    (await d.$count(t.matchPlayers, eq(t.matchPlayers.playerId, id)))
+  if (gameData > 0) {
     return { deleted: false, reason: 'Player has game data' }
   }
-  await db.batch([
-    db.prepare('DELETE FROM session_ranks WHERE player_id = ?').bind(id),
-    db.prepare('DELETE FROM players WHERE id = ?').bind(id),
+  await runBatch(db, [
+    d.delete(t.sessionRanks).where(eq(t.sessionRanks.playerId, id)),
+    d.delete(t.players).where(eq(t.players.id, id)),
   ])
   return { deleted: true }
 }

@@ -248,6 +248,10 @@ describe('writes', () => {
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 
+  it('saveBoxes: fails with no boxes (so PUT /boxes doesn’t move the session to games)', async () => {
+    await expect(db.saveBoxes(t.db, 2, [])).rejects.toThrow()
+  })
+
   it('updateSetScore: insert, replace, delete; false for an unknown match', async () => {
     expect(await db.updateSetScore(t.db, 2, 0, 1, 1, 21, 9)).toBe(true)
     expect(await db.updateSetScore(t.db, 2, 0, 0, 0, 21, 16)).toBe(true)
@@ -291,6 +295,105 @@ describe('writes', () => {
     await db.deleteSession(t.db, 2)
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
+})
+
+// Prod-sized data: about 150 on the ladder and 40 at a session. D1 allows at
+// most 100 bound parameters per statement, so writes that bundled many rows
+// into one statement would fail here but not on the small fixture.
+describe('writes at real scale', () => {
+  const NAMES = Array.from(
+    { length: 160 },
+    (_, i) => `Player ${String(i + 1).padStart(3, '0')}`,
+  )
+  const counts = async () => {
+    const out: Record<string, number> = {}
+    for (const table of TABLES)
+      out[table] = (await tableRows(t.db, table)).length
+    return out
+  }
+
+  beforeEach(async () => {
+    await t.clear()
+    await seed(t.db)
+  })
+
+  it('a 160-player ladder import, a session from it, a mid-session add, 8 full boxes, clear and delete', async () => {
+    const steps: Record<string, unknown> = {}
+
+    // Close the open session first: an import while a session is open doesn't
+    // show (see AGENTS.md, Known issues).
+    await db.updateSessionStatus(t.db, 2, 'closed', '2026-01-13T10:00:00.000Z')
+    await db.replaceLeaderboard(t.db, 1, ['Aroha Ngata', ...NAMES])
+    const ladder = await db.getLeaderboardPlayers(t.db, 1)
+    expect(ladder).toHaveLength(161)
+    steps.importedLadder = ladder.map((p) => `${p.id}:${p.name}`).join(', ')
+
+    // As POST /api/sessions does: read the ladder before creating the session
+    // (afterwards the new, empty session is the latest).
+    const sessionId = await db.createSession(t.db, 1, '2026-01-20')
+    await db.setSessionRanks(
+      t.db,
+      sessionId,
+      ladder.map((p) => p.id),
+      'before',
+    )
+    const attending = ladder.slice(0, 39).map((p) => p.id)
+    for (const id of attending)
+      await db.setAttendance(t.db, sessionId, id, true)
+    const added = await db.addPlayerMidSession(
+      t.db,
+      1,
+      sessionId,
+      'Late Arrival',
+      20,
+    )
+    steps.added = added
+    steps.beforeLadder = (await db.getSessionRanks(t.db, sessionId, 'before'))
+      .map((p) => p.id)
+      .join(',')
+    steps.afterAdd = await counts()
+
+    const players = (await db.getAttendees(t.db, sessionId)).map((p) => p.id)
+    const boxes = Array.from({ length: 8 }, (_box, b) => {
+      const ids = players.slice(b * 5, b * 5 + 5)
+      return {
+        players: ids,
+        matches: getPairingsWithSets(
+          5,
+          Object.fromEntries(
+            Array.from({ length: 5 }, (_, m) => [
+              m,
+              [
+                [21, (b + m) % 20],
+                [(b * m) % 20, 21],
+                [21, 19],
+              ],
+            ]),
+          ),
+        ),
+        finalPlacings: null,
+      }
+    })
+    await db.saveBoxes(t.db, sessionId, boxes)
+    steps.boxes = (await db.getBoxes(t.db, sessionId)).map(
+      (box) =>
+        `${box.players.map((p) => p.id).join(',')} | ${box.matches.map((m) => m.sets.map((s) => s.join('-')).join(' ')).join(' / ')}`,
+    )
+    steps.afterBoxes = await counts()
+
+    await db.updateSetScore(t.db, sessionId, 7, 4, 2, null, null)
+    await db.updateSetScore(t.db, sessionId, 3, 1, 1, 15, 21)
+    steps.edited = (await db.getBoxes(t.db, sessionId))
+      .map((box) => box.matches.map((m) => m.sets.length).join(''))
+      .join(' ')
+
+    await db.clearBoxes(t.db, sessionId)
+    steps.afterClear = await counts()
+    await db.deleteSession(t.db, sessionId)
+    steps.afterDelete = await counts()
+
+    expect(steps).toMatchSnapshot()
+  }, 60_000)
 })
 
 // Matches for a box as the client sends them: pairings plus sets.
