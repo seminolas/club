@@ -719,6 +719,26 @@ export async function getPlayerById(
   return row ?? null
 }
 
+/** The active player linked to a login (BetterAuth user), if any. */
+export async function getPlayerByUserId(
+  db: DB,
+  clubId: number,
+  userId: string,
+): Promise<{ id: number; name: string } | null> {
+  const row = await orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.players)
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        eq(t.players.userId, userId),
+        isNull(t.players.archivedAt),
+      ),
+    )
+    .get()
+  return row ?? null
+}
+
 export async function updatePlayerProfile(
   db: DB,
   id: number,
@@ -759,35 +779,6 @@ export async function deletePlayer(
   return { deleted: true }
 }
 
-// ── Auth profiles ─────────────────────────────────────────────────────────────
-
-export async function findPlayerByAuthProfile(
-  db: DB,
-  provider: string,
-  providerId: string,
-): Promise<{ id: number; name: string; preferred_name: string | null } | null> {
-  const row = await orm(db)
-    .select({
-      id: t.players.id,
-      name: t.players.name,
-      preferred_name: t.players.preferredName,
-    })
-    .from(t.players)
-    .innerJoin(
-      t.playerAuthProfiles,
-      eq(t.playerAuthProfiles.playerId, t.players.id),
-    )
-    .where(
-      and(
-        eq(t.playerAuthProfiles.provider, provider),
-        eq(t.playerAuthProfiles.providerId, providerId),
-        isNull(t.players.archivedAt),
-      ),
-    )
-    .get()
-  return row ?? null
-}
-
 // ── Club ──────────────────────────────────────────────────────────────────────
 
 export async function getClub(
@@ -810,20 +801,4 @@ export async function getClub(
     .where(eq(t.clubs.id, clubId))
     .get()
   return row ?? null
-}
-
-// ── Roles ─────────────────────────────────────────────────────────────────────
-
-export type RoleName = 'owner' | 'admin' | 'scorer' | 'player'
-
-export async function getPlayerRoles(
-  db: DB,
-  playerId: number,
-): Promise<RoleName[]> {
-  const rows = await orm(db)
-    .select({ name: t.roles.name })
-    .from(t.playerRoles)
-    .innerJoin(t.roles, eq(t.roles.id, t.playerRoles.roleId))
-    .where(eq(t.playerRoles.playerId, playerId))
-  return rows.map((r) => r.name as RoleName)
 }

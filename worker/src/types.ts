@@ -4,23 +4,14 @@ export interface Env {
   HC_CLUB_ID: string
   HC_CLUB_SLUG: string
   GOOGLE_CLIENT_ID: string
-  JWT_SECRET: string
   /** BetterAuth: signs session cookies. */
   BETTER_AUTH_SECRET: string
   /** BetterAuth: this deployment's origin, e.g. https://club.….workers.dev */
   BETTER_AUTH_URL: string
-  /** BetterAuth's Google sign-in (redirect flow, S4b). */
+  /** BetterAuth's Google sign-in (redirect flow). */
   GOOGLE_CLIENT_SECRET?: string
   /** '1' enables the test accounts' email + password sign-in (staging only). */
   TEST_LOGIN?: string
-}
-
-export interface JwtPayload {
-  sub: string // player_id as string
-  player_id: number
-  club_id: number
-  roles: ('owner' | 'admin' | 'scorer' | 'player')[]
-  exp: number
 }
 
 // Shapes the frontend already expects (matches current JSON file format)

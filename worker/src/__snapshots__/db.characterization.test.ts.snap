@@ -1645,36 +1645,6 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -1865,24 +1835,6 @@ exports[`writes > addPlayerMidSession: shifts the before-ladder, ranks and marks
       "name": "Nina New",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -2733,36 +2685,6 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -2943,24 +2865,6 @@ exports[`writes > clearBoxes: removes a session’s boxes, matches, sets and mat
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -4096,36 +4000,6 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -4306,24 +4180,6 @@ exports[`writes > createSession + setSessionRanks (as POST /api/sessions does) 1
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -5545,36 +5401,6 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -5745,24 +5571,6 @@ exports[`writes > deletePlayer: refuses players with game data; otherwise remove
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -6547,36 +6355,6 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -6757,24 +6535,6 @@ exports[`writes > deleteSession: removes everything belonging to the session 1`]
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -7824,36 +7584,6 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -8044,24 +7774,6 @@ exports[`writes > replaceLeaderboard: re-ranks, archives omitted players, revive
       "name": "New Person",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -9318,36 +9030,6 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "match_number": 2,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -9528,24 +9210,6 @@ exports[`writes > saveBoxes: boxes, positions, matches, match players and non-bl
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -10722,36 +10386,6 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -10932,24 +10566,6 @@ exports[`writes > setAttendance: add (idempotent) and remove 2`] = `
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -12085,36 +11701,6 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -12295,24 +11881,6 @@ exports[`writes > setSessionRanks: replaces one session+phase, or all seed rows;
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -13388,36 +12956,6 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -13598,24 +13136,6 @@ exports[`writes > updatePlayerProfile: only the fields given; blank name ignored
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -14751,36 +14271,6 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "match_number": 4,
     },
   ],
-  "player_auth_profiles": [
-    {
-      "email": "aroha@example.test",
-      "id": 1,
-      "player_id": 1,
-      "provider": "google",
-      "provider_id": "sub-aroha",
-    },
-    {
-      "email": null,
-      "id": 2,
-      "player_id": 13,
-      "provider": "google",
-      "provider_id": "sub-liam",
-    },
-  ],
-  "player_roles": [
-    {
-      "player_id": 1,
-      "role_id": 1,
-    },
-    {
-      "player_id": 1,
-      "role_id": 2,
-    },
-    {
-      "player_id": 3,
-      "role_id": 3,
-    },
-  ],
   "players": [
     {
       "archived_at": null,
@@ -14961,24 +14451,6 @@ exports[`writes > updateSessionStatus: with and without closed_at 1`] = `
       "name": "Otis Second",
       "preferred_name": null,
       "user_id": null,
-    },
-  ],
-  "roles": [
-    {
-      "id": 1,
-      "name": "owner",
-    },
-    {
-      "id": 2,
-      "name": "admin",
-    },
-    {
-      "id": 3,
-      "name": "scorer",
-    },
-    {
-      "id": 4,
-      "name": "player",
     },
   ],
   "session_ranks": [
@@ -15530,10 +15002,7 @@ exports[`writes at real scale > a 160-player ladder import, a session from it, a
     "match_players": 64,
     "match_sets": 25,
     "matches": 16,
-    "player_auth_profiles": 2,
-    "player_roles": 3,
     "players": 179,
-    "roles": 4,
     "session_ranks": 523,
     "sessions": 5,
   },
@@ -15545,10 +15014,7 @@ exports[`writes at real scale > a 160-player ladder import, a session from it, a
     "match_players": 224,
     "match_sets": 145,
     "matches": 56,
-    "player_auth_profiles": 2,
-    "player_roles": 3,
     "players": 179,
-    "roles": 4,
     "session_ranks": 523,
     "sessions": 5,
   },
@@ -15560,10 +15026,7 @@ exports[`writes at real scale > a 160-player ladder import, a session from it, a
     "match_players": 64,
     "match_sets": 25,
     "matches": 16,
-    "player_auth_profiles": 2,
-    "player_roles": 3,
     "players": 179,
-    "roles": 4,
     "session_ranks": 523,
     "sessions": 5,
   },
@@ -15575,10 +15038,7 @@ exports[`writes at real scale > a 160-player ladder import, a session from it, a
     "match_players": 64,
     "match_sets": 25,
     "matches": 16,
-    "player_auth_profiles": 2,
-    "player_roles": 3,
     "players": 179,
-    "roles": 4,
     "session_ranks": 361,
     "sessions": 4,
   },

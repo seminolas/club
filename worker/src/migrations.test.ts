@@ -3,13 +3,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { applyMigrations, createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
-import { seed } from './test/fixtures/seed'
+import { seed, seedLegacyAuth } from './test/fixtures/seed'
 
 describe('0011_better_auth: Google links become BetterAuth users', () => {
   let t: TestDb
   beforeAll(async () => {
     t = await createTestDb({ upTo: '0010_session_indexes.sql' })
     await seed(t.db)
+    await seedLegacyAuth(t.db)
     // A second Google account for Aroha, and a Facebook link for Ben.
     await t.raw.batch([
       t.raw.prepare(

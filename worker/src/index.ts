@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { BoxInput, Env, JwtPayload } from './types'
-import { requireAdmin, signJwt, verifyGoogleToken } from './auth'
+import type { BoxInput, Env } from './types'
+import { getSession, requireAdmin } from './auth'
 import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
 
-type Variables = { jwtPayload: JwtPayload; db: DB }
+type Variables = { db: DB }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -35,54 +35,35 @@ const CLUB_ID = 1
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-app.post('/api/auth/login', async (c) => {
-  const { id_token } = await c.req.json<{ id_token: string }>()
-  if (!id_token) return c.json({ error: 'Missing id_token' }, 400)
-
-  const google = await verifyGoogleToken(id_token, c.env.GOOGLE_CLIENT_ID)
-  if (!google) return c.json({ error: 'Invalid Google token' }, 401)
-
-  const profile = await db.findPlayerByAuthProfile(
-    c.get('db'),
-    'google',
-    google.sub,
-  )
-  if (!profile)
-    return c.json(
-      {
-        error:
-          'No player account is linked to this Google profile. Contact your club admin.',
-      },
-      403,
-    )
-
-  const roles = await db.getPlayerRoles(c.get('db'), profile.id)
-  const token = await signJwt(
-    { sub: String(profile.id), player_id: profile.id, club_id: CLUB_ID, roles },
-    c.env.JWT_SECRET,
-  )
-  return c.json({
-    token,
-    roles,
-    player: { id: profile.id, name: profile.name },
-  })
-})
-
-// BetterAuth's own endpoints (sign-in, sign-out, session, ...). Registered
-// after /api/auth/login above, which keeps serving the old app until S4b.
+// BetterAuth's own endpoints: sign-in (Google redirect; on staging also the
+// test accounts' email + password), callback, sign-out, session.
 app.on(['GET', 'POST'], '/api/auth/*', (c) =>
   createAuth(c.env, c.get('db')).handler(c.req.raw),
 )
+
+// Who's signed in, for the browser: name, admin or not, and their player.
+app.get('/api/me', async (c) => {
+  const session = await getSession(c)
+  if (!session) return c.json({ signedIn: false, isAdmin: false })
+  const player = await db.getPlayerByUserId(
+    c.get('db'),
+    CLUB_ID,
+    session.user.id,
+  )
+  return c.json({
+    signedIn: true,
+    isAdmin: session.user.role === 'admin',
+    name: session.user.name,
+    player,
+  })
+})
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 app.get('/api/config', async (c) => {
   const club = await db.getClub(c.get('db'), CLUB_ID)
   if (!club) return c.json({ error: 'Club not found' }, 404)
-  const config = JSON.parse(club.config)
-  // Google client ID is not a secret — safe to expose to the browser for GIS initialization
-  config.googleClientId = c.env.GOOGLE_CLIENT_ID
-  return c.json(config)
+  return c.json(JSON.parse(club.config))
 })
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────

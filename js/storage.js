@@ -1,61 +1,41 @@
 // API storage layer — replaces the GitHub API layer from the old app.
 // All state lives in D1 via the Cloudflare Worker.
-// Auth is Google Sign-In + Worker-issued JWT.
+// Auth is BetterAuth: Google sign-in by redirect, then a session cookie that
+// the browser sends with every same-origin request.
 
 const Storage = (() => {
-  const JWT_KEY = 'club_jwt';
-  const ROLES_KEY = 'club_roles';
-
   // Worker serves both the static HTML/JS and the API from the same origin.
   // Relative /api/... paths work for prod, staging, and local wrangler dev.
   const API_BASE = '';
 
-  let _jwt = null;
-  let _roles = [];
-
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  // Restore session from localStorage (called on app init).
-  function autoLogin() {
-    _jwt = localStorage.getItem(JWT_KEY);
-    const stored = localStorage.getItem(ROLES_KEY);
-    _roles = stored ? JSON.parse(stored) : [];
-    return !!_jwt;
+  // Who's signed in: { signedIn, isAdmin, name?, player? }.
+  async function me() {
+    const res = await apiFetch('/api/me');
+    return res.ok ? res.json() : { signedIn: false, isAdmin: false };
   }
 
-  // Called after Google Sign-In returns an id_token.
-  async function loginWithGoogleToken(idToken) {
-    const res = await apiFetch('/api/auth/login', {
+  // Goes to Google; Google sends the browser back to this page, signed in.
+  async function signInWithGoogle() {
+    const here = location.href;
+    const res = await apiFetch('/api/auth/sign-in/social', {
       method: 'POST',
-      body: JSON.stringify({ id_token: idToken }),
+      body: JSON.stringify({ provider: 'google', callbackURL: here, errorCallbackURL: here }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Login failed');
-    }
-    const data = await res.json();
-    _jwt = data.token;
-    _roles = data.roles ?? [];
-    localStorage.setItem(JWT_KEY, _jwt);
-    localStorage.setItem(ROLES_KEY, JSON.stringify(_roles));
-    return _roles;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.url) throw new Error(data.message || 'Could not start sign-in');
+    location.href = data.url;
   }
 
-  function logout() {
-    _jwt = null;
-    _roles = [];
-    localStorage.removeItem(JWT_KEY);
-    localStorage.removeItem(ROLES_KEY);
+  async function logout() {
+    await apiFetch('/api/auth/sign-out', { method: 'POST', body: '{}' });
   }
-
-  function isAdmin() { return _roles.includes('admin') || _roles.includes('owner'); }
-  function getRoles() { return _roles; }
 
   // ── HTTP helpers ──────────────────────────────────────────────────────────
 
   function apiFetch(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
-    if (_jwt) headers['Authorization'] = `Bearer ${_jwt}`;
     return fetch(API_BASE + path, { cache: 'no-store', ...options, headers });
   }
 
@@ -189,18 +169,14 @@ const Storage = (() => {
 
   // ── Config ────────────────────────────────────────────────────────────────
 
-  async function getConfig() {
-    return apiJSON('/api/config');
-  }
-
   return {
-    autoLogin, loginWithGoogleToken, logout, isAdmin, getRoles,
+    me, signInWithGoogle, logout,
     getLeaderboard, saveLeaderboard,
     listSessions, getSession, createSession, deleteSession,
     setAttendance, saveBoxes, updateScore, closeSession,
     reopenSession, reopenAttendance,
     addPlayer, getPlayer, updatePlayer, deletePlayer,
     searchHCMembers,
-    syncHelloClub, getConfig,
+    syncHelloClub,
   };
 })();

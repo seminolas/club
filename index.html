@@ -36,7 +36,6 @@
   </style>
 
   <!-- Google Identity Services — loaded async, initialised in app.js init() -->
-  <script src="https://accounts.google.com/gsi/client" async></script>
 
   <script src="js/csv.js"></script>
   <script src="js/dist/rules.js"></script>
@@ -64,8 +63,10 @@
       <h3 class="font-bold text-lg text-blue-700 mb-1">Sign in</h3>
       <p class="text-xs text-gray-400 mb-5">Sign in with your Google account.</p>
 
-      <!-- Google Sign-In button rendered here by GIS SDK -->
-      <div id="google-signin-btn" class="flex justify-center mb-3"></div>
+      <button @click="signInWithGoogle()"
+              class="w-full mb-3 border border-gray-300 rounded-lg py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        Sign in with Google
+      </button>
 
       <p x-show="loginError" x-text="loginError" class="text-red-500 text-xs mb-2 text-center"></p>
       <button @click="showLogin = false; loginError = null"
@@ -161,7 +162,7 @@
           </div>
         </template>
         <template x-if="!isAdmin">
-          <button @click="showLogin = true; $nextTick(() => initGoogleButton())"
+          <button @click="showLogin = true"
                   class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">
             Sign in
           </button>

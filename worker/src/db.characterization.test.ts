@@ -18,9 +18,6 @@ const TABLES = [
   'matches',
   'match_sets',
   'match_players',
-  'player_auth_profiles',
-  'player_roles',
-  'roles',
 ]
 
 const SEEDED_SESSIONS = 4
@@ -135,31 +132,30 @@ describe('reads', () => {
     expect(await db.getPlayerById(t.db, 1, 15)).toBeNull()
   })
 
-  it('findPlayerByAuthProfile: active players only', async () => {
-    expect(
-      await db.findPlayerByAuthProfile(t.db, 'google', 'sub-aroha'),
-    ).toEqual({ id: 1, name: 'Aroha Ngata', preferred_name: null })
-    expect(
-      await db.findPlayerByAuthProfile(t.db, 'google', 'sub-liam'),
-    ).toBeNull()
-    expect(
-      await db.findPlayerByAuthProfile(t.db, 'facebook', 'sub-aroha'),
-    ).toBeNull()
+  it('getPlayerByUserId: the active player linked to a login', async () => {
+    await t.raw
+      .prepare(
+        "INSERT INTO user (id, name, email, email_verified, role, created_at, updated_at) VALUES ('u-1', 'Aroha', 'a@example.test', 1, 'user', 0, 0), ('u-13', 'Liam', 'l@example.test', 1, 'user', 0, 0)",
+      )
+      .run()
+    await t.raw
+      .prepare("UPDATE players SET user_id = 'u-' || id WHERE id IN (1, 13)")
+      .run()
+    expect(await db.getPlayerByUserId(t.db, 1, 'u-1')).toEqual({
+      id: 1,
+      name: 'Aroha Ngata',
+    })
+    expect(await db.getPlayerByUserId(t.db, 2, 'u-1')).toBeNull()
+    expect(await db.getPlayerByUserId(t.db, 1, 'u-13')).toBeNull()
+    expect(await db.getPlayerByUserId(t.db, 1, 'nobody')).toBeNull()
+    await t.raw.prepare('UPDATE players SET user_id = NULL').run()
+    await t.raw.prepare('DELETE FROM user').run()
   })
 
   it('getClub', async () => {
     expect(await db.getClub(t.db, 1)).toMatchSnapshot()
     expect(await db.getClub(t.db, 2)).toMatchSnapshot()
     expect(await db.getClub(t.db, 9)).toBeNull()
-  })
-
-  it('getPlayerRoles', async () => {
-    expect((await db.getPlayerRoles(t.db, 1)).sort()).toEqual([
-      'admin',
-      'owner',
-    ])
-    expect(await db.getPlayerRoles(t.db, 3)).toEqual(['scorer'])
-    expect(await db.getPlayerRoles(t.db, 4)).toEqual([])
   })
 })
 
@@ -289,6 +285,19 @@ describe('writes', () => {
     expect(await db.deletePlayer(t.db, 12)).toEqual({ deleted: true })
     expect(await db.deletePlayer(t.db, 99)).toEqual({ deleted: true })
     expect(await snapshotTables(t.db)).toMatchSnapshot()
+  })
+
+  it('deletePlayer: a player with a login but no game data is deleted (since 0012)', async () => {
+    await t.raw
+      .prepare(
+        "INSERT INTO user (id, name, email, email_verified, role, created_at, updated_at) VALUES ('u-12', 'Kiri', 'k@example.test', 1, 'user', 0, 0)",
+      )
+      .run()
+    await t.raw
+      .prepare("UPDATE players SET user_id = 'u-12' WHERE id = 12")
+      .run()
+    expect(await db.deletePlayer(t.db, 12)).toEqual({ deleted: true })
+    expect(await db.getPlayerById(t.db, 1, 12)).toBeNull()
   })
 
   it('deleteSession: removes everything belonging to the session', async () => {
