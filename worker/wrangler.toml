@@ -21,6 +21,15 @@ HC_CLUB_ID = "northlandbadminton"
 HC_CLUB_SLUG = "northland-badminton"
 BETTER_AUTH_URL = "https://club.vilhelmas-f78.workers.dev"
 
+# Live session channel (S6a): one Durable Object per session.
+[[durable_objects.bindings]]
+name = "SESSION_ROOM"
+class_name = "SessionRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SessionRoom"]
+
 [observability.logs]
 enabled = true
 invocation_logs = true
@@ -35,6 +44,10 @@ BETTER_AUTH_URL = "https://club-api-staging.vilhelmas-f78.workers.dev"
 # Email + password sign-in for the synthetic test accounts. Staging only:
 # the Worker refuses to start it for any other URL.
 TEST_LOGIN = "1"
+
+[[env.staging.durable_objects.bindings]]
+name = "SESSION_ROOM"
+class_name = "SessionRoom"
 
 [[env.staging.d1_databases]]
 binding = "DB"

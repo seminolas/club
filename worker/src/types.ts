@@ -12,6 +12,8 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string
   /** '1' enables the test accounts' email + password sign-in (staging only). */
   TEST_LOGIN?: string
+  /** The live session Durable Objects (S6a); absent in tests. */
+  SESSION_ROOM?: DurableObjectNamespace
 }
 
 // Shapes the frontend already expects (matches current JSON file format)
