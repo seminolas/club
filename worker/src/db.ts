@@ -760,6 +760,28 @@ export async function getMatchSets(
   return sets
 }
 
+/** Whether the player is in the session's box (by box number). */
+export async function isPlayerInBox(
+  db: DB,
+  sessionId: number,
+  boxNumber: number,
+  playerId: number,
+): Promise<boolean> {
+  const row = await orm(db)
+    .select({ boxId: t.boxPlayers.boxId })
+    .from(t.boxPlayers)
+    .innerJoin(t.boxes, eq(t.boxes.id, t.boxPlayers.boxId))
+    .where(
+      and(
+        eq(t.boxes.sessionId, sessionId),
+        eq(t.boxes.boxNumber, boxNumber),
+        eq(t.boxPlayers.playerId, playerId),
+      ),
+    )
+    .get()
+  return row !== undefined
+}
+
 /** Unlinked active players in the club, by name: who "This is me" can pick. */
 export async function listClaimablePlayers(
   db: DB,

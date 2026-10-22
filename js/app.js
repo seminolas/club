@@ -837,6 +837,15 @@ function appData() {
       return box.matches.every(m => getMatchStatus(m) === 'complete');
     },
 
+    // Who can type in a box's scores: admins, any box; players (V3), their own
+    // box. The live channel checks the same on the server.
+    canEnterScores(bi) {
+      if (!this.session || this.session.status === 'closed') return false;
+      if (this.isAdmin) return true;
+      const mine = this.me.player?.name;
+      return !!mine && !!this.session.boxes?.[bi]?.players?.includes(mine);
+    },
+
     setScore(bi, mi, si, side, value) {
       if (this.session.status === 'closed') return;
       const match = this.session.boxes[bi].matches[mi];

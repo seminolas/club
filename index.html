@@ -812,7 +812,7 @@
                             <input type="number" min="0" max="99"
                                    :value="match.sets[setIdx]?.[0] ?? ''"
                                    @input="setScore(bi, mi, setIdx, 0, $event.target.value)"
-                                   :disabled="session.status === 'closed' || !isAdmin"
+                                   :disabled="!canEnterScores(bi)"
                                    class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
                                    :class="scoreInputClass(match, setIdx, 0)">
                           </div>
@@ -824,7 +824,7 @@
                                    :value="match.sets[setIdx]?.[1] ?? ''"
                                    @input="setScore(bi, mi, setIdx, 1, $event.target.value)"
                                    @keydown.tab="handleScoreTab(bi, mi, setIdx, $event)"
-                                   :disabled="session.status === 'closed' || !isAdmin"
+                                   :disabled="!canEnterScores(bi)"
                                    class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
                                    :class="scoreInputClass(match, setIdx, 1)">
                           </div>
