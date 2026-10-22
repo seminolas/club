@@ -126,6 +126,8 @@ node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod v
 node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
 node admin-flow.mjs    # a whole admin session night on staging as Test Admin, checked, then cleaned up
 node auth-ui.mjs       # sign-in in the browser on staging: to Google, Test Admin UI + sign out, "This is me" + admin unlink
+node fast-scores.mjs   # fast score entry on staging: two windows and the database must show what was typed
+node live-offline.mjs  # live channel dropping mid-entry, and a quiet connection dying (heartbeat)
 ```
 
 CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
@@ -245,6 +247,18 @@ Flow:
 **Known issue (fixed 2026-07-22):** Before the `'Senior Box'` fix, the match used `'Box'`, which caused sync to target `'Pre Box'` for sessions on 2026-07-14 and 2026-07-21. Those sessions need manual remediation (add affected players to the correct HC event directly).
 
 ---
+
+## Live session channel (S6a)
+
+**One Durable Object per session** (`SessionRoom`, `worker/src/live.ts`, keyed `<club id>:<date>`; SQLite-backed, as the free plan requires) carries session night live. Every screen on a session page holds a WebSocket to it (`GET /api/live/:date`, upgraded by the Worker, which passes `x-can-write: 1` only for admins). There's **no polling** any more.
+
+- **Score writes** go over the socket: `{ type: 'write', id, op: { op: 'setScore', box, match, set, a, b } }`. The room applies them **strictly one at a time** (a promise queue; `live-core.ts` holds the logic), saves to D1, replies `{ type: 'ack', id, ok }` to the sender, then broadcasts `{ type: 'match', box, match, sets }` (the match's saved sets) to every screen. Write ids are kept (last 2000, in the room's own storage), so a write resent after a reconnect isn't applied twice. Viewers connect read-only; only admins may write (V3 brings players).
+- **Other changes** still go through the REST API (attendance, boxes, score, close, reopen, delete, add player); those routes call `notifyLive`, and the room broadcasts `{ type: 'changed' }` so screens reload the session.
+- **Heartbeat:** screens send `ping` every 15 s; the room answers `pong` through the hibernation auto-response (doesn't wake it). A dead network can leave a socket "closing" forever, so a missing pong, a write not acknowledged within 5 s, or a write attempted on a closing socket counts as **connection lost**.
+- **Browser (`js/app.js`, `_startLive`):** scores go out 0.4 s after typing; a cell keeps what was typed (isn't overwritten by incoming updates) until its save is acknowledged. Connection lost: reconnect with backoff, resend unacknowledged writes, refresh the session every 15 s meanwhile, and a banner: "Connection lost – reconnecting…" after 2 s, "Some changes may not have been saved… Reload" after 15 s. When it reconnects the banner clears, unless a write was refused.
+- **D1 stays the only store** of session data; the room keeps only recent write ids.
+- **Free plan:** Durable Objects allow 100,000 requests and 13,000 GB-s a day (incoming WebSocket messages count 20:1; pings answered by auto-response are free). A session night uses well under 1%. Over a limit, operations fail until 00:00 UTC; nothing is charged.
+- **Checks:** `e2e/fast-scores.mjs` (fast entry in one window, another watching, slow reads; this reproduced lost/reverted scores with polling) and `e2e/live-offline.mjs` (going offline mid-entry, and a quiet connection dying).
 
 ## Frontend
 
