@@ -160,7 +160,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
   },
   {
     "body": {
-      "id": 19,
+      "id": 20,
       "ok": true,
     },
     "label": "add player",
@@ -189,7 +189,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -226,7 +226,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -333,7 +333,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -406,7 +406,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
               "name": "Aroha Ngata",
             },
             {
-              "id": 19,
+              "id": 20,
               "name": "Nina New",
             },
             {
@@ -488,7 +488,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -560,7 +560,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -597,7 +597,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -683,7 +683,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -773,7 +773,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
               "name": "Aroha Ngata",
             },
             {
-              "id": 19,
+              "id": 20,
               "name": "Nina New",
             },
             {
@@ -798,7 +798,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Ben Carter",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -860,7 +860,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Mia Late",
         },
         {
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
         },
         {
@@ -926,7 +926,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
         },
         {
           "hc_member_id": null,
-          "id": 19,
+          "id": 20,
           "name": "Nina New",
           "preferred_name": null,
         },

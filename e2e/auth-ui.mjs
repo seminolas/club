@@ -1,5 +1,6 @@
 // Dev helper: browser checks of sign-in on staging (signed out -> Google,
-// Test Admin UI + sign out, "This is me" + admin unlink, failed sign-in).
+// Test Admin UI + sign out, "This is me" + admin unlink, no skipping the
+// box, failed sign-in).
 // Usage: node auth-ui.mjs   (password from e2e/.env.staging)
 import { chromium } from '@playwright/test'
 import { readFileSync } from 'node:fs'
@@ -37,9 +38,7 @@ const signedInAs = async (page) => (await page.locator('[data-test=signed-in-as]
   const { ctx, page } = await fresh()
   check('test admin signs in', (await signIn(page, 'test-admin')).ok())
   await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
-  // The test admin has no player, so "Which player are you?" opens; not now.
-  check('admin with no player: "Which player are you?" offered', await page.getByText('Which player are you?').isVisible())
-  await page.getByRole('button', { name: 'Not now' }).click()
+  check('admin (linked to their player): not asked "Which player are you?"', !(await page.getByText('Which player are you?').isVisible()))
   check('admin: header shows Admin, "Signed in as Test" and Sign out', await page.getByText('Admin', { exact: true }).isVisible() && (await signedInAs(page)) === 'Signed in as Test' && await page.getByRole('button', { name: 'Sign out' }).isVisible())
   await page.goto(BASE + '/#/players/30', { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
@@ -83,8 +82,6 @@ const signedInAs = async (page) => (await page.locator('[data-test=signed-in-as]
 
   const admin = await fresh()
   await signIn(admin.page, 'test-admin')
-  await admin.page.goto(BASE + '/', { waitUntil: 'networkidle' })
-  await admin.page.getByRole('button', { name: 'Not now' }).click()
   await admin.page.goto(BASE + `/#/players/${pick.id}`, { waitUntil: 'networkidle' })
   await admin.page.waitForTimeout(500)
   check('admin: player page shows the Google sign-in', await admin.page.getByText('Google: test-player@staging.invalid').isVisible())
@@ -94,7 +91,18 @@ const signedInAs = async (page) => (await page.locator('[data-test=signed-in-as]
   check('admin: Unlink removes it', await admin.page.getByText('Not linked').isVisible() && (await (await admin.page.request.get(`${BASE}/api/players/${pick.id}`)).json()).login === null)
   await admin.ctx.close()
 }
-// 4. A failed sign-in (?error=) shows a message and cleans the URL
+// 4. "Which player are you?" can't be skipped: no "Not now", only Sign out.
+{
+  const { ctx, page } = await fresh()
+  await signIn(page, 'test-player')
+  await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
+  check('no player: box offers "New here?" and Sign out, no "Not now"', await page.getByText('New here? For now, an admin needs to add you.').isVisible() && !(await page.getByRole('button', { name: 'Not now' }).count()))
+  await page.locator('div.fixed').filter({ hasText: 'Which player are you?' }).getByRole('button', { name: 'Sign out' }).click()
+  await page.waitForTimeout(800)
+  check('Sign out from the box: signed out, box gone', !(await me(page)).signedIn && !(await page.getByText('Which player are you?').isVisible()))
+  await ctx.close()
+}
+// 5. A failed sign-in (?error=) shows a message and cleans the URL
 {
   const { ctx, page } = await fresh()
   await page.goto(BASE + '/?error=access_denied#/players', { waitUntil: 'networkidle' })

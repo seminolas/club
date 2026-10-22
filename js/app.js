@@ -200,10 +200,9 @@ function appData() {
       this.me = { name: null, player: null, ...me };
       this.isAdmin = me.isAdmin;
       if (me.justLinked) this.showToast(`Signed in as ${me.player.name}.`);
-      // No player yet: offer "This is me" (once per visit if dismissed).
-      if (me.signedIn && !me.player && (returning || !sessionStorage.getItem('claimDismissed'))) {
-        this.openClaim();
-      }
+      // Everyone signed in needs a player (admins too): until then, "Which
+      // player are you?" stays open; the only other way out is signing out.
+      if (me.signedIn && !me.player) this.openClaim();
     },
 
     // First name for the header: the player's, else the Google account's.
@@ -243,10 +242,6 @@ function appData() {
       }
     },
 
-    dismissClaim() {
-      sessionStorage.setItem('claimDismissed', '1');
-      this.claim.open = false;
-    },
 
     async signInWithGoogle() {
       this.loginError = null;
@@ -264,7 +259,6 @@ function appData() {
       this.isAdmin = false;
       this.me = { signedIn: false, isAdmin: false, name: null, player: null };
       this.claim.open = false;
-      sessionStorage.removeItem('claimDismissed');
     },
 
     // Admin: remove the link between a player and their Google sign-in.
