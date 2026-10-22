@@ -18,6 +18,7 @@ async function fresh() {
 }
 const signIn = (page, id) => page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email: `${id}@staging.invalid`, password: PW }, headers: { origin: BASE } })
 const me = async (page) => (await page.request.get(`${BASE}/api/me`)).json()
+const signedInAs = async (page) => (await page.locator('[data-test=signed-in-as]').innerText().catch(() => '')).trim()
 
 // 1. Signed out → Sign in → Google
 {
@@ -39,7 +40,7 @@ const me = async (page) => (await page.request.get(`${BASE}/api/me`)).json()
   // The test admin has no player, so "Which player are you?" opens; not now.
   check('admin with no player: "Which player are you?" offered', await page.getByText('Which player are you?').isVisible())
   await page.getByRole('button', { name: 'Not now' }).click()
-  check('admin: header shows Admin, "Signed in as Test" and Sign out', await page.getByText('Admin', { exact: true }).isVisible() && await page.getByText('Signed in as Test').isVisible() && await page.getByRole('button', { name: 'Sign out' }).isVisible())
+  check('admin: header shows Admin, "Signed in as Test" and Sign out', await page.getByText('Admin', { exact: true }).isVisible() && (await signedInAs(page)) === 'Signed in as Test' && await page.getByRole('button', { name: 'Sign out' }).isVisible())
   await page.goto(BASE + '/#/players/30', { waitUntil: 'networkidle' })
   await page.waitForTimeout(500)
   check('admin-only player page stays open', page.url().includes('/players/30'), page.url())
@@ -51,6 +52,19 @@ const me = async (page) => (await page.request.get(`${BASE}/api/me`)).json()
 // 3. A player with no link picks themselves ("This is me"); the admin then sees
 //    the link on that player's page and unlinks it (leaving staging as it was).
 {
+  // Clean up a link left by an earlier, interrupted run.
+  {
+    const p = await fresh()
+    await signIn(p.page, 'test-player')
+    const linked = (await me(p.page)).player
+    await p.ctx.close()
+    if (linked) {
+      const a = await fresh()
+      await signIn(a.page, 'test-admin')
+      await a.page.request.post(`${BASE}/api/players/${linked.id}/unlink`, { data: {}, headers: { origin: BASE } })
+      await a.ctx.close()
+    }
+  }
   const { ctx, page } = await fresh()
   await signIn(page, 'test-player')
   await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
@@ -62,7 +76,7 @@ const me = async (page) => (await page.request.get(`${BASE}/api/me`)).json()
   await page.getByRole('button', { name: 'This is me' }).click()
   await page.waitForTimeout(800)
   const first = pick.name.trim().split(/\s+/)[0]
-  check(`player: linked to ${pick.name}, header "Signed in as ${first}", no Admin pill`, (await me(page)).player?.id === pick.id && await page.getByText(`Signed in as ${first}`).isVisible() && !(await page.getByText('Admin', { exact: true }).isVisible()))
+  check(`player: linked to ${pick.name}, header "Signed in as ${first}", no Admin pill`, (await me(page)).player?.id === pick.id && (await signedInAs(page)) === `Signed in as ${first}` && !(await page.getByText('Admin', { exact: true }).isVisible()))
   await page.reload({ waitUntil: 'networkidle' })
   check('player: not asked again once linked', !(await page.getByText('Which player are you?').isVisible()))
   await ctx.close()

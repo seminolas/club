@@ -186,7 +186,8 @@
         <template x-if="me.signedIn">
           <div class="flex items-center gap-1.5">
             <span x-show="isAdmin" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
-            <span class="text-xs text-gray-500 whitespace-nowrap" x-text="'Signed in as ' + signedInFirstName"></span>
+            <!-- Phones: just the first name ("Signed in as" doesn't fit next to the admin buttons). -->
+            <span data-test="signed-in-as" class="text-xs text-gray-500 whitespace-nowrap"><span class="hidden sm:inline">Signed in as </span><span x-text="signedInFirstName"></span></span>
             <span class="text-xs text-gray-300">·</span>
             <button @click="logout()" class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">Sign out</button>
           </div>
