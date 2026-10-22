@@ -203,6 +203,13 @@
     </div>
   </nav>
 
+  <!-- Live session problems (S6a) -->
+  <div x-show="liveProblem" class="no-print bg-yellow-50 border-b border-yellow-200 text-yellow-800 text-sm px-4 py-2 flex items-center justify-center gap-3">
+    <span x-text="liveProblem === 'reconnecting' ? 'Connection lost – reconnecting…' : 'Some changes may not have been saved. Reload the page and check the scores.'"></span>
+    <button x-show="liveProblem === 'reload'" @click="location.reload()"
+            class="border border-yellow-400 rounded px-2 py-0.5 text-yellow-900 hover:bg-yellow-100 whitespace-nowrap">Reload</button>
+  </div>
+
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- HOME VIEW                                                           -->
   <!-- ═══════════════════════════════════════════════════════════════════ -->

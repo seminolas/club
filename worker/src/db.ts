@@ -721,6 +721,45 @@ export async function getPlayerById(
 
 // ── Linking logins to players (V1) ──────────────────────────────────────────
 
+// ── Live session (S6a) ──────────────────────────────────────────────────────
+
+/** A match's sets as GET /api/sessions/:date shows them: blank scores as ''. */
+export type SetScores = Array<[number | '', number | '']>
+
+/** One match's scores, by box and match number; null if there's no such match. */
+export async function getMatchSets(
+  db: DB,
+  sessionId: number,
+  boxNumber: number,
+  matchNumber: number,
+): Promise<SetScores | null> {
+  const match = await orm(db)
+    .select({ id: t.matches.id })
+    .from(t.matches)
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .where(
+      and(
+        eq(t.boxes.sessionId, sessionId),
+        eq(t.boxes.boxNumber, boxNumber),
+        eq(t.matches.matchNumber, matchNumber),
+      ),
+    )
+    .get()
+  if (!match) return null
+  const rows = await orm(db)
+    .select({
+      set_number: t.matchSets.setNumber,
+      score_a: t.matchSets.scoreA,
+      score_b: t.matchSets.scoreB,
+    })
+    .from(t.matchSets)
+    .where(eq(t.matchSets.matchId, match.id))
+    .orderBy(asc(t.matchSets.setNumber))
+  const sets: SetScores = []
+  for (const r of rows) sets[r.set_number] = [r.score_a ?? '', r.score_b ?? '']
+  return sets
+}
+
 /** Unlinked active players in the club, by name: who "This is me" can pick. */
 export async function listClaimablePlayers(
   db: DB,

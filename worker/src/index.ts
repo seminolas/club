@@ -6,6 +6,9 @@ import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
 
+// The live session Durable Object class, for the Workers runtime (S6a).
+export { SessionRoom } from './live'
+
 type Variables = { db: DB }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
@@ -94,6 +97,44 @@ app.post('/api/me/claim', async (c) => {
     player: await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id),
   })
 })
+
+// ── Live session (S6a) ────────────────────────────────────────────────────────
+
+// The session's Durable Object (one per club + date).
+const sessionRoom = (env: Env, date: string) =>
+  env.SESSION_ROOM?.get(env.SESSION_ROOM.idFromName(`${CLUB_ID}:${date}`))
+
+// A WebSocket to the session's live channel: everyone viewing gets updates;
+// only admins may send score writes.
+app.get('/api/live/:date', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket')
+    return c.json({ error: 'Expected a WebSocket' }, 426)
+  const room = sessionRoom(c.env, c.req.param('date'))
+  if (!room) return c.json({ error: 'Live updates unavailable' }, 503)
+  const session = await getSession(c)
+  const headers = new Headers(c.req.raw.headers)
+  headers.set('x-session-date', c.req.param('date'))
+  headers.set('x-can-write', session?.user.role === 'admin' ? '1' : '0')
+  return room.fetch(new Request(c.req.raw.url, { headers }))
+})
+
+// Tell the session's screens to reload it (after changes made here, not
+// through the live channel).
+function notifyLive(
+  c: { env: Env; executionCtx: { waitUntil: (p: Promise<unknown>) => void } },
+  date: string,
+) {
+  const room = sessionRoom(c.env, date)
+  if (!room) return
+  const done = room
+    .fetch('https://live/notify', { method: 'POST' })
+    .catch((err: unknown) => console.error('live notify failed', err))
+  try {
+    c.executionCtx.waitUntil(done)
+  } catch {
+    // no execution context (tests)
+  }
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -214,6 +255,7 @@ app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
   }
 
   await db.setAttendance(c.get('db'), session.id, player_id, attending)
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -231,6 +273,7 @@ app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
   await db.saveBoxes(c.get('db'), session.id, boxes)
   await db.updateSessionStatus(c.get('db'), session.id, 'games')
 
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -262,6 +305,7 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
   )
   if (!ok) return c.json({ error: 'Match not found' }, 404)
 
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -283,6 +327,7 @@ app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
     new Date().toISOString(),
   )
 
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -293,6 +338,7 @@ app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
   if (session.status !== 'closed')
     return c.json({ error: 'Session is not closed' }, 400)
   await db.updateSessionStatus(c.get('db'), session.id, 'games')
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -304,6 +350,7 @@ app.post('/api/sessions/:date/reopen-attendance', requireAdmin, async (c) => {
     return c.json({ error: 'Session is not in games state' }, 400)
   await db.clearBoxes(c.get('db'), session.id)
   await db.updateSessionStatus(c.get('db'), session.id, 'attendance')
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -312,6 +359,7 @@ app.delete('/api/sessions/:date', requireAdmin, async (c) => {
   const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
   if (!session) return c.json({ error: 'Not found' }, 404)
   await db.deleteSession(c.get('db'), session.id)
+  notifyLive(c, date)
   return c.json({ ok: true })
 })
 
@@ -383,6 +431,7 @@ app.post('/api/players', requireAdmin, async (c) => {
     insert_rank,
   )
 
+  notifyLive(c, session_date)
   return c.json({ ok: true, id: newId })
 })
 

@@ -69,7 +69,10 @@ function appData() {
     showAddPlayer: false,
     _scoreSaveTimers: {},  // key: "bi-mi-si" → timer id
     _pollInterval: null,
-    _dirtyScoreCells: new Set(),
+    _dirtyScoreCells: new Set(),  // cells being typed in or not yet confirmed saved
+    // Live session channel (WebSocket to the session's Durable Object).
+    _live: null,
+    liveProblem: null,  // null | 'reconnecting' | 'reload'
 
     // Which print-only scoresheet layout to render — 'cards' or 'grid'
     printLayout: 'cards',
@@ -863,12 +866,23 @@ function appData() {
     },
 
     // Debounce score saves — one per set cell so rapid typing doesn't flood the API.
+    // With the live channel, a save goes out over it and the cell stays "dirty"
+    // (not overwritten by incoming updates) until the save is confirmed.
     _scheduleScoreSave(bi, mi, si, match) {
       const key = `${bi}-${mi}-${si}`;
       clearTimeout(this._scoreSaveTimers[key]);
       this._dirtyScoreCells.add(key);
       this._scoreSaveTimers[key] = setTimeout(async () => {
+        delete this._scoreSaveTimers[key];
         const [a, b] = match.sets[si] ?? ['', ''];
+        if (this._live) {
+          this._sendLive(key, {
+            op: 'setScore', box: bi, match: mi, set: si,
+            a: a === '' ? null : Number(a),
+            b: b === '' ? null : Number(b),
+          });
+          return;
+        }
         try {
           await Storage.updateScore(
             this.session.date, bi, mi, si,
@@ -880,21 +894,92 @@ function appData() {
         } finally {
           this._dirtyScoreCells.delete(key);
         }
-      }, 1500);
+      }, this._live ? 400 : 1500);
     },
 
     saveScores() {
       // Kept for template compatibility — individual saves handled by _scheduleScoreSave.
     },
 
+    // On a session page: the live channel (no polling). If it drops, it
+    // reconnects and resends unconfirmed scores, refreshes every 15 s meanwhile,
+    // and shows a banner if it doesn't recover.
     _startPolling() {
       this._stopPolling();
-      this._pollInterval = setInterval(() => this._pollSession(), 3000);
+      if (this.session) this._startLive(this.session.date);
     },
 
     _stopPolling() {
       clearInterval(this._pollInterval);
       this._pollInterval = null;
+      this._stopLive();
+    },
+
+    _startLive(date) {
+      const live = { date, ws: null, pending: new Map(), attempt: 0, closed: false, timers: [] };
+      this._live = live;
+      const clearTimers = () => { live.timers.forEach(clearTimeout); live.timers = []; };
+      const connect = () => {
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${proto}://${location.host}/api/live/${date}`);
+        live.ws = ws;
+        ws.onopen = () => {
+          live.attempt = 0;
+          clearTimers();
+          if (this.liveProblem === 'reconnecting') this.liveProblem = null;
+          clearInterval(this._pollInterval);
+          this._pollInterval = null;
+          for (const p of live.pending.values()) ws.send(JSON.stringify({ type: 'write', id: p.id, op: p.op }));
+          this._pollSession();  // catch up on anything missed
+        };
+        ws.onmessage = (ev) => this._onLiveMessage(live, JSON.parse(ev.data));
+        ws.onclose = () => {
+          if (live.closed) return;
+          live.ws = null;
+          clearTimers();
+          live.timers.push(setTimeout(() => { if (!this.liveProblem) this.liveProblem = 'reconnecting'; }, 2000));
+          live.timers.push(setTimeout(() => { this.liveProblem = 'reload'; }, 15000));
+          if (!this._pollInterval) this._pollInterval = setInterval(() => this._pollSession(), 15000);
+          live.attempt++;
+          live.timers.push(setTimeout(connect, Math.min(1000 * 2 ** (live.attempt - 1), 10000)));
+        };
+        ws.onerror = () => ws.close();
+      };
+      connect();
+    },
+
+    _stopLive() {
+      const live = this._live;
+      if (!live) return;
+      live.closed = true;
+      live.timers.forEach(clearTimeout);
+      live.ws?.close();
+      this._live = null;
+      this.liveProblem = null;
+    },
+
+    _sendLive(key, op) {
+      const live = this._live;
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      live.pending.set(id, { id, key, op });
+      if (live.ws?.readyState === WebSocket.OPEN) live.ws.send(JSON.stringify({ type: 'write', id, op }));
+    },
+
+    _onLiveMessage(live, msg) {
+      if (live !== this._live) return;
+      if (msg.type === 'ack') {
+        const p = live.pending.get(msg.id);
+        live.pending.delete(msg.id);
+        // The cell can take updates again once nothing of ours is in flight for it.
+        if (p && !this._scoreSaveTimers[p.key] && ![...live.pending.values()].some(q => q.key === p.key)) {
+          this._dirtyScoreCells.delete(p.key);
+        }
+        if (!msg.ok) this.liveProblem = 'reload';
+      } else if (msg.type === 'match') {
+        this._mergeMatchSets(msg.box, msg.match, msg.sets);
+      } else if (msg.type === 'changed') {
+        this._pollSession();
+      }
     },
 
     async _pollSession() {
@@ -929,21 +1014,25 @@ function appData() {
           const localBox = this.session.boxes[bi];
           const matchCount = Math.min(remoteBox.matches.length, localBox.matches.length);
           for (let mi = 0; mi < matchCount; mi++) {
-            const remoteSets = remoteBox.matches[mi].sets ?? [];
-            const localMatch = localBox.matches[mi];
-
-            for (let si = 0; si < remoteSets.length; si++) {
-              if (this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) continue;
-              while (localMatch.sets.length <= si) localMatch.sets.push(['', '']);
-              localMatch.sets[si] = [...remoteSets[si]];
-            }
-
-            for (let si = localMatch.sets.length - 1; si >= remoteSets.length; si--) {
-              if (!this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) {
-                localMatch.sets.splice(si, 1);
-              }
-            }
+            this._mergeMatchSets(bi, mi, remoteBox.matches[mi].sets ?? []);
           }
+        }
+      }
+    },
+
+    // Take a match's saved scores, except in cells still being typed in or
+    // whose save isn't confirmed (those keep what was typed).
+    _mergeMatchSets(bi, mi, remoteSets) {
+      const localMatch = this.session?.boxes?.[bi]?.matches?.[mi];
+      if (!localMatch) return;
+      for (let si = 0; si < remoteSets.length; si++) {
+        if (this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) continue;
+        while (localMatch.sets.length <= si) localMatch.sets.push(['', '']);
+        localMatch.sets[si] = [...(remoteSets[si] ?? ['', ''])];
+      }
+      for (let si = localMatch.sets.length - 1; si >= remoteSets.length; si--) {
+        if (!this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) {
+          localMatch.sets.splice(si, 1);
         }
       }
     },
