@@ -76,6 +76,34 @@
     </div>
   </div>
 
+  <!-- ── "This is me" modal ────────────────────────────────────────────── -->
+  <div x-show="claim.open" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center no-print">
+    <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4 flex flex-col max-h-[85vh]">
+      <h3 class="font-bold text-lg text-blue-700 mb-1">Which player are you?</h3>
+      <p class="text-xs text-gray-500 mb-3">We couldn’t match your Google account to a player. Find yourself and tap your name.</p>
+      <input type="search" x-model="claim.search" placeholder="Search names"
+             class="border rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-700">
+      <ul class="overflow-y-auto border rounded divide-y flex-1 min-h-[8rem]">
+        <template x-for="p in claimMatches" :key="p.id">
+          <li>
+            <button @click="claim.selectedId = p.id"
+                    :class="claim.selectedId === p.id ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50'"
+                    class="w-full text-left px-3 py-2 text-sm" x-text="p.name"></button>
+          </li>
+        </template>
+        <li x-show="claimMatches.length === 0" class="px-3 py-2 text-sm text-gray-400">No one by that name.</li>
+      </ul>
+      <p x-show="claim.error" x-text="claim.error" class="text-red-500 text-xs mt-2"></p>
+      <button @click="confirmClaim()" :disabled="!claim.selectedId || claim.saving"
+              :class="!claim.selectedId || claim.saving ? 'opacity-40 cursor-not-allowed' : ''"
+              class="w-full mt-3 bg-blue-700 text-white rounded-lg py-2 text-sm font-medium">
+        This is me
+      </button>
+      <p class="text-xs text-gray-400 mt-3 text-center">Not on the list? Ask an admin.</p>
+      <button @click="dismissClaim()" class="w-full text-sm text-gray-400 hover:text-gray-600 mt-1">Not now</button>
+    </div>
+  </div>
+
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- GLOBAL NAV                                                          -->
   <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -154,14 +182,16 @@
         <!-- Divider -->
         <div class="w-px h-4 bg-gray-200 mx-1"></div>
 
-        <!-- Admin pill / Login -->
-        <template x-if="isAdmin">
+        <!-- Signed in (admin pill for admins) / Sign in -->
+        <template x-if="me.signedIn">
           <div class="flex items-center gap-1.5">
-            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
-            <button @click="logout()" class="text-xs text-gray-400 hover:text-gray-600">Logout</button>
+            <span x-show="isAdmin" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
+            <span class="text-xs text-gray-500 whitespace-nowrap" x-text="'Signed in as ' + signedInFirstName"></span>
+            <span class="text-xs text-gray-300">·</span>
+            <button @click="logout()" class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">Sign out</button>
           </div>
         </template>
-        <template x-if="!isAdmin">
+        <template x-if="!me.signedIn">
           <button @click="showLogin = true"
                   class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">
             Sign in
@@ -1119,6 +1149,17 @@
                    @keydown.escape="cancelEditPlayer()"
                    class="border rounded px-2 py-1 text-sm flex-1 font-mono focus:outline-none focus:ring-2 focus:ring-blue-700"
                    placeholder="HelloClub member ID (blank to unlink)">
+          </div>
+
+          <!-- Google sign-in -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Sign-in</span>
+            <span x-show="player?.login" class="text-sm text-gray-700 truncate" x-text="'Google: ' + player?.login?.email"></span>
+            <span x-show="!player?.login" class="text-sm text-gray-400 italic">Not linked</span>
+            <button x-show="isAdmin && player?.login && !_editingPlayer" @click="unlinkPlayerLogin()"
+                    class="ml-auto text-xs border border-gray-300 rounded px-2 py-1 text-gray-600 hover:bg-gray-50">
+              Unlink
+            </button>
           </div>
 
         </div>

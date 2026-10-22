@@ -42,19 +42,56 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) =>
 )
 
 // Who's signed in, for the browser: name, admin or not, and their player.
+// A login with no player yet is linked here if exactly one player has its
+// (Google-verified) email as their HelloClub email; otherwise the browser
+// offers "This is me".
 app.get('/api/me', async (c) => {
   const session = await getSession(c)
   if (!session) return c.json({ signedIn: false, isAdmin: false })
-  const player = await db.getPlayerByUserId(
-    c.get('db'),
-    CLUB_ID,
-    session.user.id,
-  )
+  const { user } = session
+  let player = await db.getPlayerByUserId(c.get('db'), CLUB_ID, user.id)
+  let justLinked = false
+  if (!player && user.emailVerified) {
+    player = await db.autoLinkByEmail(c.get('db'), CLUB_ID, user.id, user.email)
+    justLinked = player !== null
+  }
   return c.json({
     signedIn: true,
-    isAdmin: session.user.role === 'admin',
-    name: session.user.name,
+    isAdmin: user.role === 'admin',
+    name: user.name,
     player,
+    justLinked,
+  })
+})
+
+// "This is me": the players a signed-in login can pick, and picking one.
+app.get('/api/me/claimable', async (c) => {
+  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401)
+  return c.json({
+    players: await db.listClaimablePlayers(c.get('db'), CLUB_ID),
+  })
+})
+
+app.post('/api/me/claim', async (c) => {
+  const session = await getSession(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const { player_id } = await c.req.json<{ player_id: number }>()
+  if (!Number.isInteger(player_id))
+    return c.json({ error: 'player_id required' }, 400)
+  const ok = await db.claimPlayer(
+    c.get('db'),
+    CLUB_ID,
+    player_id,
+    session.user.id,
+  )
+  if (!ok)
+    return c.json(
+      { error: 'That player is already linked to a sign-in. Ask an admin.' },
+      409,
+    )
+  return c.json({
+    ok: true,
+    player: await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id),
   })
 })
 
@@ -285,7 +322,15 @@ app.get('/api/players/:id', requireAdmin, async (c) => {
   if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
   const player = await db.getPlayerById(c.get('db'), CLUB_ID, id)
   if (!player) return c.json({ error: 'Not found' }, 404)
-  return c.json(player)
+  return c.json({ ...player, login: await db.getPlayerLogin(c.get('db'), id) })
+})
+
+// Unlink a player's sign-in (e.g. someone picked the wrong player).
+app.post('/api/players/:id/unlink', requireAdmin, async (c) => {
+  const id = parseInt(c.req.param('id'))
+  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
+  await db.unlinkPlayer(c.get('db'), id)
+  return c.json({ ok: true })
 })
 
 app.put('/api/players/:id', requireAdmin, async (c) => {

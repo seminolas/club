@@ -157,6 +157,7 @@ describe('/api/me', () => {
       isAdmin: true,
       name: 'Test Admin',
       player: null,
+      justLinked: false,
     })
   })
 
@@ -170,6 +171,7 @@ describe('/api/me', () => {
       isAdmin: false,
       name: 'Test Player',
       player: { id: 3, name: 'Chloe Wu' },
+      justLinked: false,
     })
     await t.raw.prepare('UPDATE players SET user_id = NULL WHERE id = 3').run()
   })
