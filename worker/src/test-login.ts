@@ -51,12 +51,24 @@ export const TEST_USERS = [
   { id: 'test-player', name: 'Test Player', role: 'user' },
 ] as const
 
+/**
+ * Club 1's player for the test admin: everyone signed in needs a player, admins
+ * too (V1). No ladder position, so it doesn't show on the ladder. The test
+ * player stays unlinked, to exercise "Which player are you?".
+ */
+export const TEST_ADMIN_PLAYER_NAME = 'Test Admin'
+
 export const testUserEmail = (id: string) => `${id}@staging.invalid`
 
 /** SQL that (re)creates the test accounts with the given password. */
 export async function testUsersSql(password: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
-  const lines: string[] = []
+  const lines: string[] = [
+    // Players can't point at a deleted user: unlink, and drop the test admin's
+    // own player (recreated below).
+    `UPDATE players SET user_id = NULL WHERE user_id IN (${TEST_USERS.map((u) => `'${u.id}'`).join(', ')}) AND name <> '${TEST_ADMIN_PLAYER_NAME}';`,
+    `DELETE FROM players WHERE user_id = 'test-admin' AND name = '${TEST_ADMIN_PLAYER_NAME}';`,
+  ]
   for (const u of TEST_USERS) {
     // Deleting the user also removes its accounts and sessions (cascade).
     lines.push(`DELETE FROM user WHERE id = '${u.id}';`)
@@ -67,5 +79,8 @@ export async function testUsersSql(password: string): Promise<string> {
       `INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES ('${u.id}-credential', '${u.id}', 'credential', '${u.id}', '${await hashPassword(password)}', ${now}, ${now});`,
     )
   }
+  lines.push(
+    `INSERT INTO players (club_id, name, user_id) VALUES (1, '${TEST_ADMIN_PLAYER_NAME}', 'test-admin');`,
+  )
   return lines.join('\n') + '\n'
 }

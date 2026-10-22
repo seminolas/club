@@ -150,13 +150,14 @@ describe('/api/me', () => {
     })
   })
 
-  it('the test admin (no player)', async () => {
+  it('the test admin, with their own player', async () => {
     const { cookie } = await signIn('test-admin')
-    expect(await (await request('/api/me', { cookie })).json()).toEqual({
+    expect(await (await request('/api/me', { cookie })).json()).toMatchObject({
       signedIn: true,
       isAdmin: true,
       name: 'Test Admin',
-      player: null,
+      player: { name: 'Test Admin' },
+      justLinked: false,
     })
   })
 
@@ -170,6 +171,7 @@ describe('/api/me', () => {
       isAdmin: false,
       name: 'Test Player',
       player: { id: 3, name: 'Chloe Wu' },
+      justLinked: false,
     })
     await t.raw.prepare('UPDATE players SET user_id = NULL WHERE id = 3').run()
   })

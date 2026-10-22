@@ -32,6 +32,22 @@ const Storage = (() => {
     await apiFetch('/api/auth/sign-out', { method: 'POST', body: '{}' });
   }
 
+  // "This is me": players a signed-in login can pick, and picking one.
+  async function claimablePlayers() {
+    return (await apiJSON('/api/me/claimable')).players;
+  }
+
+  async function claimPlayer(playerId) {
+    return apiJSON('/api/me/claim', {
+      method: 'POST',
+      body: JSON.stringify({ player_id: playerId }),
+    });
+  }
+
+  async function unlinkPlayerLogin(playerId) {
+    return apiJSON(`/api/players/${playerId}/unlink`, { method: 'POST', body: '{}' });
+  }
+
   // ── HTTP helpers ──────────────────────────────────────────────────────────
 
   function apiFetch(path, options = {}) {
@@ -170,7 +186,7 @@ const Storage = (() => {
   // ── Config ────────────────────────────────────────────────────────────────
 
   return {
-    me, signInWithGoogle, logout,
+    me, signInWithGoogle, logout, claimablePlayers, claimPlayer, unlinkPlayerLogin,
     getLeaderboard, saveLeaderboard,
     listSessions, getSession, createSession, deleteSession,
     setAttendance, saveBoxes, updateScore, closeSession,

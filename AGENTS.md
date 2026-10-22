@@ -125,7 +125,7 @@ node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"g
 node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod vs staging, diff the on-screen text
 node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
 node admin-flow.mjs    # a whole admin session night on staging as Test Admin, checked, then cleaned up
-node auth-ui.mjs       # sign-in in the browser on staging: to Google, Test Admin UI + logout, non-admin turned away
+node auth-ui.mjs       # sign-in in the browser on staging: to Google, Test Admin UI + sign out, "This is me" + admin unlink
 ```
 
 CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
@@ -190,7 +190,9 @@ All under `/api/*`. Routes marked admin need a BetterAuth session whose user is 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST/GET | `/api/auth/*` | — | BetterAuth: `sign-in/social` (Google), `callback/google`, `sign-out`, `get-session`; on staging also `sign-in/email` (test accounts) |
-| GET | `/api/me` | — | Who's signed in: `{ signedIn, isAdmin, name?, player? }` |
+| GET | `/api/me` | — | Who's signed in: `{ signedIn, isAdmin, name?, player?, justLinked? }`; auto-links by email (see Authentication) |
+| GET | `/api/me/claimable` | signed in | Unlinked active players, for "Which player are you?" |
+| POST | `/api/me/claim` | signed in | Link the signed-in login to a player (`{ player_id }`; 409 if taken) |
 | GET | `/api/config` | — | Club config |
 | GET | `/api/leaderboard` | — | Ranked players with id, name, hc_member_id, preferred_name |
 | POST | `/api/leaderboard/import` | admin | Replace full leaderboard from names array |
@@ -204,7 +206,8 @@ All under `/api/*`. Routes marked admin need a BetterAuth session whose user is 
 | POST | `/api/sessions/:date/reopen` | admin | Reopen closed → games |
 | POST | `/api/sessions/:date/reopen-attendance` | admin | Reopen games → attendance (clears boxes) |
 | DELETE | `/api/sessions/:date` | admin | Delete session |
-| GET | `/api/players/:id` | admin | Get player profile |
+| GET | `/api/players/:id` | admin | Get player profile, incl. `login: { email } \| null` |
+| POST | `/api/players/:id/unlink` | admin | Remove the player's Google sign-in link |
 | PUT | `/api/players/:id` | admin | Update email, hc_member_id |
 | DELETE | `/api/players/:id` | admin | Archive/delete player |
 | POST | `/api/players` | admin | Add new player mid-session |
@@ -219,10 +222,11 @@ All under `/api/*`. Routes marked admin need a BetterAuth session whose user is 
 
 - **Signing in:** "Sign in with Google" in the browser calls `POST /api/auth/sign-in/social` and follows the returned URL to Google (redirect flow; needs `GOOGLE_CLIENT_SECRET` and the redirect URLs `https://<host>/api/auth/callback/google` registered on the Google OAuth client for prod and staging). Google sends the browser back to the page it started on, signed in. The session is an HttpOnly cookie (`__Secure-better-auth.session_token` on https), sent automatically with every same-origin API call.
 - **Who's signed in:** `GET /api/me` → `{ signedIn, isAdmin, name?, player? }`; the browser asks on load. Sign out: `POST /api/auth/sign-out`.
-- **Roles:** `user.role` is `admin` or `user` (player). `requireAdmin` passes only a session whose user is `admin`. A Google account that signs in but isn't an admin is signed out again with a message (players signing in is V1).
+- **Roles:** `user.role` is `admin` or `user` (player). `requireAdmin` passes only a session whose user is `admin`. Any Google account can sign in (V1); new accounts are players.
+- **Linking a login to a player (V1):** `/api/me` links a login that has no player to the one active player whose HelloClub email (`players.email`) is the Google email, ignoring case. If several active players have that email (linked or not), it doesn't auto-link. Otherwise the browser shows "Which player are you?" (`GET /api/me/claimable`, `POST /api/me/claim`): any unlinked active player, linked immediately; a player someone already claimed, or a second player for one login, is refused. **Everyone signed in needs a player, admins included:** the box can't be skipped, only signed out of ("New here? For now, an admin needs to add you."; joining from the app is V17). Admins see a player's Google sign-in on their page and can Unlink it. Google only for now; other sign-in methods are parked (MIGRATION.md, Follow-ups).
 - **Tables:** `user`, `session`, `account`, `verification`; `players.user_id` links a player to their login. Migration 0011 carried over every Google link from the old app (Google's `sub` is the account id, so the same Google account signs in to the same user) and made owners/admins `admin`; 0012 dropped the old tables (`player_auth_profiles`, `roles`, `player_roles`). Facebook links weren't carried over (per-app ids); those players' emails are on `players.email`.
 
-**Staging test accounts.** On staging only, `TEST_LOGIN = "1"` (in `[env.staging.vars]`) turns on email + password sign-in for two synthetic accounts: **Test Admin** (`test-admin@staging.invalid`, admin) and **Test Player** (`test-player@staging.invalid`, player). Sign-up is off; `testLoginEnabled` refuses to start it for any URL that isn't staging or localhost, and a test checks prod-like config rejects password sign-in. Their password is the `TEST_LOGIN_PASSWORD` GitHub secret (the staging refresh re-creates the accounts after loading prod's data, via `worker/scripts/seed-test-users.mts`) and, for local scripts, `e2e/.env.staging` (gitignored). Passwords use PBKDF2 via WebCrypto (`src/test-login.ts`), because BetterAuth's default scrypt is too CPU-heavy for the free plan. Sign in from scripts with `POST /api/auth/sign-in/email` (send an `Origin` header), or `{ "as": "test-admin" }` in `e2e/shot.mjs`.
+**Staging test accounts.** Test Admin has its own player in club 1 ("Test Admin", no ladder position, so it's not on the ladder and prod/staging comparisons still match); Test Player is left unlinked, to exercise "Which player are you?". On staging only, `TEST_LOGIN = "1"` (in `[env.staging.vars]`) turns on email + password sign-in for two synthetic accounts: **Test Admin** (`test-admin@staging.invalid`, admin) and **Test Player** (`test-player@staging.invalid`, player). Sign-up is off; `testLoginEnabled` refuses to start it for any URL that isn't staging or localhost, and a test checks prod-like config rejects password sign-in. Their password is the `TEST_LOGIN_PASSWORD` GitHub secret (the staging refresh re-creates the accounts after loading prod's data, via `worker/scripts/seed-test-users.mts`) and, for local scripts, `e2e/.env.staging` (gitignored). Passwords use PBKDF2 via WebCrypto (`src/test-login.ts`), because BetterAuth's default scrypt is too CPU-heavy for the free plan. Sign in from scripts with `POST /api/auth/sign-in/email` (send an `Origin` header), or `{ "as": "test-admin" }` in `e2e/shot.mjs`.
 ---
 
 ## HelloClub sync
@@ -295,6 +299,7 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Known issues
 
+- **Tailwind arbitrary values don't work:** the app loads the static Tailwind 2.2.19 build from CDN, which has no arbitrary values, so classes like `max-h-[65vh]` (three in `index.html`) are silently ignored. Use inline styles for such sizes (as the "Which player are you?" modal does). Goes away with S5.
 - **Ladder import while a session is open:** `replaceLeaderboard` writes the imported order to the latest session's *after* ladder, but an open session (attendance/games) shows its *before* ladder, so the imported order doesn't appear (the ladder shows the old order, minus anyone the import archived). Fine when the latest session is closed (the usual case). Found in S2; behaviour kept as-is for now.
 
 ## Future work

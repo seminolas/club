@@ -32,6 +32,9 @@ function appData() {
     isAdmin: false,
     showLogin: false,
     loginError: null,
+    me: { signedIn: false, isAdmin: false, name: null, player: null },
+    // "This is me": a signed-in login with no player picks themselves.
+    claim: { open: false, players: [], search: '', selectedId: null, error: null, saving: false },
 
     // Leaderboard
     leaderboard: [],        // string[] — names, rank order
@@ -194,13 +197,51 @@ function appData() {
         history.replaceState(null, '', location.pathname + location.hash);
       }
       const me = await Storage.me().catch(() => ({ signedIn: false, isAdmin: false }));
+      this.me = { name: null, player: null, ...me };
       this.isAdmin = me.isAdmin;
-      if (returning && me.signedIn && !me.isAdmin) {
-        await Storage.logout().catch(() => {});
-        this.loginError = 'This Google account isn’t an admin here. Contact your club admin.';
-        this.showLogin = true;
+      if (me.justLinked) this.showToast(`Signed in as ${me.player.name}.`);
+      // Everyone signed in needs a player (admins too): until then, "Which
+      // player are you?" stays open; the only other way out is signing out.
+      if (me.signedIn && !me.player) this.openClaim();
+    },
+
+    // First name for the header: the player's, else the Google account's.
+    get signedInFirstName() {
+      return (this.me.player?.name ?? this.me.name ?? '').trim().split(/\s+/)[0];
+    },
+
+    async openClaim() {
+      this.claim = { open: true, players: [], search: '', selectedId: null, error: null, saving: false };
+      try {
+        this.claim.players = await Storage.claimablePlayers();
+      } catch (e) {
+        this.claim.error = e.message;
       }
     },
+
+    get claimMatches() {
+      const q = this.claim.search.trim().toLowerCase();
+      return q ? this.claim.players.filter(p => p.name.toLowerCase().includes(q)) : this.claim.players;
+    },
+
+    async confirmClaim() {
+      if (!this.claim.selectedId || this.claim.saving) return;
+      this.claim.saving = true;
+      this.claim.error = null;
+      try {
+        const { player } = await Storage.claimPlayer(this.claim.selectedId);
+        this.me = { ...this.me, player };
+        this.claim.open = false;
+        this.showToast(`Signed in as ${player.name}.`);
+      } catch (e) {
+        this.claim.error = e.message;
+        this.claim.selectedId = null;
+        this.claim.players = await Storage.claimablePlayers().catch(() => this.claim.players);
+      } finally {
+        this.claim.saving = false;
+      }
+    },
+
 
     async signInWithGoogle() {
       this.loginError = null;
@@ -216,6 +257,22 @@ function appData() {
     async logout() {
       await Storage.logout().catch(() => {});
       this.isAdmin = false;
+      this.me = { signedIn: false, isAdmin: false, name: null, player: null };
+      this.claim.open = false;
+    },
+
+    // Admin: remove the link between a player and their Google sign-in.
+    async unlinkPlayerLogin() {
+      const login = this.player?.login;
+      if (!login) return;
+      if (!confirm(`Unlink ${this.player.name} from the Google account ${login.email}? They can link again by signing in.`)) return;
+      try {
+        await Storage.unlinkPlayerLogin(this.player.id);
+        this.player.login = null;
+        this.showToast('Sign-in unlinked.');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
     },
 
     // Transforms raw session API response: extracts names for internal state (algorithm.js

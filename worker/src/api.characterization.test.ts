@@ -156,6 +156,8 @@ describe('admin', () => {
       insert_rank: 4,
       session_date: '2026-01-20',
     })
+    // Her id comes after the fixture's players (and the test admin's player).
+    const nina = (steps.at(-1) as { body: { id: number } }).body.id
     await step('add existing', 'POST', '/api/players', {
       name: 'Ben Carter',
       insert_rank: 4,
@@ -169,7 +171,7 @@ describe('admin', () => {
       }))
     await step('boxes', 'PUT', '/api/sessions/2026-01-20/boxes', {
       boxes: [
-        { players: [2, 1, 19, 14], matches: matches(4), finalPlacings: null },
+        { players: [2, 1, nina, 14], matches: matches(4), finalPlacings: null },
         { players: [5, 6, 3, 4], matches: matches(4), finalPlacings: null },
       ],
     })
@@ -217,14 +219,14 @@ describe('admin', () => {
     await step('boxes again', 'PUT', '/api/sessions/2026-01-20/boxes', {
       boxes: [
         {
-          players: [2, 1, 19, 14, 5],
+          players: [2, 1, nina, 14, 5],
           matches: matches(5),
           finalPlacings: null,
         },
       ],
     })
     await step('close', 'POST', '/api/sessions/2026-01-20/close', {
-      leaderboard_after: [1, 2, 19, 14, 5, 6, 3, 4, 7, 8, 9, 10, 11, 12],
+      leaderboard_after: [1, 2, nina, 14, 5, 6, 3, 4, 7, 8, 9, 10, 11, 12],
     })
     await step('score when closed', 'PUT', '/api/sessions/2026-01-20/score', {
       box_number: 0,

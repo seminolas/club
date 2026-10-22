@@ -719,6 +719,110 @@ export async function getPlayerById(
   return row ?? null
 }
 
+// ── Linking logins to players (V1) ──────────────────────────────────────────
+
+/** Unlinked active players in the club, by name: who "This is me" can pick. */
+export async function listClaimablePlayers(
+  db: DB,
+  clubId: number,
+): Promise<{ id: number; name: string }[]> {
+  return orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.players)
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        isNull(t.players.archivedAt),
+        isNull(t.players.userId),
+      ),
+    )
+    .orderBy(asc(t.players.name))
+}
+
+/**
+ * Links the login to the player, if the player is active, in the club and
+ * unlinked, and the login has no player yet. False otherwise (e.g. someone
+ * claimed them first).
+ */
+export async function claimPlayer(
+  db: DB,
+  clubId: number,
+  playerId: number,
+  userId: string,
+): Promise<boolean> {
+  if (await getPlayerByUserId(db, clubId, userId)) return false
+  try {
+    const res = await orm(db)
+      .update(t.players)
+      .set({ userId })
+      .where(
+        and(
+          eq(t.players.id, playerId),
+          eq(t.players.clubId, clubId),
+          isNull(t.players.archivedAt),
+          isNull(t.players.userId),
+        ),
+      )
+    return res.meta.changes === 1
+  } catch {
+    // players_user_id is unique: the login got linked meanwhile.
+    return false
+  }
+}
+
+/**
+ * Links the login to the one active player whose HelloClub email is this
+ * email (ignoring case), if exactly one has it and they're unlinked. Shared
+ * emails (several players) never auto-link.
+ */
+export async function autoLinkByEmail(
+  db: DB,
+  clubId: number,
+  userId: string,
+  email: string,
+): Promise<{ id: number; name: string } | null> {
+  const normalised = email.trim().toLowerCase()
+  if (!normalised) return null
+  const matches = await orm(db)
+    .select({
+      id: t.players.id,
+      name: t.players.name,
+      userId: t.players.userId,
+    })
+    .from(t.players)
+    .where(
+      and(
+        eq(t.players.clubId, clubId),
+        isNull(t.players.archivedAt),
+        sql`lower(trim(${t.players.email})) = ${normalised}`,
+      ),
+    )
+  if (matches.length !== 1 || matches[0].userId !== null) return null
+  const { id, name } = matches[0]
+  return (await claimPlayer(db, clubId, id, userId)) ? { id, name } : null
+}
+
+/** The Google account (email) a player signs in with, if linked. */
+export async function getPlayerLogin(
+  db: DB,
+  playerId: number,
+): Promise<{ email: string } | null> {
+  const row = await orm(db)
+    .select({ email: t.user.email })
+    .from(t.players)
+    .innerJoin(t.user, eq(t.user.id, t.players.userId))
+    .where(eq(t.players.id, playerId))
+    .get()
+  return row ?? null
+}
+
+export async function unlinkPlayer(db: DB, playerId: number): Promise<void> {
+  await orm(db)
+    .update(t.players)
+    .set({ userId: null })
+    .where(eq(t.players.id, playerId))
+}
+
 /** The active player linked to a login (BetterAuth user), if any. */
 export async function getPlayerByUserId(
   db: DB,
