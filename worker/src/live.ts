@@ -21,6 +21,15 @@ export class SessionRoom extends DurableObject<Env> {
   // Writes run one after another, in arrival order.
   private queue: Promise<unknown> = Promise.resolve()
 
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    // Heartbeat: answer "ping" with "pong" without waking the object, so
+    // screens can tell a dead connection from a quiet one.
+    ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair('ping', 'pong'),
+    )
+  }
+
   async fetch(request: Request): Promise<Response> {
     if (new URL(request.url).pathname === '/notify') {
       this.broadcast({ type: 'changed' })

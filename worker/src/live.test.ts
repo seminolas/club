@@ -184,6 +184,7 @@ describe('the Durable Object', () => {
     const state = {
       getWebSockets: () => sockets.map((s) => s.ws),
       acceptWebSocket: () => {},
+      setWebSocketAutoResponse: () => {},
       storage: {
         get: async (k: string) => store.get(k),
         put: async (k: string, v: unknown) => void store.set(k, v),

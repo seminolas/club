@@ -917,9 +917,29 @@ function appData() {
 
     _startLive(date) {
       // (Alpine wraps this in a proxy once stored, so compare `token`, not the object.)
-      const live = { token: Math.random().toString(36).slice(2), date, ws: null, pending: new Map(), attempt: 0, closed: false, timers: [] };
+      const live = {
+        token: Math.random().toString(36).slice(2), date, ws: null, pending: new Map(),
+        attempt: 0, closed: false, timers: [], heartbeat: null, awaitingPong: false,
+      };
       this._live = live;
       const clearTimers = () => { live.timers.forEach(clearTimeout); live.timers = []; };
+      // The connection is gone (closed, or silent): drop it and reconnect.
+      // A dead network can leave a socket "closing" forever without ever
+      // firing onclose, so this doesn't wait for the browser to notice.
+      live.lost = () => {
+        if (live.closed || !live.ws) return;
+        const ws = live.ws;
+        live.ws = null;
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+        try { ws.close(); } catch { /* already closed */ }
+        clearInterval(live.heartbeat);
+        clearTimers();
+        live.timers.push(setTimeout(() => { if (!this.liveProblem) this.liveProblem = 'reconnecting'; }, 2000));
+        live.timers.push(setTimeout(() => { this.liveProblem = 'reload'; }, 15000));
+        if (!this._pollInterval) this._pollInterval = setInterval(() => this._pollSession(), 15000);
+        live.attempt++;
+        live.timers.push(setTimeout(connect, Math.min(1000 * 2 ** (live.attempt - 1), 10000)));
+      };
       const connect = () => {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
         const ws = new WebSocket(`${proto}://${location.host}/api/live/${date}`);
@@ -930,21 +950,24 @@ function appData() {
           if (this.liveProblem === 'reconnecting') this.liveProblem = null;
           clearInterval(this._pollInterval);
           this._pollInterval = null;
-          for (const p of live.pending.values()) ws.send(JSON.stringify({ type: 'write', id: p.id, op: p.op }));
+          // Heartbeat: the room answers "ping" with "pong" (without waking up);
+          // no answer by the next beat means the connection is dead.
+          live.awaitingPong = false;
+          clearInterval(live.heartbeat);
+          live.heartbeat = setInterval(() => {
+            if (live.awaitingPong) return live.lost();
+            live.awaitingPong = true;
+            ws.send('ping');
+          }, 15000);
+          for (const p of live.pending.values()) this._transmitLive(live, p);
           this._pollSession();  // catch up on anything missed
         };
-        ws.onmessage = (ev) => this._onLiveMessage(live, JSON.parse(ev.data));
-        ws.onclose = () => {
-          if (live.closed) return;
-          live.ws = null;
-          clearTimers();
-          live.timers.push(setTimeout(() => { if (!this.liveProblem) this.liveProblem = 'reconnecting'; }, 2000));
-          live.timers.push(setTimeout(() => { this.liveProblem = 'reload'; }, 15000));
-          if (!this._pollInterval) this._pollInterval = setInterval(() => this._pollSession(), 15000);
-          live.attempt++;
-          live.timers.push(setTimeout(connect, Math.min(1000 * 2 ** (live.attempt - 1), 10000)));
+        ws.onmessage = (ev) => {
+          if (ev.data === 'pong') { live.awaitingPong = false; return; }
+          this._onLiveMessage(live, JSON.parse(ev.data));
         };
-        ws.onerror = () => ws.close();
+        ws.onclose = () => live.lost();
+        ws.onerror = () => live.lost();
       };
       connect();
     },
@@ -954,6 +977,7 @@ function appData() {
       if (!live) return;
       live.closed = true;
       live.timers.forEach(clearTimeout);
+      clearInterval(live.heartbeat);
       live.ws?.close();
       this._live = null;
       this.liveProblem = null;
@@ -962,8 +986,19 @@ function appData() {
     _sendLive(key, op) {
       const live = this._live;
       const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      live.pending.set(id, { id, key, op });
-      if (live.ws?.readyState === WebSocket.OPEN) live.ws.send(JSON.stringify({ type: 'write', id, op }));
+      const p = { id, key, op };
+      live.pending.set(id, p);
+      this._transmitLive(live, p);
+    },
+
+    // Send a write if connected; one that isn't acknowledged within 5 s means
+    // the connection is dead (it's resent after reconnecting).
+    _transmitLive(live, p) {
+      const ws = live.ws;
+      if (!ws || ws.readyState === WebSocket.CONNECTING) return;  // sent on open
+      if (ws.readyState !== WebSocket.OPEN) return live.lost();   // closing/closed: dead
+      ws.send(JSON.stringify({ type: 'write', id: p.id, op: p.op }));
+      setTimeout(() => { if (live.pending.has(p.id) && live.ws === ws) live.lost(); }, 5000);
     },
 
     _onLiveMessage(live, msg) {

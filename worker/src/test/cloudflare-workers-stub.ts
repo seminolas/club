@@ -6,3 +6,13 @@ export class DurableObject<TEnv = unknown> {
     protected env: TEnv,
   ) {}
 }
+
+// A Workers runtime global used by live.ts (the heartbeat's auto-response).
+;(
+  globalThis as { WebSocketRequestResponsePair?: unknown }
+).WebSocketRequestResponsePair ??= class {
+  constructor(
+    readonly request: string,
+    readonly response: string,
+  ) {}
+}
