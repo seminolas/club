@@ -1,6 +1,7 @@
 // Dev helper: the live channel losing its connection mid-entry, on staging.
 // Window A goes offline, a score is typed, the banner shows; back online, the
 // score is sent and saved, the banner clears, and window B shows the score.
+// Then a quiet connection dies (nothing typed): the heartbeat notices.
 // Usage: node live-offline.mjs   (password from e2e/.env.staging)
 import { chromium } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
@@ -75,6 +76,20 @@ await pageA.waitForTimeout(1500)
 check('back online: banner gone', !(await banner(pageA)))
 const shownB = await pageB.locator('.score-input:visible').evaluateAll((els) => els.slice(0, 2).map((e) => e.value))
 check('viewer sees it', shownB[0] === '21' && shownB[1] === '12', JSON.stringify(shownB))
+
+// A quiet connection dying (nothing typed): only the heartbeat notices.
+await A.setOffline(true)
+await pageA.evaluate(() => document.querySelector('[x-data]')._x_dataStack[0]._live.ws.close())
+let seenAt = null
+const t0 = Date.now()
+while (Date.now() - t0 < 40000 && seenAt === null) {
+  await pageA.waitForTimeout(1000)
+  if (await banner(pageA)) seenAt = Math.round((Date.now() - t0) / 1000)
+}
+check(`quiet connection lost: banner within 35 s (${seenAt ?? 'never'} s)`, seenAt !== null && seenAt <= 35)
+await A.setOffline(false)
+await pageA.waitForTimeout(12000)
+check('quiet connection back: no banner (nothing was refused)', !(await pageA.locator('text=Connection lost').isVisible()) && !(await pageA.locator('text=Some changes may not').isVisible()))
 
 await api(setup, 'DELETE', `/api/sessions/${DATE}`)
 await browser.close()

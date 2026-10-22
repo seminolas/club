@@ -947,7 +947,8 @@ function appData() {
         ws.onopen = () => {
           live.attempt = 0;
           clearTimers();
-          if (this.liveProblem === 'reconnecting') this.liveProblem = null;
+          // Back: everything unsent is resent, so only a refused write keeps the banner.
+          if (!live.refused) this.liveProblem = null;
           clearInterval(this._pollInterval);
           this._pollInterval = null;
           // Heartbeat: the room answers "ping" with "pong" (without waking up);
@@ -1010,7 +1011,7 @@ function appData() {
         if (p && !this._scoreSaveTimers[p.key] && ![...live.pending.values()].some(q => q.key === p.key)) {
           this._dirtyScoreCells.delete(p.key);
         }
-        if (!msg.ok) this.liveProblem = 'reload';
+        if (!msg.ok) { live.refused = true; this.liveProblem = 'reload'; }
       } else if (msg.type === 'match') {
         this._mergeMatchSets(msg.box, msg.match, msg.sets);
       } else if (msg.type === 'changed') {
