@@ -916,7 +916,8 @@ function appData() {
     },
 
     _startLive(date) {
-      const live = { date, ws: null, pending: new Map(), attempt: 0, closed: false, timers: [] };
+      // (Alpine wraps this in a proxy once stored, so compare `token`, not the object.)
+      const live = { token: Math.random().toString(36).slice(2), date, ws: null, pending: new Map(), attempt: 0, closed: false, timers: [] };
       this._live = live;
       const clearTimers = () => { live.timers.forEach(clearTimeout); live.timers = []; };
       const connect = () => {
@@ -966,7 +967,7 @@ function appData() {
     },
 
     _onLiveMessage(live, msg) {
-      if (live !== this._live) return;
+      if (live.token !== this._live?.token) return;
       if (msg.type === 'ack') {
         const p = live.pending.get(msg.id);
         live.pending.delete(msg.id);
