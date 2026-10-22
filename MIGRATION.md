@@ -80,6 +80,8 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 - **A known bug, deliberately not fixed yet** (the requirements may change; see AGENTS.md, Known issues): a ladder import while a session is open doesn't show. Revisit with ladder import. (The other one, deleting a player with a login or role but no game data failing, went away in S4b: 0012 dropped the tables that blocked it.)
 
+- **Parked sign-in methods** (2026-10-22: Google only for now, the others "too much trouble" for the moment): one-time email codes (BetterAuth `emailOTP`, needs Resend + DNS on a sending domain), admin-issued single-use sign-in links (e.g. shared on WhatsApp), Facebook (needs a Meta app; per-app ids, sometimes no email), passkeys. Only 2 regular players were Facebook-only on HelloClub (Martin Hedlund, Tricia Liew). Also parked: fetching members' HelloClub sign-in emails (`profiles`) to improve auto-linking; revisit with a scheduled HelloClub sync (S7).
+
 ## Where things are in `club-next` (reference)
 
 - `decisions.md`, `guidelines.md`, `architecture.md`, `user-stories.md`, `open-questions.md`: the thinking behind it all. Still valid unless a migration step changes it.
@@ -101,3 +103,4 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 - **2026-10-21 (S2):** The SQL migrations in `worker/migrations` stay the source of truth for the schema; `worker/src/db/schema.ts` mirrors them for typed queries, with a test that fails on drift. How new schema changes are written (by hand, or generated with `drizzle-kit generate`) is decided when S3 is planned.
 - **2026-10-21 (S2):** Database tests run on a real local D1 (wrangler's `getPlatformProxy`) rather than better-sqlite3, so they use the same engine as prod. Fixtures use made-up names because the repo is public.
 - **2026-10-21:** A reusable table + actions component is being designed separately in `C:/dev/src/club-table-lab` (its own repo; `club` and `club-next` are read-only there). When accepted, its `HANDOVER.md` describes how it's adopted in S5.
+- **2026-10-22 (V1, planned):** Players sign in with **Google only** for now. On sign-in: an already-linked login is done; otherwise auto-link when exactly one unlinked active player's HelloClub email (`players.email`) matches the Google email (case-insensitive; shared emails don't auto-link); otherwise "This is me": pick yourself from the unlinked active players, linked immediately, no approval (admins can unlink). Not on the list: ask an admin. Signed-in players get no new behaviour yet (name + sign out only); that comes with V2/V3. The admin player page shows the linked Google account with Unlink.
