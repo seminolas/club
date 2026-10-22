@@ -44,7 +44,7 @@ const ctx = (over: Partial<LiveContext> = {}): LiveContext => ({
   db: t.db,
   clubId: 1,
   date: '2026-01-13', // in games
-  canWrite: true,
+  writer: { isAdmin: true, playerId: null },
   seen: seenSet(),
   ...over,
 })
@@ -104,8 +104,16 @@ describe('applying a write', () => {
   it('refuses non-admins, closed sessions and unknown matches', async () => {
     const m = write('write-0001', 0, 1, 1, 21, 9)
     expect(
-      (await handleWrite(ctx({ canWrite: false }), m)).reply,
-    ).toMatchObject({ ok: false, error: 'Only admins can enter scores' })
+      (
+        await handleWrite(
+          ctx({ writer: { isAdmin: false, playerId: null } }),
+          m,
+        )
+      ).reply,
+    ).toMatchObject({
+      ok: false,
+      error: 'Sign in and pick your player to enter scores',
+    })
     expect(
       (await handleWrite(ctx({ date: '2026-01-06' }), m)).reply,
     ).toMatchObject({ ok: false, error: 'Session is closed' })
@@ -130,6 +138,51 @@ describe('applying a write', () => {
         [15, 21],
       ],
     })
+  })
+})
+
+describe('players entering scores (V3)', () => {
+  // Session 2026-01-13: box 0 = Aroha, Ben, Mia, Dev Singh; box 1 = Ella, Chloe (3), Dev Patel, Finn, Isla.
+  const asPlayer = (playerId: number) =>
+    ctx({ writer: { isAdmin: false, playerId } })
+
+  it('a player can enter any match in their own box, including ones they sit out', async () => {
+    // Chloe is position 1 in box 1; match 2 ([0, 2] v [3, 4]) is one she sits out.
+    expect(
+      (await handleWrite(asPlayer(3), write('write-0001', 1, 2, 0, 21, 8)))
+        .reply,
+    ).toEqual({ type: 'ack', id: 'write-0001', ok: true })
+    expect((await db.getBoxes(t.db, 2))[1].matches[2].sets).toEqual([[21, 8]])
+  })
+
+  it('but not another box', async () => {
+    expect(
+      (await handleWrite(asPlayer(3), write('write-0001', 0, 1, 1, 21, 9)))
+        .reply,
+    ).toMatchObject({
+      ok: false,
+      error: 'You can only enter scores for your own box',
+    })
+    expect((await db.getBoxes(t.db, 2))[0].matches[1].sets).toEqual([[21, '']])
+  })
+
+  it('nor a player who isn’t at the session, nor a closed session', async () => {
+    expect(
+      (await handleWrite(asPlayer(12), write('write-0001', 1, 0, 0, 21, 8)))
+        .reply,
+    ).toMatchObject({
+      ok: false,
+      error: 'You can only enter scores for your own box',
+    })
+    // Ella (6) was in box 1 on 2026-01-06, which is closed.
+    expect(
+      (
+        await handleWrite(
+          ctx({ date: '2026-01-06', writer: { isAdmin: false, playerId: 6 } }),
+          write('write-0002', 1, 0, 0, 21, 8),
+        )
+      ).reply,
+    ).toMatchObject({ ok: false, error: 'Session is closed' })
   })
 })
 
@@ -191,9 +244,9 @@ describe('the Durable Object', () => {
       },
     } as unknown as DurableObjectState
     const r = new SessionRoom(state, { DB: jittery(t.raw) } as unknown as Env)
-    const connect = (canWrite: boolean) => {
+    const connect = (isAdmin: boolean, playerId: number | null = null) => {
       const s = {
-        att: { date: '2026-01-13', canWrite },
+        att: { date: '2026-01-13', writer: { isAdmin, playerId } },
         got: [] as ServerMessage[],
         ws: null as unknown as WebSocket,
       }
@@ -272,7 +325,7 @@ describe('the Durable Object', () => {
         type: 'ack',
         id: 'write-0001',
         ok: false,
-        error: 'Only admins can enter scores',
+        error: 'Sign in and pick your player to enter scores',
       },
     ])
     expect(other.got).toEqual([])

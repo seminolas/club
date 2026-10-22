@@ -6,7 +6,7 @@
 // session data; this object keeps just the ids of recent writes.
 import { DurableObject } from 'cloudflare:workers'
 import { handleWrite, parseClientMessage } from './live-core'
-import type { SeenWrites, ServerMessage } from './live-core'
+import type { SeenWrites, ServerMessage, Writer } from './live-core'
 import type { Env } from './types'
 
 const CLUB_ID = 1
@@ -14,7 +14,7 @@ const RECENT_WRITES = 2000
 
 interface Attachment {
   date: string
-  canWrite: boolean
+  writer: Writer
 }
 
 export class SessionRoom extends DurableObject<Env> {
@@ -41,9 +41,14 @@ export class SessionRoom extends DurableObject<Env> {
     const [client, server] = [pair[0], pair[1]]
     // Hibernation API: the object can sleep while sockets stay open.
     this.ctx.acceptWebSocket(server)
+    // Set by the Worker from the sign-in (the room isn't reachable otherwise).
+    const playerId = Number(request.headers.get('x-player-id'))
     server.serializeAttachment({
       date: request.headers.get('x-session-date') ?? '',
-      canWrite: request.headers.get('x-can-write') === '1',
+      writer: {
+        isAdmin: request.headers.get('x-is-admin') === '1',
+        playerId: Number.isInteger(playerId) && playerId > 0 ? playerId : null,
+      },
     } satisfies Attachment)
     return new Response(null, { status: 101, webSocket: client })
   }
@@ -53,14 +58,14 @@ export class SessionRoom extends DurableObject<Env> {
       typeof raw === 'string' ? raw : new TextDecoder().decode(raw),
     )
     if (!msg) return
-    const { date, canWrite } = ws.deserializeAttachment() as Attachment
+    const { date, writer } = ws.deserializeAttachment() as Attachment
     const run = this.queue.then(() =>
       handleWrite(
         {
           db: this.env.DB.withSession('first-primary'),
           clubId: CLUB_ID,
           date,
-          canWrite,
+          writer,
           seen: this.seen,
         },
         msg,

@@ -67,11 +67,18 @@ export interface SeenWrites {
   add: (id: string) => Promise<void>
 }
 
+/** Who's on this connection (set by the Worker from the sign-in). */
+export interface Writer {
+  isAdmin: boolean
+  /** Their player, if signed in and linked. */
+  playerId: number | null
+}
+
 export interface LiveContext {
   db: DB
   clubId: number
   date: string
-  canWrite: boolean
+  writer: Writer
   seen: SeenWrites
 }
 
@@ -83,10 +90,15 @@ export async function handleWrite(
   const fail = (error: string) => ({
     reply: { type: 'ack', id: msg.id, ok: false, error } as const,
   })
-  if (!ctx.canWrite) return fail('Only admins can enter scores')
+  // Admins: any box. Players (V3): any match in their own box.
+  const { isAdmin, playerId } = ctx.writer
+  if (!isAdmin && playerId === null)
+    return fail('Sign in and pick your player to enter scores')
   const session = await db.getSessionByDate(ctx.db, ctx.clubId, ctx.date)
   if (!session) return fail('Session not found')
   const { box, match, set, a, b } = msg.op
+  if (!isAdmin && !(await db.isPlayerInBox(ctx.db, session.id, box, playerId!)))
+    return fail('You can only enter scores for your own box')
   if (!(await ctx.seen.has(msg.id))) {
     if (session.status === 'closed') return fail('Session is closed')
     const ok = await db.updateSetScore(

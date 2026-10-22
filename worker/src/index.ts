@@ -105,16 +105,21 @@ const sessionRoom = (env: Env, date: string) =>
   env.SESSION_ROOM?.get(env.SESSION_ROOM.idFromName(`${CLUB_ID}:${date}`))
 
 // A WebSocket to the session's live channel: everyone viewing gets updates;
-// only admins may send score writes.
+// admins may enter any score, players (V3) their own box's.
 app.get('/api/live/:date', async (c) => {
   if (c.req.header('Upgrade') !== 'websocket')
     return c.json({ error: 'Expected a WebSocket' }, 426)
   const room = sessionRoom(c.env, c.req.param('date'))
   if (!room) return c.json({ error: 'Live updates unavailable' }, 503)
   const session = await getSession(c)
+  const player = session
+    ? await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id)
+    : null
+  // Overwrites anything the browser sent under these names.
   const headers = new Headers(c.req.raw.headers)
   headers.set('x-session-date', c.req.param('date'))
-  headers.set('x-can-write', session?.user.role === 'admin' ? '1' : '0')
+  headers.set('x-is-admin', session?.user.role === 'admin' ? '1' : '0')
+  headers.set('x-player-id', player ? String(player.id) : '')
   return room.fetch(new Request(c.req.raw.url, { headers }))
 })
 
