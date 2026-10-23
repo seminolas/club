@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { BoxInput, Env } from './types'
 import { getSession, requireAdmin } from './auth'
@@ -9,7 +10,7 @@ import type { DB } from './db'
 // The live session Durable Object class, for the Workers runtime (S6a).
 export { SessionRoom } from './live'
 
-type Variables = { db: DB }
+type Variables = { db: DB; userId?: string }
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -35,6 +36,15 @@ app.use('*', async (c, next) => {
 
 // Hard-coded to club_id=1 for now; extend to subdomain routing when multi-club.
 const CLUB_ID = 1
+
+// The signed-in person's player id (after requireAdmin), for the check-in audit.
+async function actingPlayerId(
+  c: Context<{ Bindings: Env; Variables: Variables }>,
+): Promise<number | null> {
+  const userId = c.get('userId')
+  if (!userId) return null
+  return (await db.getPlayerByUserId(c.get('db'), CLUB_ID, userId))?.id ?? null
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -259,7 +269,13 @@ app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
     return c.json({ error: 'Cannot change attendance in this state' }, 400)
   }
 
-  await db.setAttendance(c.get('db'), session.id, player_id, attending)
+  await db.setAttendance(
+    c.get('db'),
+    session.id,
+    player_id,
+    attending,
+    await actingPlayerId(c),
+  )
   notifyLive(c, date)
   return c.json({ ok: true })
 })
@@ -434,6 +450,7 @@ app.post('/api/players', requireAdmin, async (c) => {
     session.id,
     name,
     insert_rank,
+    await actingPlayerId(c),
   )
 
   notifyLive(c, session_date)

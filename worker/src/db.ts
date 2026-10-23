@@ -6,9 +6,11 @@ import {
   count,
   desc,
   eq,
+  exists,
   gte,
   inArray,
   isNull,
+  notExists,
   sql,
 } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
@@ -323,28 +325,64 @@ export async function getAttendees(
     .orderBy(sql`COALESCE(${t.sessionRanks.rankPosition}, 9999)`)
 }
 
+/**
+ * Marks a player as coming or not, and records the change in the check-in
+ * audit with who made it. Only real changes are recorded: marking someone
+ * who's already coming, or unmarking someone who isn't, records nothing.
+ */
 export async function setAttendance(
   db: DB,
   sessionId: number,
   playerId: number,
   attending: boolean,
+  byPlayerId: number | null,
 ): Promise<void> {
   const d = orm(db)
-  if (attending) {
-    await d
-      .insert(t.attendees)
-      .values({ sessionId, playerId })
-      .onConflictDoNothing()
-  } else {
-    await d
-      .delete(t.attendees)
+  const isAttending = d
+    .select({ one: sql`1` })
+    .from(t.attendees)
+    .where(
+      and(
+        eq(t.attendees.sessionId, sessionId),
+        eq(t.attendees.playerId, playerId),
+      ),
+    )
+  // Before the change, in the same batch, so it sees the state being changed.
+  const event = d.insert(t.attendanceEvents).select(
+    d
+      .select({
+        // Every column, in table order (Drizzle requires it); NULL id = next.
+        id: sql<number>`NULL`.as('id'),
+        sessionId: sql<number>`${sessionId}`.as('session_id'),
+        playerId: t.players.id,
+        attending: sql<boolean>`${attending ? 1 : 0}`.as('attending'),
+        byPlayerId: sql<number | null>`${byPlayerId}`.as('by_player_id'),
+        at: sql<string>`datetime('now')`.as('at'),
+      })
+      .from(t.players)
       .where(
         and(
-          eq(t.attendees.sessionId, sessionId),
-          eq(t.attendees.playerId, playerId),
+          eq(t.players.id, playerId),
+          attending ? notExists(isAttending) : exists(isAttending),
         ),
-      )
-  }
+      ),
+  )
+  await runBatch(db, [
+    event,
+    attending
+      ? d
+          .insert(t.attendees)
+          .values({ sessionId, playerId })
+          .onConflictDoNothing()
+      : d
+          .delete(t.attendees)
+          .where(
+            and(
+              eq(t.attendees.sessionId, sessionId),
+              eq(t.attendees.playerId, playerId),
+            ),
+          ),
+  ])
 }
 
 // ── Boxes ─────────────────────────────────────────────────────────────────────
@@ -466,6 +504,9 @@ export async function deleteSession(db: DB, sessionId: number): Promise<void> {
   await runBatch(db, [
     ...deleteBoxesQueries(db, sessionId),
     d.delete(t.attendees).where(eq(t.attendees.sessionId, sessionId)),
+    d
+      .delete(t.attendanceEvents)
+      .where(eq(t.attendanceEvents.sessionId, sessionId)),
     d.delete(t.sessionRanks).where(eq(t.sessionRanks.sessionId, sessionId)),
     d.delete(t.sessions).where(eq(t.sessions.id, sessionId)),
   ])
@@ -655,6 +696,7 @@ export async function addPlayerMidSession(
   sessionId: number,
   name: string,
   insertRank: number,
+  byPlayerId: number | null,
 ): Promise<number> {
   const d = orm(db)
   await runBatch(db, [
@@ -683,6 +725,12 @@ export async function addPlayerMidSession(
       phase: 'before',
     }),
     d.insert(t.attendees).values({ sessionId, playerId: newPlayer.id }),
+    d.insert(t.attendanceEvents).values({
+      sessionId,
+      playerId: newPlayer.id,
+      attending: true,
+      byPlayerId,
+    }),
   ])
 
   return newPlayer.id
@@ -937,7 +985,14 @@ export async function deletePlayer(
   if (gameData > 0) {
     return { deleted: false, reason: 'Player has game data' }
   }
+  // A player with no game data may still be in the check-in audit (marked,
+  // then unmarked) or have marked others; keep the others' records.
   await runBatch(db, [
+    d.delete(t.attendanceEvents).where(eq(t.attendanceEvents.playerId, id)),
+    d
+      .update(t.attendanceEvents)
+      .set({ byPlayerId: null })
+      .where(eq(t.attendanceEvents.byPlayerId, id)),
     d.delete(t.sessionRanks).where(eq(t.sessionRanks.playerId, id)),
     d.delete(t.players).where(eq(t.players.id, id)),
   ])

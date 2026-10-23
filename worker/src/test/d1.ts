@@ -33,6 +33,7 @@ const DATA_TABLES = [
   'matches',
   'box_players',
   'boxes',
+  'attendance_events',
   'attendees',
   'session',
   'account',

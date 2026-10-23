@@ -205,10 +205,10 @@ describe('writes', () => {
   })
 
   it('setAttendance: add (idempotent) and remove', async () => {
-    await db.setAttendance(t.db, 2, 8, true)
-    await db.setAttendance(t.db, 2, 8, true)
-    await db.setAttendance(t.db, 2, 1, false)
-    await db.setAttendance(t.db, 2, 99, false)
+    await db.setAttendance(t.db, 2, 8, true, null)
+    await db.setAttendance(t.db, 2, 8, true, null)
+    await db.setAttendance(t.db, 2, 1, false, null)
+    await db.setAttendance(t.db, 2, 99, false, null)
     expect(await db.getAttendees(t.db, 2)).toMatchSnapshot()
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
@@ -258,7 +258,7 @@ describe('writes', () => {
   })
 
   it('addPlayerMidSession: shifts the before-ladder, ranks and marks the new player attending', async () => {
-    const id = await db.addPlayerMidSession(t.db, 1, 2, 'Nina New', 2)
+    const id = await db.addPlayerMidSession(t.db, 1, 2, 'Nina New', 2, null)
     expect(id).toBe(19)
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
@@ -348,13 +348,14 @@ describe('writes at real scale', () => {
     )
     const attending = ladder.slice(0, 39).map((p) => p.id)
     for (const id of attending)
-      await db.setAttendance(t.db, sessionId, id, true)
+      await db.setAttendance(t.db, sessionId, id, true, null)
     const added = await db.addPlayerMidSession(
       t.db,
       1,
       sessionId,
       'Late Arrival',
       20,
+      null,
     )
     steps.added = added
     steps.beforeLadder = (await db.getSessionRanks(t.db, sessionId, 'before'))

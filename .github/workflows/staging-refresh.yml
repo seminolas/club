@@ -55,6 +55,7 @@ jobs:
           DROP TABLE IF EXISTS matches;
           DROP TABLE IF EXISTS box_players;
           DROP TABLE IF EXISTS boxes;
+          DROP TABLE IF EXISTS attendance_events;
           DROP TABLE IF EXISTS attendees;
           DROP TABLE IF EXISTS player_roles;
           DROP TABLE IF EXISTS player_auth_profiles;
