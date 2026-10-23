@@ -9,6 +9,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
 import type { SessionStatus } from '../types'
 
 export const clubs = sqliteTable('clubs', {
@@ -169,6 +170,30 @@ export const attendees = sqliteTable(
       .references(() => players.id),
   },
   (t) => [primaryKey({ columns: [t.sessionId, t.playerId] })],
+)
+
+/**
+ * Check-in audit: every change to who's coming, with who made it (the person,
+ * not their login) and when. Append-only; `attendees` is the current state.
+ */
+export const attendanceEvents = sqliteTable(
+  'attendance_events',
+  {
+    id: integer('id').primaryKey(),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id),
+    attending: integer('attending', { mode: 'boolean' }).notNull(),
+    byPlayerId: integer('by_player_id').references(() => players.id),
+    /** UTC, YYYY-MM-DD HH:MM:SS */
+    at: text('at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [index('attendance_events_session').on(t.sessionId, t.playerId, t.at)],
 )
 
 export const boxes = sqliteTable(

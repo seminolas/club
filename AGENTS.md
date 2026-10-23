@@ -78,7 +78,7 @@ Staging receives prod's already-migrated schema via the dump, so **apply new mig
 **If you add a new table to the schema**, update the wipe step in `staging-refresh.yml`. Add the table to the `DROP TABLE IF EXISTS` list in child-before-parent order (leaf/child tables before the parent tables they reference). Missing entries cause the wipe to fail with `FOREIGN KEY constraint failed` on whichever parent table is dropped before its child. The current order:
 
 ```
-match_players → match_sets → matches → box_players → boxes → attendees
+match_players → match_sets → matches → box_players → boxes → attendance_events → attendees
 → session_ranks → sessions → players → session → account → verification
 → user → clubs → d1_migrations
 ```
@@ -155,7 +155,8 @@ clubs           -- id, name, short_name, config (JSON)
 players         -- id, club_id, name, hc_member_id, archived_at, email, preferred_name, user_id (→ user)
 sessions        -- id, club_id, date (YYYY-MM-DD), status, created_at, closed_at
 session_ranks   -- session_id, player_id, rank_position, phase ('before'|'after')  (replaces old session_lb)
-attendees       -- session_id, player_id
+attendees       -- session_id, player_id  (who's coming now)
+attendance_events -- id, session_id, player_id, attending (0/1), by_player_id, at  (check-in audit, append-only)
 boxes           -- id, session_id, box_number
 box_players     -- box_id, player_id, position (0-indexed)
 matches         -- id, box_id, match_number
@@ -164,6 +165,8 @@ match_players   -- match_id, player_id, side (0 = pair A, 1 = pair B)
 user            -- BetterAuth: id (text), name, email, role ('admin'|'user'), ...
 session, account, verification  -- BetterAuth (account: provider_id 'google'|'credential', account_id = Google sub)
 ```
+
+**Check-in audit (S3a):** every real change to who's coming (marking, unmarking, adding a new player mid-session) writes an `attendance_events` row in the same batch as the `attendees` change: who (the signed-in person's *player*, not their login, so it survives a login being moved; null if they have none) and when (UTC). Repeating a mark or unmark records nothing. Deleting a session deletes its events; deleting a player deletes events about them and blanks `by_player_id` where they made the change. Nothing reads it yet (no API, no UI); query it with `wrangler d1 execute`.
 
 `club_id = 1` is hard-coded throughout (`CLUB_ID = 1` in `index.ts`). Multi-club support is noted as future work.
 
@@ -175,7 +178,7 @@ npm run db:migrate:staging                                         # rehearse on
 npx wrangler d1 export club-prod --remote --output <backup.sql>      # back up prod
 npm run db:migrate:prod
 ```
-Don't use `wrangler d1 execute --file` for migrations any more: wrangler wouldn't record them and would try to run them again. Files 0002–0010 were applied that way and backfilled into `d1_migrations` on 2026-10-21 (`worker/scripts/backfill-d1-migrations.sql`). There is a naming collision at `0002` (two files); both were applied. The next migration is `0011`.
+Don't use `wrangler d1 execute --file` for migrations any more: wrangler wouldn't record them and would try to run them again. Files 0002–0010 were applied that way and backfilled into `d1_migrations` on 2026-10-21 (`worker/scripts/backfill-d1-migrations.sql`). There is a naming collision at `0002` (two files); both were applied. The next migration is `0014`.
 
 ---
 

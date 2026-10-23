@@ -252,7 +252,7 @@ describe('admin', () => {
       closed_at: s.closed_at ? '<set>' : null,
     }))
     expect(sessions).toMatchSnapshot()
-  })
+  }, 30_000) // many requests against the local D1
 
   it('players: update profile, delete with and without game data; leaderboard import; delete session', async () => {
     const out = [
