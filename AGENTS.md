@@ -56,11 +56,20 @@ The Worker compiles `src/index.ts` via wrangler on deploy. The only frontend bui
 
 ---
 
+## Backups
+
+- **Last 7 days: D1 Time Travel** (built in, free plan). Restores the whole prod database to any minute: `npx wrangler d1 time-travel restore club-prod --timestamp=<ISO time or unix seconds>` (from `worker/`; `time-travel info` shows the bookmark first). This is the first choice for "undo a bad change".
+- **Older: nightly backups** in the **private** repo `seminolas/club-backups` (`club-prod.sql`; git history keeps every night). `.github/workflows/backup-prod.yml` runs at 14:00 UTC (2–3am NZ) and on demand ("Run workflow"): `wrangler d1 export club-prod`, then `worker/scripts/sanitize-backup.mts` (`src/backup.ts`) leaves out sign-in sessions and verification rows and blanks Google tokens and passwords on `account` (a restore just means signing in again), then commits only if something changed. It pushes with the deploy key in the `BACKUPS_DEPLOY_KEY` secret (write access to club-backups only). GitHub emails the repo owner if a run fails.
+- **Never put dumps in this repo or its Action artifacts**: it's public and the data has names, emails and HelloClub ids.
+- **Restore drill / restoring an old backup:** run the staging refresh with source `backup` (optionally a club-backups commit as `backup_ref`), check staging, then, only if prod really needs it, load the same file into prod by hand (`wrangler d1 execute club-prod --remote --file club-prod.sql` after wiping it like the staging refresh does) — take a fresh export of prod first.
+
+---
+
 ## Staging refresh (GitHub Action)
 
-`.github/workflows/staging-refresh.yml` — triggered manually via the GitHub Actions UI:
+`.github/workflows/staging-refresh.yml` — triggered manually via the GitHub Actions UI. Source `prod` (default) loads live prod; source `backup` loads a nightly backup from club-backups instead (see Backups):
 
-1. Exports prod D1 to a SQL dump
+1. Exports prod D1 to a SQL dump (or takes the backup's `club-prod.sql`)
 2. Wipes staging — drops all tables in FK-safe order with `PRAGMA foreign_keys = OFF`
 3. Loads the prod dump into staging
 
@@ -92,7 +101,7 @@ match_players → match_sets → matches → box_players → boxes → attendees
 │   └── stats2.html     # analytics dashboard v2 experiment
 ├── e2e/                # Playwright browser checks (own package.json; not served)
 │   └── shot.mjs        # open pages, screenshot, report console errors
-├── .github/workflows/  # ci.yml (typecheck, lint, format, tests), deploy-staging.yml, staging-refresh.yml
+├── .github/workflows/  # ci.yml (typecheck, lint, format, tests), deploy-staging.yml, staging-refresh.yml, backup-prod.yml
 └── worker/
     ├── wrangler.toml
     ├── src/

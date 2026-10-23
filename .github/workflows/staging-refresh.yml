@@ -1,7 +1,19 @@
 name: Refresh staging D1 from prod
 
+# Loads prod's data into staging: live from prod (default), or from a nightly
+# backup in seminolas/club-backups (the restore drill).
 on:
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Load from live prod, or from a backup'
+        type: choice
+        options: [prod, backup]
+        default: prod
+      backup_ref:
+        description: 'With source "backup": a commit of club-backups (default: the latest)'
+        type: string
+        default: main
 
 jobs:
   refresh:
@@ -13,10 +25,26 @@ jobs:
         run: npm install -g wrangler
 
       - name: Export prod D1 (schema + data)
+        if: inputs.source != 'backup'
         run: wrangler d1 export club-prod --remote --output prod-dump.sql
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: Use a backup instead
+        if: inputs.source == 'backup'
+        uses: actions/checkout@v5
+        with:
+          repository: seminolas/club-backups
+          ssh-key: ${{ secrets.BACKUPS_DEPLOY_KEY }}
+          ref: ${{ inputs.backup_ref }}
+          path: backups
+
+      - name: Take the backup's dump
+        if: inputs.source == 'backup'
+        run: |
+          cp backups/club-prod.sql prod-dump.sql
+          echo "Loading backup $(git -C backups log -1 --format='%h %s')"
 
       - name: Wipe staging D1
         run: |
