@@ -7,6 +7,12 @@
   },
   {
     "type": "index",
+    "name": "attendance_events_session",
+    "tbl_name": "attendance_events",
+    "sql": "CREATE INDEX attendance_events_session ON attendance_events(session_id, player_id, at)"
+  },
+  {
+    "type": "index",
     "name": "boxes_session",
     "tbl_name": "boxes",
     "sql": "CREATE INDEX boxes_session ON boxes(session_id, box_number)"
@@ -64,6 +70,12 @@
     "name": "account",
     "tbl_name": "account",
     "sql": "CREATE TABLE `account` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`account_id` text NOT NULL,\n\t`provider_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`access_token` text,\n\t`refresh_token` text,\n\t`id_token` text,\n\t`access_token_expires_at` integer,\n\t`refresh_token_expires_at` integer,\n\t`scope` text,\n\t`password` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade\n)"
+  },
+  {
+    "type": "table",
+    "name": "attendance_events",
+    "tbl_name": "attendance_events",
+    "sql": "CREATE TABLE attendance_events (\n  id INTEGER PRIMARY KEY,\n  session_id INTEGER NOT NULL REFERENCES sessions(id),\n  player_id INTEGER NOT NULL REFERENCES players(id),\n  attending INTEGER NOT NULL,\n  by_player_id INTEGER REFERENCES players(id),\n  at TEXT NOT NULL DEFAULT (datetime('now'))\n)"
   },
   {
     "type": "table",

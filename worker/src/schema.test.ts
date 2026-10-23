@@ -4,9 +4,9 @@ import { createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
 
 // prod-schema.json: sqlite_master from club-prod (structure only), re-captured
-// 2026-10-22 when prod's latest migration was PROD_SCHEMA_AT. After applying a
+// 2026-10-23 when prod's latest migration was PROD_SCHEMA_AT. After applying a
 // new migration to prod, re-capture it and move PROD_SCHEMA_AT forward.
-const PROD_SCHEMA_AT = '0012_drop_old_auth.sql'
+const PROD_SCHEMA_AT = '0013_attendance_events.sql'
 // Compares structure, not formatting: prod's stored SQL keeps comments and
 // layout on some tables but not others (applied different ways over time).
 const normalise = (sql: string | null) =>
