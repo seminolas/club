@@ -2,16 +2,7 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import {
-  Alert,
-  Anchor,
-  Box,
-  Button,
-  Group,
-  Paper,
-  Stack,
-  Text,
-} from '@mantine/core'
+import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { IconChevronLeft } from '@tabler/icons-react'
@@ -31,6 +22,7 @@ import type { LiveChannel } from '../../lib/live'
 import { boxName } from '../../lib/names'
 import { useScoreEntry } from '../../lib/scores'
 import { printSignInSheet } from '../../lib/print'
+import { shareOnWhatsApp } from '../../lib/share'
 import {
   ladderQuery,
   sessionListQuery,
@@ -42,6 +34,8 @@ import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
 import { AssignBoxesModal } from './AssignBoxesModal'
 import { BoxesStep } from './BoxesStep'
+import { HcSyncModal } from './HcSyncModal'
+import { ResultsStep } from './ResultsStep'
 import type { Person } from './AssignBoxesModal'
 import { CheckInStep } from './CheckInStep'
 import { PINNED_H, useSessionCard } from './SessionCard'
@@ -62,6 +56,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const { data: ladder } = useSuspenseQuery(ladderQuery)
   const { data: sessions } = useSuspenseQuery(sessionListQuery)
   const [assigning, setAssigning] = useState(false)
+  const [syncing, setSyncing] = useState<string | null>(null)
 
   const reload = () =>
     Promise.all([
@@ -295,7 +290,22 @@ export function SessionPage(props: { date: string; step: StepId }) {
       </Button>
     ),
     boxes: null,
-    results: null,
+    results: (
+      <>
+        <Button
+          variant="default"
+          size="xs"
+          onClick={() => shareOnWhatsApp(date)}
+        >
+          Share on WhatsApp
+        </Button>
+        {admin && (
+          <Button variant="default" size="xs" onClick={() => setSyncing(date)}>
+            Sync to HelloClub
+          </Button>
+        )}
+      </>
+    ),
   }
 
   const card = useSessionCard({
@@ -351,21 +361,6 @@ export function SessionPage(props: { date: string; step: StepId }) {
       {content}
     </Box>
   )
-  // Steps not built yet (UI-PORT.md U5, U6): the card, and the old page.
-  const notYet = (id: StepId, oldTab: string) => (
-    <Stack gap="sm">
-      <Paper withBorder radius="md" px="sm" py="xs" className="club-page-card">
-        {card.content(id)}
-      </Paper>
-      <Text size="sm">
-        This step comes next.{' '}
-        <Anchor href={`/#/${date}/${oldTab}`}>
-          Open it in the old version
-        </Anchor>
-      </Text>
-    </Stack>
-  )
-
   return (
     <Stack gap="sm">
       {card.pinnedBar}
@@ -416,7 +411,19 @@ export function SessionPage(props: { date: string; step: StepId }) {
             stickyTop={PINNED_H}
           />,
         )}
-      {phase === 'closed' && view('results', notYet('results', 'wrapup'))}
+      {phase === 'closed' &&
+        view(
+          'results',
+          <ResultsStep
+            session={session}
+            preferred={
+              new Map(ladder.map((p) => [p.id, p.preferredName] as const))
+            }
+            header={card.content('results')}
+            stickyTop={PINNED_H}
+          />,
+        )}
+      <HcSyncModal date={syncing} onClose={() => setSyncing(null)} />
       <AssignBoxesModal
         opened={assigning}
         players={coming}

@@ -18,7 +18,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | U3 | Player page (admin) | ✅ | branch `u3-player-page` (on `u2-landing`) |
 | U4 | Session page frame + Check-in step + Assign boxes | ✅ | branch `u4-session-checkin` (on `u3-player-page`) |
 | U5 | Boxes step: score entry, live channel, Close | ✅ | branch `u5-boxes` (on `u4-session-checkin`) |
-| U6 | Results step: stats table, Share, HelloClub sync | ⬜ | |
+| U6 | Results step: ladder movement, Share, HelloClub sync | ✅ | branch `u6-results` (on `u5-boxes`) |
 | U7 | Printing: sign-in sheet, score sheets (cards, grid) | ⬜ | |
 | U8 | Legibility pass, polish, phone checks | ⬜ | |
 | U9 | Cutover: new UI at `/`, old links redirect, Alpine removed | ⬜ | developer tries `/new/` on a real session night first |
@@ -303,3 +303,4 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
   - `lib/scores.ts` (`useScoreEntry`): the old `setScore` / `_scheduleScoreSave` / `_mergeMatchSets` rules on the cached session; every game that changes is saved (incl. a third game dropped on a sweep); `refresh()` reloads the session keeping cells still being edited (only if their box has the same players: a Reassign elsewhere wins).
   - Box names use the score sheets' rule (`boxName`) across everyone playing; while searching, matching players show in bold with their full name.
   - Score fields are read-only (not disabled) for those who can't edit; `focusFirstEmpty` skips read-only fields.
+- **2026-10-24 (U6):** done; on staging; `new-session.mjs` checks the Results table and buttons. Results = the players who played: Player, Box, Ranking Before / After / Change, sorted by After; filters Box and Ladder change. **Sync to HelloClub** calls the existing `POST /api/hc/sync` unchanged (HelloClub writes untouched) and shows its log; never clicked on staging. **Share on WhatsApp** sends today's text and old-style links (they keep working via U9's redirects).
