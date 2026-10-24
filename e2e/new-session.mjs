@@ -28,7 +28,7 @@ check('create session (API)', (await api('POST', '/api/sessions', { date: DATE }
 await admin.go(`/new/sessions/${DATE}`)
 check('opens at Check-in', page.url().endsWith(`/new/sessions/${DATE}/checkin`), page.url())
 const search = page.locator('[role=combobox]').first()
-const card = page.locator('.lt-actions').first()
+const card = page.locator('.lt-actions:visible').first()
 check('card: Check-in open, Coming: 0', /Check-in open/.test(await card.innerText()) && /Coming:\s*0/.test(await card.innerText()))
 
 // Mark 9 players by name + Enter (players ranked 1–9 who still exist).
@@ -84,7 +84,44 @@ await dialog.getByRole('button', { name: 'Assign' }).click()
 await page.waitForURL(/\/boxes$/)
 s = await sessionNow()
 check('Assign: playing, 2 boxes', s.status === 'games' && s.boxes.length === 2)
-check('card: Playing, Matches: 0/8', /Playing/.test(await page.locator('.club-page-card').first().innerText()) && /Matches:\s*0\/8/.test(await page.locator('.club-page-card').first().innerText()))
+check('card: Playing, Matches: 0/8', /Playing/.test(await page.locator('.lt-actions:visible').first().innerText()) && /Matches:\s*0\/8/.test(await page.locator('.lt-actions:visible').first().innerText()))
+
+// Close is blocked until every score is in.
+await page.getByRole('button', { name: 'Close' }).first().click()
+check('Close says to enter all scores first', await page.getByText('Enter all scores first').first().isVisible())
+
+// Type every match's scores (straight games) through the match cards.
+await page.getByRole('button', { name: 'Expand all' }).click()
+const fields = page.locator('[data-score]:visible')
+await fields.first().waitFor()
+await page.waitForTimeout(400)
+const total = await fields.count()
+for (let i = 0; i < total; i++) {
+  await fields.nth(i).click()
+  await fields.nth(i).pressSequentially(['21', '15', '21', '17'][i % 4], { delay: 30 })
+}
+await page.waitForTimeout(2500)
+s = await sessionNow()
+const allSaved = s.boxes.every((b) =>
+  b.matches.every((m) => JSON.stringify(m.sets) === '[[21,15],[21,17]]'),
+)
+check(`all ${total} scores saved`, total === 32 && allSaved, `${total} fields`)
+check('card: Matches: 8/8', /Matches:\s*8\/8/.test(await page.locator('.lt-actions:visible').first().innerText()))
+
+// Close: the confirm sums up the ladder change; then Results.
+await page.getByRole('button', { name: 'Close' }).first().click()
+check('Close confirm sums up the ladder', /The ladder moves: \d+ players? up, \d+ down/.test(await dialog.innerText()))
+await dialog.getByRole('button', { name: 'Close session' }).click()
+await page.waitForURL(/\/results$/)
+s = await sessionNow()
+check('closed, with a ladder after', s.status === 'closed' && s.leaderboardAfter?.length === ladder.length)
+
+// Re-open session from "…".
+await page.getByRole('button', { name: 'More session actions' }).first().click()
+await page.getByRole('menuitem', { name: /Re-open session/ }).click()
+await page.getByRole('dialog').getByRole('button', { name: 'Re-open session' }).click()
+await page.waitForURL(/\/boxes$/)
+check('re-opened: playing again', (await sessionNow()).status === 'games')
 
 // Re-open check-in from "…", then Assign offers the previous layout first.
 await page.getByRole('button', { name: 'More session actions' }).first().click()

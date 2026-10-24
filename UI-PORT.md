@@ -17,7 +17,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | U2 | `ListTable` + landing page: Players (ladder), Sessions | ✅ | branch `u2-landing` (on `u1-start-shell`) |
 | U3 | Player page (admin) | ✅ | branch `u3-player-page` (on `u2-landing`) |
 | U4 | Session page frame + Check-in step + Assign boxes | ✅ | branch `u4-session-checkin` (on `u3-player-page`) |
-| U5 | Boxes step: score entry, live channel, Close | ⬜ | |
+| U5 | Boxes step: score entry, live channel, Close | ✅ | branch `u5-boxes` (on `u4-session-checkin`) |
 | U6 | Results step: stats table, Share, HelloClub sync | ⬜ | |
 | U7 | Printing: sign-in sheet, score sheets (cards, grid) | ⬜ | |
 | U8 | Legibility pass, polish, phone checks | ⬜ | |
@@ -299,3 +299,7 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
   - **SSR date bug found and fixed:** date-only values were parsed as local noon, which is the next day in NZ when the server (UTC) renders ("Wed 21 Oct" vs "Tue 20 Oct", React hydration error #418). Use `dayStart(date)` (UTC midnight) for YYYY-MM-DD values; a test runs the formatting under `TZ=UTC`.
   - Steps Boxes and Results show the card and a link to the old page until U5/U6.
   - The "way forward" button when it can't be used yet (`data-disabled`) says why when tapped (toast), since tooltips don't work on phones.
+- **2026-10-24 (U5):** done; on staging. With `UI=new`, `player-scores.mjs`, `fast-scores.mjs` (32/32 in the typing window, the watching window and the database, reads delayed 1 s) and `live-offline.mjs` all pass against the new UI; without it they still pass against the old one (`e2e/ui-mode.mjs` holds the differences; `live-offline` drops the new UI's socket by tracking WebSockets from the test, not via app internals). `new-session.mjs` now runs a whole night: 32 scores typed, Close blocked until then, Close confirm with the ladder summary, Re-open session.
+  - `lib/scores.ts` (`useScoreEntry`): the old `setScore` / `_scheduleScoreSave` / `_mergeMatchSets` rules on the cached session; every game that changes is saved (incl. a third game dropped on a sweep); `refresh()` reloads the session keeping cells still being edited (only if their box has the same players: a Reassign elsewhere wins).
+  - Box names use the score sheets' rule (`boxName`) across everyone playing; while searching, matching players show in bold with their full name.
+  - Score fields are read-only (not disabled) for those who can't edit; `focusFirstEmpty` skips read-only fields.
