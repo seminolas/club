@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { claimPlayerFn } from '../fns/viewer'
 import { claimableQuery, viewerQuery } from '../lib/queries'
+import { INFO_TEXT } from '../lib/colors'
 import { toastOk } from '../lib/toasts'
 import classes from './ClaimModal.module.css'
 
@@ -49,7 +50,7 @@ export function ClaimModal(props: { opened: boolean; onSignOut: () => void }) {
       centered
     >
       <Stack gap="sm">
-        <Text size="sm" c="gray.7">
+        <Text size="sm" c={INFO_TEXT}>
           We couldn’t match your Google account to a player. Find yourself and
           tap your name.
         </Text>
@@ -74,7 +75,7 @@ export function ClaimModal(props: { opened: boolean; onSignOut: () => void }) {
             </UnstyledButton>
           ))}
           {players.isSuccess && matches.length === 0 && (
-            <Text size="sm" c="gray.7" p="xs">
+            <Text size="sm" c={INFO_TEXT} p="xs">
               No one by that name.
             </Text>
           )}
@@ -91,7 +92,7 @@ export function ClaimModal(props: { opened: boolean; onSignOut: () => void }) {
         >
           This is me
         </Button>
-        <Text size="sm" c="gray.7" ta="center">
+        <Text size="sm" c={INFO_TEXT} ta="center">
           New here? For now, an admin needs to add you.
         </Text>
         <Button variant="subtle" color="gray" onClick={props.onSignOut}>

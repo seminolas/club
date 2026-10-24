@@ -1,0 +1,10 @@
+/* Grey text that carries information: gray-7 or darker in light mode (the
+   lab's legibility rule, about 7:1), and its light counterpart in dark mode.
+   Mantine's "dimmed" is lighter and kept for decoration. Use it as
+   c="var(--club-info-text)" (lib/colors.ts: INFO_TEXT). */
+:root {
+  --club-info-text: light-dark(
+    var(--mantine-color-gray-7),
+    var(--mantine-color-dark-1)
+  );
+}

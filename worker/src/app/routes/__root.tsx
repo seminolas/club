@@ -26,6 +26,7 @@ import { SignInModal } from '../components/SignInModal'
 import { signOut } from '../lib/auth'
 import { viewerQuery } from '../lib/queries'
 import { toastOk } from '../lib/toasts'
+import appCss from '../styles.css?url'
 import { theme } from '../theme'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
@@ -39,6 +40,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       links: [
         { rel: 'stylesheet', href: mantineCss },
         { rel: 'stylesheet', href: notificationsCss },
+        { rel: 'stylesheet', href: appCss },
         {
           rel: 'icon',
           href: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏸</text></svg>',
@@ -81,7 +83,6 @@ function RootLayout() {
   // linked to its player by email gets a toast.
   useEffect(() => {
     const params = new URLSearchParams(location.search)
-    sessionStorage.removeItem('signingIn')
     if (params.has('error')) {
       setSignIn({
         open: true,

@@ -13,7 +13,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | Step | What | Status | PR / notes |
 | --- | --- | --- | --- |
 | U0 | This plan; MIGRATION.md updated | ✅ | branch `ui-port-plan` |
-| U1 | TanStack Start in the Worker, app shell at `/new/`, sign-in | ⬜ | |
+| U1 | TanStack Start in the Worker, app shell at `/new/`, sign-in | ✅ | branch `u1-start-shell` (on `ui-port-plan`) |
 | U2 | `ListTable` + landing page: Players (ladder), Sessions | ⬜ | |
 | U3 | Player page (admin) | ⬜ | |
 | U4 | Session page frame + Check-in step + Assign boxes | ⬜ | |
@@ -271,3 +271,13 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
 ## Log
 
 - **2026-10-24 (U0):** plan written with the developer. Read: `index.html`, `js/app.js`, `js/storage.js`; the lab's demos, `HANDOFF.md`, `DECISIONS.md`, `REQUIREMENTS.md`, step 32 screenshots; club-next's Start setup (`src/server.ts`, `vite.config.ts`, `src/routes/__root.tsx`, `src/router.tsx`). The lab's `HANDOFF.md` says step 31 but its gallery says step 32 ("session page settled; its experiments removed": Tabs/Wizard variants gone, Corner + labelled pills kept). Lab domain = club domain. Nights/Last-played query measured on staging: 1,265 rows read.
+- **2026-10-24 (U1):** done; staging deployed and checked (compare-api: 24/24 identical; compare: old UI pages identical; auth-ui, admin-flow, player-scores, live-offline, fast-scores all pass through the new entry). How it's wired, for later steps:
+  - `worker/src/server.ts` is the Worker `main`: `/api/*` → Hono (`src/index.ts`, still `export default app`), else → Start. Static files (old UI) are served before the Worker.
+  - Vite base stays `/`; the router basepath is set explicitly (`tanstackStart({ router: { basepath: '/new' } })`) and client files go to `build.assetsDir: 'new/assets'`. (With `base: '/new/'` the files landed in `/assets/` while the HTML pointed at `/new/assets/`.) Start redirects unknown paths to `/new/…`. **U9:** drop the basepath and assetsDir.
+  - Old UI files are copied into `worker/.legacy` (`scripts/copy-legacy.mjs`) = Vite's `publicDir`. So only built files are public now.
+  - `vite.config.mts` (not `.ts`: the package isn't `type: module`). `--mode staging` sets `CLOUDFLARE_ENV=staging`; checked with `wrangler deploy --dry-run`: staging → `club-api-staging` + `club-staging`, prod → `club` + `club-prod`, DO migration kept.
+  - Types: one `tsconfig.json` with DOM + `worker-configuration.d.ts` (`npm run types`); `@cloudflare/workers-types` removed. `@cloudflare/vite-plugin` 1.65.0 matches wrangler 4.152.0 (one wrangler). `@tanstack/react-query` 5.104.5 to match `react-router-ssr-query`'s query-core (two copies broke types).
+  - Services pattern: `src/services/context.ts` (`ServiceContext` = env + db + headers, `CLUB_ID`, `signedIn`), services throw `ServiceError(message, status)`; Hono routes use `run(c, fn)`; server functions build the context with `requestContext()` (`src/app/server/request.ts`, `env` from `cloudflare:workers`, `getRequestHeaders()`).
+  - **Informative grey:** `c={INFO_TEXT}` (`lib/colors.ts`, CSS var in `styles.css`), never `c="gray.7"`: gray-7 is unreadable in dark mode. Replace it in lab code when copying.
+  - Notifications: bottom-centre on phones, top-centre on desktop (closes the lab's toast-over-pinned-bar thread).
+  - Screenshots go to the session scratchpad, not `$TMP` (in Git Bash that's the system temp).

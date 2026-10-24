@@ -1,4 +1,5 @@
 import { Button, Modal, Stack, Text } from '@mantine/core'
+import { INFO_TEXT } from '../lib/colors'
 import { useState } from 'react'
 import { signInWithGoogle } from '../lib/auth'
 
@@ -23,7 +24,7 @@ export function SignInModal(props: {
       centered
     >
       <Stack gap="sm">
-        <Text size="sm" c="gray.7">
+        <Text size="sm" c={INFO_TEXT}>
           Sign in with your Google account.
         </Text>
         <Button

@@ -22,7 +22,6 @@ export async function signInWithGoogle() {
   }
   if (!res.ok || !data.url)
     throw new Error(data.message || 'Could not start sign-in')
-  sessionStorage.setItem('signingIn', '1')
   location.href = data.url
 }
 
