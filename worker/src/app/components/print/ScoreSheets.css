@@ -38,23 +38,24 @@
   line-height: 1.5;
   color: #1f2937;
 }
-#club-print *,
-#club-print ::before,
-#club-print ::after {
+/* :where() keeps these resets weaker than the sheet's own classes. */
+:where(#club-print) *,
+:where(#club-print) ::before,
+:where(#club-print) ::after {
   box-sizing: border-box;
   border-width: 0;
   border-style: solid;
   border-color: #e5e7eb;
 }
-#club-print table {
+#club-print :where(table) {
   border-collapse: collapse;
   text-indent: 0;
 }
-#club-print th,
-#club-print td {
+:where(#club-print) th,
+:where(#club-print) td {
   padding: 0;
 }
-#club-print th {
+:where(#club-print) th {
   font-weight: inherit;
 }
 
