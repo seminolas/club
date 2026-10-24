@@ -34,6 +34,11 @@ export default [
       'prettier.config.mjs',
       'src/test/legacy-algorithm.cjs',
       'scripts/**',
+      // Generated, or copied in at build time.
+      'worker-configuration.d.ts',
+      'src/app/routeTree.gen.ts',
+      '.legacy/**',
+      'dist/**',
     ],
   },
 ]

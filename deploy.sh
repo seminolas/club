@@ -3,4 +3,5 @@
 set -e
 cd worker
 npm ci
-npx wrangler deploy
+# Builds (Vite: the Worker, the new UI, the old UI's files), then deploys.
+npm run deploy

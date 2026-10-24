@@ -1,15 +1,21 @@
 {
+  // One config for the Worker, the new UI (src/app) and, via
+  // tsconfig.test.json, the tests. Workers runtime types come from
+  // `wrangler types` (worker-configuration.d.ts; rerun it after changing
+  // wrangler.toml), which coexist with the DOM types the UI needs.
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ES2022",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noImplicitReturns": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types"]
+    "noEmit": true,
+    "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "worker-configuration.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/test/**"]
 }

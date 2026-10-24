@@ -6,11 +6,20 @@ import { getSession, requireAdmin } from './auth'
 import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
+import { CLUB_ID } from './services/context'
+import type { ServiceContext } from './services/context'
+import {
+  ServiceError,
+  claimPlayer,
+  claimablePlayers,
+  loadViewer,
+} from './services/viewer'
 
 // The live session Durable Object class, for the Workers runtime (S6a).
 export { SessionRoom } from './live'
 
 type Variables = { db: DB; userId?: string }
+type AppContext = Context<{ Bindings: Env; Variables: Variables }>
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -34,13 +43,25 @@ app.use('*', async (c, next) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Hard-coded to club_id=1 for now; extend to subdomain routing when multi-club.
-const CLUB_ID = 1
+// The request as the shared services see it.
+const ctx = (c: AppContext): ServiceContext => ({
+  env: c.env,
+  db: c.get('db'),
+  headers: c.req.raw.headers,
+})
+
+// A service's result as JSON, or its refusal as `{ error }` with its status.
+async function run(c: AppContext, fn: () => Promise<object>) {
+  try {
+    return c.json(await fn())
+  } catch (e) {
+    if (e instanceof ServiceError) return c.json({ error: e.message }, e.status)
+    throw e
+  }
+}
 
 // The signed-in person's player id (after requireAdmin), for the check-in audit.
-async function actingPlayerId(
-  c: Context<{ Bindings: Env; Variables: Variables }>,
-): Promise<number | null> {
+async function actingPlayerId(c: AppContext): Promise<number | null> {
   const userId = c.get('userId')
   if (!userId) return null
   return (await db.getPlayerByUserId(c.get('db'), CLUB_ID, userId))?.id ?? null
@@ -58,54 +79,21 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) =>
 // A login with no player yet is linked here if exactly one player has its
 // (Google-verified) email as their HelloClub email; otherwise the browser
 // offers "This is me".
-app.get('/api/me', async (c) => {
-  const session = await getSession(c)
-  if (!session) return c.json({ signedIn: false, isAdmin: false })
-  const { user } = session
-  let player = await db.getPlayerByUserId(c.get('db'), CLUB_ID, user.id)
-  let justLinked = false
-  if (!player && user.emailVerified) {
-    player = await db.autoLinkByEmail(c.get('db'), CLUB_ID, user.id, user.email)
-    justLinked = player !== null
-  }
-  return c.json({
-    signedIn: true,
-    isAdmin: user.role === 'admin',
-    name: user.name,
-    player,
-    justLinked,
-  })
-})
+app.get('/api/me', async (c) => c.json(await loadViewer(ctx(c))))
 
 // "This is me": the players a signed-in login can pick, and picking one.
-app.get('/api/me/claimable', async (c) => {
-  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401)
-  return c.json({
-    players: await db.listClaimablePlayers(c.get('db'), CLUB_ID),
-  })
-})
+app.get('/api/me/claimable', (c) =>
+  run(c, async () => ({ players: await claimablePlayers(ctx(c)) })),
+)
 
 app.post('/api/me/claim', async (c) => {
-  const session = await getSession(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const { player_id } = await c.req.json<{ player_id: number }>()
-  if (!Number.isInteger(player_id))
-    return c.json({ error: 'player_id required' }, 400)
-  const ok = await db.claimPlayer(
-    c.get('db'),
-    CLUB_ID,
-    player_id,
-    session.user.id,
-  )
-  if (!ok)
-    return c.json(
-      { error: 'That player is already linked to a sign-in. Ask an admin.' },
-      409,
-    )
-  return c.json({
+  const { player_id } = await c.req
+    .json<{ player_id: number }>()
+    .catch(() => ({ player_id: NaN }))
+  return run(c, async () => ({
     ok: true,
-    player: await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id),
-  })
+    player: await claimPlayer(ctx(c), player_id),
+  }))
 })
 
 // ── Live session (S6a) ────────────────────────────────────────────────────────

@@ -4,3 +4,4 @@ dist/
 worker/scripts/*.sql
 # local secrets (e.g. the staging test accounts' password)
 .env*
+.legacy/
