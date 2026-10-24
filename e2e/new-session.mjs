@@ -115,6 +115,10 @@ await dialog.getByRole('button', { name: 'Close session' }).click()
 await page.waitForURL(/\/results$/)
 s = await sessionNow()
 check('closed, with a ladder after', s.status === 'closed' && s.leaderboardAfter?.length === ladder.length)
+const resultsRows = page.locator('.lt-root:visible tbody tr')
+await resultsRows.first().waitFor()
+check('Results: one row per player who played', (await resultsRows.count()) === 9, String(await resultsRows.count()))
+check('Results: Share on WhatsApp and Sync to HelloClub (not clicked: staging)', (await page.getByRole('button', { name: 'Share on WhatsApp' }).isVisible()) && (await page.getByRole('button', { name: 'Sync to HelloClub' }).isVisible()))
 
 // Re-open session from "…".
 await page.getByRole('button', { name: 'More session actions' }).first().click()
