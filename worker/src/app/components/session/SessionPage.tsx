@@ -2,15 +2,7 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import {
-  Alert,
-  Anchor,
-  Box,
-  Button,
-  Group,
-  Stack,
-  Text,
-} from '@mantine/core'
+import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { IconChevronLeft } from '@tabler/icons-react'
