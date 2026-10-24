@@ -294,7 +294,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
     checkin: (
       <Button
         variant="default"
-        size="xs"
+        size="sm"
         onClick={() => {
           const names = session.leaderboardBefore.map((p) => p.name)
           if (!printSignInSheet(date, names))
@@ -311,7 +311,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
         <Menu.Target>
           <Button
             variant="default"
-            size="xs"
+            size="sm"
             rightSection={<IconChevronDown size={14} />}
           >
             Print score sheets
@@ -327,13 +327,13 @@ export function SessionPage(props: { date: string; step: StepId }) {
       <>
         <Button
           variant="default"
-          size="xs"
+          size="sm"
           onClick={() => shareOnWhatsApp(date)}
         >
           Share on WhatsApp
         </Button>
         {admin && (
-          <Button variant="default" size="xs" onClick={() => setSyncing(date)}>
+          <Button variant="default" size="sm" onClick={() => setSyncing(date)}>
             Sync to HelloClub
           </Button>
         )}

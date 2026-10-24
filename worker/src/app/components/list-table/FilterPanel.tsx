@@ -202,7 +202,7 @@ function AnyOrOnly(props: {
 
 function PickHint() {
   return (
-    <Text size="xs" c="dimmed" pl={28}>
+    <Text size="xs" c="var(--club-info-text)" pl={28}>
       Pick one or more. Until then, this filter shows everyone.
     </Text>
   )

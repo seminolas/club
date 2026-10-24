@@ -64,7 +64,7 @@ export function ColumnPanel(props: {
         })}
       </Stack>
       {props.phone && (
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="var(--club-info-text)">
           Extra columns may make the table scroll sideways.
         </Text>
       )}
