@@ -47,6 +47,7 @@ function SessionsPage() {
         filters={[dateFilter]}
         defaultFilters={{ date: SIX_MONTHS }}
         stickyHeader
+        hideColumnChooser
         primaryColumn="date"
         initialSort={{ column: 'date', direction: 'desc' }}
         primaryAction={(s) => ({ label: 'View', run: () => view(s.date) })}

@@ -14,7 +14,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | --- | --- | --- | --- |
 | U0 | This plan; MIGRATION.md updated | ✅ | branch `ui-port-plan` |
 | U1 | TanStack Start in the Worker, app shell at `/new/`, sign-in | ✅ | branch `u1-start-shell` (on `ui-port-plan`) |
-| U2 | `ListTable` + landing page: Players (ladder), Sessions | ⬜ | |
+| U2 | `ListTable` + landing page: Players (ladder), Sessions | ✅ | branch `u2-landing` (on `u1-start-shell`) |
 | U3 | Player page (admin) | ⬜ | |
 | U4 | Session page frame + Check-in step + Assign boxes | ⬜ | |
 | U5 | Boxes step: score entry, live channel, Close | ⬜ | |
@@ -281,3 +281,10 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
   - **Informative grey:** `c={INFO_TEXT}` (`lib/colors.ts`, CSS var in `styles.css`), never `c="gray.7"`: gray-7 is unreadable in dark mode. Replace it in lab code when copying.
   - Notifications: bottom-centre on phones, top-centre on desktop (closes the lab's toast-over-pinned-bar thread).
   - Screenshots go to the session scratchpad, not `$TMP` (in Git Bash that's the system temp).
+- **2026-10-24 (U2):** done; on staging; compare-api identical, admin-flow passes (create session / import now go through `services/`).
+  - ListTable copied verbatim into `src/app/components/list-table/` (+ its tests); one change: the exported `ListTable` renders client-only (`ClientOnly`, a skeleton meanwhile) because it calls `window.matchMedia` while rendering. Data still comes with the page (route loaders).
+  - Lab `demos/shared.tsx` → `components/list-helpers.tsx` (`playedDate`, `sessionDate`, `nameLabels`, `PersonRow`, filters); names → `lib/names.ts`: short name = `preferred_name`, else the first name (old UI's `firstName`), full name on a clash in the view.
+  - **Nights / Last played** count closed sessions only. Cached per isolate by `db.closedSessionsVersion` (count, max `closed_at`, sum of ids of closed sessions) in `services/cache.ts`; the Cache API does nothing on workers.dev. A test counts statements to prove the aggregate runs once until a session closes / re-opens. Known staleness: a renamed player's old name stays in the Sessions "Played" search until the next close (acceptable).
+  - Sessions "Played" search: closed sessions' attendees cached the same way, open sessions' read live.
+  - Ladder import is refused in the new UI while the latest session isn't closed (the old UI checked only the session it had open).
+  - In e2e scripts the ListTable search box is `[role=combobox]`.
