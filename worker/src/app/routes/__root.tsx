@@ -1,5 +1,5 @@
 import {
-  AppShell,
+  Box,
   ColorSchemeScript,
   Container,
   MantineProvider,
@@ -102,25 +102,31 @@ function RootLayout() {
   }
 
   return (
-    <AppShell header={{ height: 52 }} padding={0}>
+    // The header scrolls away, so the session's pinned bar and the tables'
+    // sticky search bars can use the top of the screen (as in the lab).
+    <>
       {/* Capped to the screen: the default 440px is wider than a phone. On
           phones at the bottom, clear of the pinned bars at the top. */}
       <Notifications
         position={phone ? 'bottom-center' : 'top-center'}
         containerWidth="min(27.5rem, calc(100vw - 2rem))"
       />
-      <AppShell.Header>
+      <Box
+        component="header"
+        h={52}
+        style={{
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+        }}
+      >
         <AppHeader
           viewer={viewer}
           onSignIn={() => setSignIn({ open: true })}
           onSignOut={onSignOut}
         />
-      </AppShell.Header>
-      <AppShell.Main>
-        <Container size="md" px="md" py="md">
-          <Outlet />
-        </Container>
-      </AppShell.Main>
+      </Box>
+      <Container component="main" size="md" px="md" py="md">
+        <Outlet />
+      </Container>
       <SignInModal
         opened={signIn.open}
         error={signIn.error}
@@ -130,6 +136,6 @@ function RootLayout() {
         opened={viewer.signedIn && !viewer.player}
         onSignOut={onSignOut}
       />
-    </AppShell>
+    </>
   )
 }

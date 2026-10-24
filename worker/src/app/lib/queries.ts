@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { ladderFn } from '../fns/ladder'
 import { playerFn } from '../fns/players'
+import { sessionFn } from '../fns/session'
 import { sessionListFn } from '../fns/sessions'
 import { claimablePlayersFn, getViewerFn } from '../fns/viewer'
 
@@ -28,4 +29,10 @@ export const playerQuery = (id: number) =>
   queryOptions({
     queryKey: ['player', id],
     queryFn: () => playerFn({ data: id }),
+  })
+
+export const sessionQuery = (date: string) =>
+  queryOptions({
+    queryKey: ['session', date],
+    queryFn: () => sessionFn({ data: date }),
   })

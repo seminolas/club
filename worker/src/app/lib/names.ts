@@ -36,3 +36,27 @@ export function viewLabels(
   }
   return out
 }
+
+/**
+ * A player's name in a box, as on the score sheets: the short name, or
+ * "First L." if that short name clashes with someone else's among `everyone`
+ * (old UI: _dedupedDisplayName). Custom box layouts are typed in these.
+ */
+export function boxName(
+  player: { name: string; preferredName?: string | null },
+  everyone: readonly { name: string; preferredName?: string | null }[],
+): string {
+  const first = shortName(player.name, player.preferredName)
+  const clash = everyone.some(
+    (o) =>
+      o.name !== player.name && shortName(o.name, o.preferredName) === first,
+  )
+  if (!clash) return first
+  const words = cleanName(player.name)
+    .trim()
+    .split(/\s+/)
+    .filter((w) => /[a-zA-ZÀ-ÖØ-öø-ÿ]/.test(w))
+  if (words.length < 2) return first
+  const initial = words[words.length - 1].match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/)?.[0]
+  return initial ? `${first} ${initial.toUpperCase()}.` : first
+}

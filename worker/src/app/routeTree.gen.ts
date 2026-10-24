@@ -14,7 +14,8 @@ import { Route as LandingRouteImport } from './routes/_landing'
 import { Route as LandingPlayersRouteImport } from './routes/_landing/players'
 import { Route as LandingSessionsRouteImport } from './routes/_landing/sessions'
 import { Route as PlayersIdRouteImport } from './routes/players.$id'
-import { Route as SessionsDateRouteImport } from './routes/sessions.$date'
+import { Route as SessionsDateIndexRouteImport } from './routes/sessions.$date.index'
+import { Route as SessionsDateStepRouteImport } from './routes/sessions.$date.$step'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,9 +41,14 @@ const PlayersIdRoute = PlayersIdRouteImport.update({
   path: '/players/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SessionsDateRoute = SessionsDateRouteImport.update({
-  id: '/sessions/$date',
-  path: '/sessions/$date',
+const SessionsDateIndexRoute = SessionsDateIndexRouteImport.update({
+  id: '/sessions/$date/',
+  path: '/sessions/$date/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsDateStepRoute = SessionsDateStepRouteImport.update({
+  id: '/sessions/$date/$step',
+  path: '/sessions/$date/$step',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -51,14 +57,16 @@ export interface FileRoutesByFullPath {
   '/players': typeof LandingPlayersRoute
   '/sessions': typeof LandingSessionsRoute
   '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date': typeof SessionsDateRoute
+  '/sessions/$date/$step': typeof SessionsDateStepRoute
+  '/sessions/$date/': typeof SessionsDateIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/players': typeof LandingPlayersRoute
   '/sessions': typeof LandingSessionsRoute
   '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date': typeof SessionsDateRoute
+  '/sessions/$date/$step': typeof SessionsDateStepRoute
+  '/sessions/$date': typeof SessionsDateIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,13 +75,26 @@ export interface FileRoutesById {
   '/_landing/players': typeof LandingPlayersRoute
   '/_landing/sessions': typeof LandingSessionsRoute
   '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date': typeof SessionsDateRoute
+  '/sessions/$date/$step': typeof SessionsDateStepRoute
+  '/sessions/$date/': typeof SessionsDateIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/players' | '/sessions' | '/players/$id' | '/sessions/$date'
+  fullPaths:
+    | '/'
+    | '/players'
+    | '/sessions'
+    | '/players/$id'
+    | '/sessions/$date/$step'
+    | '/sessions/$date/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/players' | '/sessions' | '/players/$id' | '/sessions/$date'
+  to:
+    | '/'
+    | '/players'
+    | '/sessions'
+    | '/players/$id'
+    | '/sessions/$date/$step'
+    | '/sessions/$date'
   id:
     | '__root__'
     | '/'
@@ -81,14 +102,16 @@ export interface FileRouteTypes {
     | '/_landing/players'
     | '/_landing/sessions'
     | '/players/$id'
-    | '/sessions/$date'
+    | '/sessions/$date/$step'
+    | '/sessions/$date/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LandingRoute: typeof LandingRouteWithChildren
   PlayersIdRoute: typeof PlayersIdRoute
-  SessionsDateRoute: typeof SessionsDateRoute
+  SessionsDateStepRoute: typeof SessionsDateStepRoute
+  SessionsDateIndexRoute: typeof SessionsDateIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -128,11 +151,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayersIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sessions/$date': {
-      id: '/sessions/$date'
+    '/sessions/$date/': {
+      id: '/sessions/$date/'
       path: '/sessions/$date'
-      fullPath: '/sessions/$date'
-      preLoaderRoute: typeof SessionsDateRouteImport
+      fullPath: '/sessions/$date/'
+      preLoaderRoute: typeof SessionsDateIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/$date/$step': {
+      id: '/sessions/$date/$step'
+      path: '/sessions/$date/$step'
+      fullPath: '/sessions/$date/$step'
+      preLoaderRoute: typeof SessionsDateStepRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -155,7 +185,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LandingRoute: LandingRouteWithChildren,
   PlayersIdRoute: PlayersIdRoute,
-  SessionsDateRoute: SessionsDateRoute,
+  SessionsDateStepRoute: SessionsDateStepRoute,
+  SessionsDateIndexRoute: SessionsDateIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
