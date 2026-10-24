@@ -4,6 +4,7 @@
 // Then a quiet connection dies (nothing typed): the heartbeat notices.
 // Usage: node live-offline.mjs   (password from e2e/.env.staging)
 import { chromium } from '@playwright/test'
+import { NEW, SCORE, dropSocket, gamesPath, openBoxes, trackSockets } from './ui-mode.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'https://club-api-staging.vilhelmas-f78.workers.dev'
@@ -44,26 +45,27 @@ await api(setup, 'PUT', `/api/sessions/${DATE}/boxes`, {
 
 const A = await signedIn()
 const pageA = await A.newPage()
-await pageA.goto(`${BASE}/#/${DATE}/games`, { waitUntil: 'networkidle' })
+if (NEW) await pageA.addInitScript(trackSockets)
+await pageA.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
 const B = await browser.newContext() // a viewer, not signed in
 const pageB = await B.newPage()
-await pageB.goto(`${BASE}/#/${DATE}/games`, { waitUntil: 'networkidle' })
-await pageA.waitForSelector('.score-input')
-await pageB.waitForSelector('.score-input')
+await pageB.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
+await openBoxes(pageA)
+await openBoxes(pageB)
 const banner = (p) => p.locator('text=Connection lost').isVisible()
 
 // Offline: new connections fail. Chrome's offline mode leaves an open
 // WebSocket up, so also drop the one the page has.
 await A.setOffline(true)
-await pageA.evaluate(() => document.querySelector('[x-data]')._x_dataStack[0]._live.ws.close())
-const input = pageA.locator('.score-input:visible').first()
+await dropSocket(pageA)
+const input = pageA.locator(`${SCORE}:visible`).first()
 await input.click()
 await input.pressSequentially('21', { delay: 60 })
-await pageA.locator('.score-input:visible').nth(1).click()
-await pageA.locator('.score-input:visible').nth(1).pressSequentially('12', { delay: 60 })
+await pageA.locator(`${SCORE}:visible`).nth(1).click()
+await pageA.locator(`${SCORE}:visible`).nth(1).pressSequentially('12', { delay: 60 })
 await pageA.waitForTimeout(4000)
 check('offline: banner "Connection lost – reconnecting…"', await banner(pageA))
-check('offline: typed score still shown', (await pageA.locator('.score-input:visible').first().inputValue()) === '21')
+check('offline: typed score still shown', (await pageA.locator(`${SCORE}:visible`).first().inputValue()) === '21')
 
 await A.setOffline(false)
 let saved = null
@@ -74,12 +76,12 @@ for (let i = 0; i < 30 && !(saved && saved[0] === 21 && saved[1] === 12); i++) {
 check('back online: the score is sent and saved', saved?.[0] === 21 && saved?.[1] === 12, JSON.stringify(saved))
 await pageA.waitForTimeout(1500)
 check('back online: banner gone', !(await banner(pageA)))
-const shownB = await pageB.locator('.score-input:visible').evaluateAll((els) => els.slice(0, 2).map((e) => e.value))
+const shownB = await pageB.locator(`${SCORE}:visible`).evaluateAll((els) => els.slice(0, 2).map((e) => e.value))
 check('viewer sees it', shownB[0] === '21' && shownB[1] === '12', JSON.stringify(shownB))
 
 // A quiet connection dying (nothing typed): only the heartbeat notices.
 await A.setOffline(true)
-await pageA.evaluate(() => document.querySelector('[x-data]')._x_dataStack[0]._live.ws.close())
+await dropSocket(pageA)
 let seenAt = null
 const t0 = Date.now()
 while (Date.now() - t0 < 40000 && seenAt === null) {

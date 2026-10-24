@@ -15,7 +15,7 @@ import {
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { IconChevronLeft } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
 import {
@@ -27,6 +27,9 @@ import {
 } from '../../fns/session'
 import { INFO_TEXT } from '../../lib/colors'
 import { useSessionLive } from '../../lib/live'
+import type { LiveChannel } from '../../lib/live'
+import { boxName } from '../../lib/names'
+import { useScoreEntry } from '../../lib/scores'
 import { printSignInSheet } from '../../lib/print'
 import {
   ladderQuery,
@@ -35,10 +38,10 @@ import {
   viewerQuery,
 } from '../../lib/queries'
 import { ladderAfter, movement, phaseOf, progress } from '../../lib/session'
-import type { Session } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
 import { AssignBoxesModal } from './AssignBoxesModal'
+import { BoxesStep } from './BoxesStep'
 import type { Person } from './AssignBoxesModal'
 import { CheckInStep } from './CheckInStep'
 import { PINNED_H, useSessionCard } from './SessionCard'
@@ -66,27 +69,20 @@ export function SessionPage(props: { date: string; step: StepId }) {
       queryClient.invalidateQueries({ queryKey: ['sessions'] }),
       queryClient.invalidateQueries({ queryKey: ['ladder'] }),
     ])
+  // Scores: typed cells are kept until saved; everything else follows the
+  // live channel (lib/scores.ts).
+  const channel = useRef<LiveChannel | null>(null)
+  const scores = useScoreEntry(date, channel)
   const live = useSessionLive(date, {
-    onChanged: () => void reload(),
-    onMatch: (box, match, sets) =>
-      queryClient.setQueryData<Session>(
-        ['session', date],
-        (s) =>
-          s && {
-            ...s,
-            boxes: s.boxes.map((b, bi) =>
-              bi !== box
-                ? b
-                : {
-                    ...b,
-                    matches: b.matches.map((m, mi) =>
-                      mi === match ? { ...m, sets } : m,
-                    ),
-                  },
-            ),
-          },
-      ),
+    onChanged: () => {
+      void scores.refresh().catch(() => {})
+      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: ['ladder'] })
+    },
+    onMatch: scores.mergeMatch,
+    onSettled: scores.settled,
   })
+  channel.current = live.channel
 
   const phase = phaseOf(session.status)
   const admin = viewer.isAdmin
@@ -144,6 +140,22 @@ export function SessionPage(props: { date: string; step: StepId }) {
       toastError(e)
     }
   }
+
+  // Names in boxes: the score sheets' rule across everyone playing tonight.
+  const playing = session.boxes.flatMap((b) =>
+    b.players.map((p) => ({
+      ...p,
+      preferredName: details.get(p.id)?.preferredName ?? null,
+    })),
+  )
+  const boxLabels = new Map(playing.map((p) => [p.id, boxName(p, playing)]))
+  const label = (id: number) => boxLabels.get(id) ?? ''
+  // Admins any box; a signed-in player their own box; nobody once closed.
+  const canEdit = (bi: number) =>
+    phase === 'playing' &&
+    (admin ||
+      (!!viewer.player &&
+        !!session.boxes[bi]?.players.some((p) => p.id === viewer.player?.id)))
 
   const scoreCount = session.boxes.reduce(
     (n, b) => n + b.matches.reduce((m, x) => m + x.sets.length, 0),
@@ -392,7 +404,18 @@ export function SessionPage(props: { date: string; step: StepId }) {
           stickyTop={PINNED_H}
         />,
       )}
-      {phase !== 'checkin' && view('boxes', notYet('boxes', 'games'))}
+      {phase !== 'checkin' &&
+        view(
+          'boxes',
+          <BoxesStep
+            session={session}
+            label={label}
+            canEdit={canEdit}
+            onScore={scores.setScore}
+            header={card.content('boxes')}
+            stickyTop={PINNED_H}
+          />,
+        )}
       {phase === 'closed' && view('results', notYet('results', 'wrapup'))}
       <AssignBoxesModal
         opened={assigning}

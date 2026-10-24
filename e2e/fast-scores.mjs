@@ -5,6 +5,7 @@
 // phone data in a sports hall. Uses a far-future session, deleted afterwards.
 // Usage: node fast-scores.mjs   (BASE=, LATENCY_MS=; password from e2e/.env.staging)
 import { chromium } from '@playwright/test'
+import { SCORE, editable, gamesPath, openBoxes } from './ui-mode.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'https://club-api-staging.vilhelmas-f78.workers.dev'
@@ -58,20 +59,25 @@ async function openWindow() {
   const page = await ctx.newPage()
   // Slow reads of this session, like a phone on poor data: the server answers
   // straight away, the answer arrives LATENCY_MS later.
-  await page.route(`**/api/sessions/${DATE}`, async (route) => {
+  // (The new UI reads through its server functions.)
+  await page.route(process.env.UI === 'new' ? '**/_serverFn/**' : `**/api/sessions/${DATE}`, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    const response = await route.fetch()
-    await new Promise((r) => setTimeout(r, LATENCY_MS))
-    await route.fulfill({ response })
+    try {
+      const response = await route.fetch()
+      await new Promise((r) => setTimeout(r, LATENCY_MS))
+      await route.fulfill({ response })
+    } catch {
+      // the window closed meanwhile
+    }
   })
-  await page.goto(`${BASE}/#/${DATE}/games`, { waitUntil: 'networkidle' })
-  await page.waitForSelector('.score-input')
+  await page.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
+  await openBoxes(page)
   return { ctx, page }
 }
 const A = await openWindow()
 const B = await openWindow()
 
-const visibleInputs = (page) => page.locator('.score-input:visible')
+const visibleInputs = (page) => page.locator(`${SCORE}:visible`)
 const readValues = (page) => visibleInputs(page).evaluateAll((els) => els.map((e) => e.value))
 
 // Type each match's two sets, character by character, tabbing between boxes.
