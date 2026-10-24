@@ -1,4 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
+import { ladderFn } from '../fns/ladder'
+import { sessionListFn } from '../fns/sessions'
 import { claimablePlayersFn, getViewerFn } from '../fns/viewer'
 
 export const viewerQuery = queryOptions({
@@ -9,4 +11,14 @@ export const viewerQuery = queryOptions({
 export const claimableQuery = queryOptions({
   queryKey: ['claimable'],
   queryFn: () => claimablePlayersFn(),
+})
+
+export const ladderQuery = queryOptions({
+  queryKey: ['ladder'],
+  queryFn: () => ladderFn(),
+})
+
+export const sessionListQuery = queryOptions({
+  queryKey: ['sessions'],
+  queryFn: () => sessionListFn(),
 })

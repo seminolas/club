@@ -6,14 +6,11 @@ import { getSession, requireAdmin } from './auth'
 import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
-import { CLUB_ID } from './services/context'
+import { CLUB_ID, ServiceError } from './services/context'
 import type { ServiceContext } from './services/context'
-import {
-  ServiceError,
-  claimPlayer,
-  claimablePlayers,
-  loadViewer,
-} from './services/viewer'
+import { importLadder } from './services/ladder'
+import { createSession } from './services/sessions'
+import { claimPlayer, claimablePlayers, loadViewer } from './services/viewer'
 
 // The live session Durable Object class, for the Workers runtime (S6a).
 export { SessionRoom } from './live'
@@ -164,10 +161,10 @@ app.get('/api/leaderboard', async (c) => {
 
 app.post('/api/leaderboard/import', requireAdmin, async (c) => {
   const { players } = await c.req.json<{ players: string[] }>()
-  if (!Array.isArray(players) || players.length === 0)
-    return c.json({ error: 'players array required' }, 400)
-  await db.replaceLeaderboard(c.get('db'), CLUB_ID, players)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await importLadder(ctx(c), players)
+    return { ok: true }
+  })
 })
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -179,36 +176,12 @@ app.get('/api/sessions', async (c) => {
 
 app.post('/api/sessions', requireAdmin, async (c) => {
   const { date } = await c.req.json<{ date: string }>()
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
-    return c.json({ error: 'Invalid date' }, 400)
-
-  const existing = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (existing) return c.json({ error: 'Session already exists' }, 409)
-
-  // Fetch leaderboard BEFORE creating the session — after creation the new
-  // session becomes the most recent, making getLeaderboardPlayers return nothing.
-  const players = await db.getLeaderboardPlayers(c.get('db'), CLUB_ID)
-
-  const sessionId = await db.createSession(c.get('db'), CLUB_ID, date)
-  await db.setSessionRanks(
-    c.get('db'),
-    sessionId,
-    players.map((p) => p.id),
-    'before',
-  )
-
-  const lbBefore = players.map((p) => ({ id: p.id, name: p.name }))
-  return c.json(
-    {
-      date,
-      status: 'attendance',
-      attendees: [],
-      boxes: [],
-      leaderboardBefore: lbBefore,
-      leaderboardAfter: null,
-    },
-    201,
-  )
+  try {
+    return c.json(await createSession(ctx(c), date), 201)
+  } catch (e) {
+    if (e instanceof ServiceError) return c.json({ error: e.message }, e.status)
+    throw e
+  }
 })
 
 app.get('/api/sessions/:date', async (c) => {
