@@ -44,9 +44,9 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 2. **Rollout: side by side.** The new UI is served at **`/new/`** on staging and prod while it's built; the old UI stays at `/`, untouched. Both use the same data and the same live channel, so the developer can try `/new/` on a real session night. **U9** moves it to `/` in one cutover and redirects old links (including WhatsApp `#/` links).
 3. **Close needs every score** (as today). "Close ›" is shown but disabled until every box is finished, with the reason. The lab's red "open matches won't count" variant is not used. The Close confirm gets the lab's ladder summary ("The ladder moves: 12 players up, 9 down").
 4. **Check-in stays locked once boxes are assigned** (as today: Re-open check-in to add someone). The lab's "Late arrivals can still be checked in" text is dropped. Late arrivals are a separate future feature.
-5. **Session actions are word buttons in the step's actions card** (the card above the table, as in the live app): printing, Share on WhatsApp, Sync to HelloClub, Reassign. Only re-opening sits in "…" (the lab decision). See "Session page" below.
+5. **Session actions are word buttons in the step's actions card** (the card above the table, as in the live app): printing, Share on WhatsApp, Sync to HelloClub. Re-opening, Reassign and Delete sit in "…". See "Session page" below.
 6. **Scope extras:**
-   - **Stats table: yes, as the session's Results step; no night picker.** (Reading: no landing-page Stats tab for now; see Open questions.)
+   - **No Stats tab.** The lab's Stats demo only explored showing ladder movement in a table, as Wrap-up does; that's the one thing ported, as the Results step (developer, 2026-10-24).
    - **"by Ema" (who marked someone coming): no**, not in this port.
    - **Light/Dark toggle (V13): yes.**
    - **Nights and Last played** (ladder columns, the 6-month "Last played" filter): **yes, if the reads stay well inside D1's free allowance** (see "Data").
@@ -117,7 +117,7 @@ Lab: `AppDemo` landing (Mantine `Tabs`). Routes `/new/players`, `/new/sessions` 
 | --- | --- |
 | Search, "N players" | ListTable search with count |
 | Rank, name | `#`, Player (display names via `nameLabels`), **Nights**, **Last played** (new data) |
-| HC ✅ / ❌ badge for everyone | **HelloClub** filter (lab) + a HelloClub column; see Open questions (admins only?) |
+| HC ✅ / ❌ badge for everyone | **HelloClub** column and filter, for everyone ("it's not a secret") |
 | — | Filter **Last played**, default 6 months (lapsed players appear under "Hidden by filters" when searched) |
 | Admin: tap a row → player page | Admin primary action **View** → `/new/players/:id` (Enter views the top match) |
 | Admin: ⬆ Import (CSV file + confirm; refused while a session is open) | Actions card: **Import ladder** (same: file picker + confirm modal, same refusal). The lab's import *page* is V16, later |
@@ -153,14 +153,14 @@ Lab: `AppDemo` `SessionPage` (step 32: Corner layout, Light pills, labelled pill
 - Title line: session title (see Open questions) + pills **Date:**, **Status:** (Check-in open / Playing / Closed, coloured blue / teal / dark), and a count: **Coming: 15** → **Matches: 10/36** → **Players: 38**.
 - Top right, admins: the way forward, green, confirmed: **Assign boxes ›** (check-in; disabled under 4 coming, reason shown) → **Close ›** (playing; disabled until every box is finished, reason shown) → nothing once closed.
 - "…" (the one icon-only button, aria-label "More session actions"), admins, red items with confirms that say what they undo:
-  - while playing: **Re-open check-in…** (today's "Re-open Attendance"; counts boxes and scores in the warning; remembers the layout for the next Assign);
+  - while playing: **Reassign boxes…** (confirm "clears all current scores", then the Assign modal with the current layout first) and **Re-open check-in…** (today's "Re-open Attendance"; counts boxes and scores in the warning; remembers the layout for the next Assign);
   - once closed: **Re-open session…** (today's "✏ Edit"; wording for "not the most recent session — the ladder won't be affected" kept);
   - always: **Delete session…** (today's header "🗑 Delete"; same warning). *(Not in the lab's final card; destructive, so "…" rather than a button.)*
 - **Stepper** Check-in → Boxes → Results, navigation only; steps beyond the furthest reached are locked (lock icon, tap says "Boxes opens after Assign boxes"). Every step stays mounted (typed scores survive).
 - **Pinned bar** (56px) once the card scrolls away: step name + status ("1 of 8 boxes finished") + the way forward; the table's search bar pins under it (`stickyTop`).
 - **Step actions** (decision 5), word buttons in the card under the title line, everyone unless noted:
   - Check-in: **Print sign-in sheet**.
-  - Boxes: **Print score sheets** (Menu: Cards / Grid); admins while playing: **Reassign boxes** (confirm "clears all current scores", then the Assign modal with the current layout first).
+  - Boxes: **Print score sheets** (Menu: Cards / Grid).
   - Results: **Share on WhatsApp**; admins: **Sync to HelloClub**.
 - "‹ Sessions" link above the card.
 - **Players (non-admins):** the same card and steps, no way forward, no "…", no admin buttons.
@@ -193,14 +193,14 @@ Lab: `AppDemo` `SessionPage` (step 32: Corner layout, Light pills, labelled pill
 | Standings table (#, Player, Won, Games ±, Points ±) once any score | Lab Standings card |
 | Inputs enabled by `canEnterScores`: admins any box, a linked player their own box, nobody once closed | **Same rule**, read-only fields otherwise |
 | Live channel (`app.js _startLive` … `_mergeMatchSets`): 0.4s debounce, write ids, ack, a cell keeps what was typed until acked, reconnect with backoff, resend, 15s refresh while down, heartbeat, `changed` → reload, banner after 2s / 15s, refused write → reload banner | **Ported as one hook** (`useSessionLive`), same protocol and timings, same banner. `changed` invalidates the session query. Third-set clearing on a sweep sends the delete, as today |
-| Re-open Attendance, Reassign, Print Cards/Grid in the toolbar | "…" / step actions (see the card) |
+| Re-open Attendance, Reassign, Print Cards/Grid in the toolbar | "…" (re-open, reassign) / step actions (print) |
 | Close session on Wrap-up: disabled until all scores; confirm text depends on "most recent session"; closes, updates ladder, opens Wrap-up | **Close ›** in the card (decision 3); confirm adds "The ladder moves: N up, M down" (from `domain/close-preview.ts` / `ladder.ts`); then Results |
 
 **Results step** — lab `SessionStatsDemo` in the session's card; today "Tab 3: Wrap-up".
 
 | Today | New |
 | --- | --- |
-| "Post-game ranking": the whole ladder after, attendees with ↑n / ↓n / →, others greyed; search | Stats table, one row per player who played: Player, Box, Ranking Before/After/Change, Matches Won/Lost, Games Won/Lost, Points Diff (more in Columns; phones start with Player, Box, Ranking); filters Players (pick), Box, Ladder change. Computed in the browser from the session (boxes, scores, ladders before/after) with `domain/standings.ts`. No night picker |
+| "Post-game ranking": the whole ladder after, attendees with ↑n / ↓n / →, others greyed; search | ListTable of the players who played: Player, Box, Ranking Before / After / Change (`Delta`), sorted by After; filters Box and Ladder change (up / stayed / down / new). Only the ladder-movement part of the lab's Stats demo (no matches/games/points columns). From the session's ladders before/after and boxes; no API change |
 | Placeholder while playing | Step locked until closed |
 | 📱 Share on WhatsApp (closed): text with Results and Ladder links | **Share on WhatsApp**, same text, links to the new URLs after U9 (old links keep working via redirects) |
 | 🔄 Sync HC (admin, closed) → log modal | **Sync to HelloClub** (admin, closed) → same log modal (Mantine) |
@@ -221,7 +221,7 @@ All additive; REST routes unchanged for the old UI.
 
 - **Nights and Last played per player** (ladder, check-in). Measured on staging (a prod copy) 2026-10-24: `attendees ⨝ sessions` grouped by player reads **1,265 rows** per call (20 sessions, 613 attendee rows); it grows by roughly 1,500 rows a year. D1's free allowance is 5M rows read a day, so it's fine today, but an index can't make a full aggregate cheaper. **Plan:** cache it. Preferred: compute once per change of the latest closed session (Workers Cache API keyed by that session's id + `closed_at`, or a small table refreshed at close), so normal page loads read ~0 extra rows. Decide in U2; add a test that records `rows_read` for the new queries (D1 returns it in `meta`) so a regression shows up. (History: 2026-09-22 polling blew the 5M limit; migration 0010.)
 - **Player names per session** (Sessions search "Played"): the same caching approach, or fetched only once the user starts searching. Measure in U2.
-- **Results stats:** no API change (computed from `GET /api/sessions/:date` data).
+- **Results:** no API change (from `GET /api/sessions/:date` data).
 - **Close preview:** no API change (`domain/close-preview.ts`).
 - Server functions wrap the services extracted from `index.ts` (Architecture).
 
@@ -250,7 +250,7 @@ Spike first, with a fallback: Start's server entry dispatching to the live room,
 
 **U5 — Boxes step.** Box table + match cards + standings; `canEnterScores`; `useSessionLive` (port of `_startLive` and friends, same timings) + banner; Reassign; Close (disabled until finished; confirm with ladder summary; most-recent wording); Re-open session. Re-point `admin-flow`, `player-scores`, `fast-scores`, `live-offline` at `/new/` (keep the old-UI versions until U9).
 
-**U6 — Results step.** Stats table from session data; Share on WhatsApp; Sync to HelloClub + log modal (prod-only effect; never run sync on staging: its HelloClub key is fake).
+**U6 — Results step.** Ladder-movement table from session data; Share on WhatsApp; Sync to HelloClub + log modal (prod-only effect; never run sync on staging: its HelloClub key is fake).
 
 **U7 — Printing.** As above, with the old/new comparison.
 
@@ -262,12 +262,9 @@ Spike first, with a fallback: Start's server entry dispatching to the live room,
 
 ## Open questions (for the developer; the choice made meanwhile is in bold)
 
-1. **Stats tab on the landing page:** "stats table yes, no night picker" read as: the stats table only as the session's Results step, **no landing Stats tab**. Right?
-2. **Titles:** header shows **"Northland Badminton"** (lab) instead of "NBA Senior Tuesday Box"; the session card's title (lab: the club night's name, "Friday Social") is **"Tuesday Box"** for now. Better names?
-3. **HelloClub on the ladder:** today everyone sees HC ✅/❌. Lab: a HelloClub filter, no column. Meanwhile: **filter for everyone, column for admins only**.
-4. **Results lists only the players who played** (lab), not the whole ladder after with absentees greyed (today). You said it's effectively the same; the full ladder stays on the Players tab. OK?
-5. **Session URLs keyed by date** (`/sessions/2026-10-20/boxes`), as the API and live channel are; switching to ids waits for V8/V9 (S3 deferred it "to V9 or the new UI's session pages").
-6. **Reassign boxes** is a word button on the Boxes card (as today) although it deletes scores; it confirms first. Or should it join Re-open check-in in "…"?
+Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); titles "Northland Badminton" / "Tuesday Box"; HelloClub column and filter for everyone; Results lists only players who played; session URLs keyed by date; Reassign in "…".
+
+(none open)
 
 ---
 
