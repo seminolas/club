@@ -78,28 +78,13 @@ export function AppHeader(props: {
                 <ColorSchemeChoice />
               </div>
               <Menu.Divider />
-              {/* While the new UI is at /new/ (UI-PORT.md, U9 removes it). */}
-              <Menu.Item component="a" href="/">
-                Old version
-              </Menu.Item>
               <Menu.Item onClick={props.onSignOut}>Sign out</Menu.Item>
             </Menu.Dropdown>
           </Menu>
         ) : (
-          <Group gap="xs" wrap="nowrap">
-            <Button
-              component="a"
-              href="/"
-              variant="subtle"
-              size="xs"
-              color="gray"
-            >
-              Old version
-            </Button>
-            <Button variant="default" size="xs" onClick={props.onSignIn}>
-              Sign in
-            </Button>
-          </Group>
+          <Button variant="default" size="xs" onClick={props.onSignIn}>
+            Sign in
+          </Button>
         )}
       </Group>
     </Container>

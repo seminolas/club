@@ -7,12 +7,13 @@ export function shareOnWhatsApp(date: string) {
     month: 'short',
     timeZone: 'Pacific/Auckland',
   })
-  // The old UI's links (they keep working after the cutover, UI-PORT.md U9).
+  // The same text as the old UI's, with today's addresses (old links still
+  // work: lib/legacy.ts).
   const lines = [
     `🏸 ${label} — Box Night`,
     '',
-    `Results: ${base}/#/${date}/games`,
-    `Ladder:  ${base}/#/${date}/wrapup`,
+    `Results: ${base}/sessions/${date}/boxes`,
+    `Ladder:  ${base}/sessions/${date}/results`,
   ]
   window.open(
     `https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`,

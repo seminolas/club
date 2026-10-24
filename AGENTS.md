@@ -9,12 +9,11 @@ Comprehensive context for AI agents working on this codebase.
 ```
 GitHub repo: seminolas/club  (branch: master)
 │
-├── Old UI (index.html, js/)             ← copied into the build, served as static files at /
 └── worker/                                ← the Cloudflare Worker, built with Vite
     ├── src/server.ts                      ← Worker entry: /api/* → Hono, else → TanStack Start
     ├── src/index.ts                       ← all API routes (Hono)
-    ├── src/app/                           ← the new UI (TanStack Start + Mantine), at /new/ (UI-PORT.md)
-    ├── src/services/                      ← logic shared by API routes and the new UI's server functions
+    ├── src/app/                           ← the UI (TanStack Start + React + Mantine)
+    ├── src/services/                      ← logic shared by API routes and the UI's server functions
     ├── src/better-auth.ts                 ← BetterAuth (sign-in) setup
     ├── src/auth.ts                        ← requireAdmin middleware, getSession
     ├── src/db.ts                          ← all D1 queries (Drizzle)
@@ -25,7 +24,7 @@ GitHub repo: seminolas/club  (branch: master)
 
 **Production URL:** https://club.vilhelmas-f78.workers.dev/  
 **Staging URL:** https://club-api-staging.vilhelmas-f78.workers.dev/  
-The Worker serves both the static frontend and the `/api/*` routes from a single deployment.
+The Worker serves the UI (server-rendered pages + their static bundles) and the `/api/*` routes from a single deployment.
 
 **Environments:**
 - `prod` → D1 database `club-prod` (id: `dc014559-276f-4c9b-8aef-4071b4da9a3c`)
@@ -43,7 +42,7 @@ npm run deploy            # prod
 npm run deploy:staging    # staging
 ```
 
-Since U1 (2026-10-24) everything is built with **Vite** (`vite.config.mts`, `@cloudflare/vite-plugin` + TanStack Start): `npm run build` (or `build:staging`, which builds for wrangler's staging env via `--mode staging`) bundles the rules for the old UI (`build:web` → `js/dist/rules.js`), copies the old UI (`index.html`, `js/`) into `worker/.legacy` (`scripts/copy-legacy.mjs`), then builds the Worker and the new UI into `worker/dist`. `wrangler deploy` then deploys that build (the plugin leaves a redirect in `.wrangler/deploy`). **A bare `wrangler deploy` without a build deploys nothing useful**, so always use the npm scripts. `wrangler.toml` stays the config (the plugin ignores its old `[build]`/`[assets]` keys, which are gone); after changing it, run `npm run types` to regenerate `worker-configuration.d.ts`.
+Everything is built with **Vite** (`vite.config.mts`, `@cloudflare/vite-plugin` + TanStack Start): `npm run build` (or `build:staging`, which builds for wrangler's staging env via `--mode staging`) builds the Worker and the UI into `worker/dist`, and `wrangler deploy` deploys that build (the plugin leaves a redirect in `.wrangler/deploy`). **A bare `wrangler deploy` without a build deploys nothing useful**, so always use the npm scripts. `wrangler.toml` stays the config (no `[build]` or `[assets]`: the plugin sets the static files); after changing it, run `npm run types` to regenerate `worker-configuration.d.ts`.
 
 **If wrangler prompts to create `wrangler.jsonc`:** decline; `wrangler.toml` is correct.
 
@@ -51,7 +50,7 @@ Since U1 (2026-10-24) everything is built with **Vite** (`vite.config.mts`, `@cl
 
 **Staging from GitHub:** the "Deploy branch to staging" workflow (`.github/workflows/deploy-staging.yml`, run from the Actions tab or `gh workflow run deploy-staging.yml --ref <branch>`) typechecks, lints, tests and deploys a committed branch to staging.
 
-**Assets:** only what the build puts in `worker/dist/client` is served as static files: the old UI's `index.html` and `js/` at `/`, and the new UI's bundles under `/new/assets/`. Nothing else in the repo is public (the root `.assetsignore` no longer matters; it goes in U9). To serve another root file, add it to `scripts/copy-legacy.mjs`. Static files are served before the Worker runs; any other path goes to the Worker (`src/server.ts`): `/api/*` to Hono, the rest to TanStack Start, which redirects unknown paths to `/new/…` and shows its not-found page.
+**Assets:** only what the build puts in `worker/dist/client` is served as static files: the UI's bundles under `/assets/`. Nothing else in the repo is public (Vite's `publicDir` is off). Static files are served before the Worker runs; any other path goes to the Worker (`src/server.ts`): `/api/*` to Hono, the rest to TanStack Start (pages, server functions under `/_serverFn/`, and its not-found page).
 
 **Every push to `master` deploys to prod automatically** (Cloudflare Workers Builds is connected to the repo; it shows up as a "Workers Builds: club" check). Builds for other branches are switched off: before 2026-10-21 they were on and deployed branches straight to prod. So merging a PR is the prod deploy, and a manual `npx wrangler deploy` is only needed to redeploy without a commit. The build runs `sh deploy.sh` (`npm ci` + `npm run deploy` in `worker/`).
 
@@ -93,30 +92,27 @@ match_players → match_sets → matches → box_players → boxes → attendanc
 
 ```
 /
-├── index.html          # main SPA shell
-├── js/
-│   ├── app.js          # Alpine.js app component (all UI logic)
-│   ├── storage.js      # HTTP client — wraps all /api/* calls
-│   ├── dist/rules.js   # built rules bundle (from worker/src/browser; not committed)
-│   └── csv.js          # CSV import/export helpers
-├── temp/               # scratch/experimental files (not served by Worker)
+├── temp/               # scratch/experimental files (not served)
 │   ├── stats.html      # analytics dashboard experiment (Observable Plot + Grid.js)
 │   └── stats2.html     # analytics dashboard v2 experiment
 ├── e2e/                # Playwright browser checks (own package.json; not served)
-│   └── shot.mjs        # open pages, screenshot, report console errors
-├── .github/workflows/  # ci.yml (typecheck, lint, format, tests), deploy-staging.yml, staging-refresh.yml, backup-prod.yml
+├── .github/workflows/  # ci.yml (typecheck, lint, format, tests, build), deploy-staging.yml, staging-refresh.yml, backup-prod.yml
 └── worker/
     ├── wrangler.toml
+    ├── vite.config.mts # the build (Worker + UI)
     ├── src/
-    │   ├── index.ts    # Hono app, all route handlers
-    │   ├── auth.ts     # verifyGoogleToken, signJwt, requireAdmin middleware
+    │   ├── server.ts   # Worker entry: /api/* → index.ts, the rest → TanStack Start
+    │   ├── index.ts    # Hono app, all API route handlers (thin: most call services/)
+    │   ├── services/   # the app's operations (viewer, ladder, sessions, session night, players), used by the API and the UI
+    │   ├── app/        # the UI: routes/, components/ (list-table/ = ListTable, session/, print/), fns/ (server functions), lib/
+    │   ├── auth.ts     # getSession, requireAdmin middleware
     │   ├── db.ts       # all D1 queries
     │   ├── db/schema.ts # Drizzle schema, mirrors what the migrations create
-    │   ├── types.ts    # Env, JwtPayload, BoxInput, SessionStatus, etc.
-    │   ├── domain/     # the box-night rules (pure TypeScript), shared by Worker and browser
-    │   ├── browser/    # the old algorithm.js API on top of domain/, bundled to js/dist/rules.js
+    │   ├── types.ts    # Env, BoxInput, SessionStatus, etc.
+    │   ├── domain/     # the box-night rules (pure TypeScript), shared by Worker and UI
+    │   ├── browser/    # algorithm.ts: the old browser API on top of domain/ (only the rules tests use it now)
     │   ├── test/       # test helpers: local D1 (d1.ts), fixture club (fixtures/seed.ts), prod schema snapshot, frozen pre-S1 algorithm.js
-    │   └── *.test.ts   # Vitest tests
+    │   └── *.test.ts   # Vitest tests (the UI's next to its code under app/)
     ├── migrations/     # SQL migration files, applied with `wrangler d1 migrations apply`
     └── scripts/        # one-off data repair scripts (not production code)
 ```
@@ -129,23 +125,26 @@ npm run typecheck   # worker code (workers types) + tests (also node types, via 
 npm test            # vitest
 npm run lint        # ESLint (club-next's config)
 npm run format      # Prettier + eslint --fix (CI runs format:check)
-npm run build:web   # bundle the rules for the old UI (part of npm run build)
 npm run build       # everything a deploy builds (CI runs it too)
-npm run dev         # local dev server (Vite + local workerd + local D1) on :8788; old UI at /, new at /new/
+npm run dev         # local dev server (Vite + local workerd + local D1) on :8788
 npx tsx scripts/replay-ladder.mts   # replay every closed session through old and new rules
 
 cd e2e              # first time: npm install && npx playwright install chromium
-node shot.mjs <outDir> '[{"go":"/#/players","shot":"ladder"},{"mobile":true},{"go":"/#/2026-10-20/games","shot":"session"}]'
-node compare.mjs '["/#/players","/#/2026-10-20/games"]'   # same pages on prod vs staging, diff the on-screen text
+node shot.mjs <outDir> '[{"go":"/players","shot":"ladder"},{"mobile":true},{"go":"/sessions/2026-10-20/boxes","shot":"session"}]'
+node compare.mjs '["/players","/sessions/2026-10-20/results"]'   # same pages on prod vs staging, diff the on-screen text
 node compare-api.mjs   # every public API response on prod vs staging must be identical JSON
 node admin-flow.mjs    # a whole admin session night on staging as Test Admin, checked, then cleaned up
 node auth-ui.mjs       # sign-in in the browser on staging: to Google, Test Admin UI + sign out, "This is me" + admin unlink
 node fast-scores.mjs   # fast score entry on staging: two windows and the database must show what was typed
 node live-offline.mjs  # live channel dropping mid-entry, and a quiet connection dying (heartbeat)
 node player-scores.mjs # players enter their own box's scores; other boxes refused; viewers read-only
+node new-session.mjs   # a whole session night in the browser as Test Admin (check-in, Assign, scores, Close, re-open, delete)
+node new-pages.mjs [outDir]       # every page × signed out / player / admin × phone / desktop × light / dark; old #/ and /new/ links redirect
+node new-player-page.mjs          # the admin player page (edit and restore, HelloClub search)
+node print-sheets.mjs <outDir>    # printed score sheets (cards, grid): one page per box; PDFs + screenshots to look at
 ```
 
-CI runs typecheck, lint, format check and tests on every push to `master` and every PR. Lint and formatting cover `worker/` only; `js/` and `index.html` are left as they are until they're replaced (MIGRATION.md, S5). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
+CI runs typecheck, lint, format check, tests and the build on every push to `master` and every PR. Lint and formatting cover `worker/` (the Worker and the UI). `shot.mjs` defaults to staging (`BASE=` to change) and runs signed out, since sign-in is Google-only. It prints `ERRORS:` if any page logged a console error or a step failed. `compare.mjs` and `compare-api.mjs` are the regression checks for a change on staging: right after a staging refresh both sites hold the same data, so any difference is a behaviour change. Rules tests: `rules.characterization.test.ts` pins down how the rules behave as the app relies on them; `rules.differential.test.ts` compares the new rules with the frozen pre-S1 `algorithm.js` on random inputs; `domain/domain.test.ts` tests the shared rules directly. Database tests run on a real local D1 (wrangler's `getPlatformProxy`, the same engine as prod) built from `worker/migrations` and loaded with a small fixture club (made-up names; the repo is public): `db.characterization.test.ts` pins every query's results and writes, `api.characterization.test.ts` the routes' JSON including a whole admin session night.
 
 **Legacy:** `C:/dev/src/temp-badminton/` is the old GitHub Pages version backed by GitHub API for storage. It is no longer active. All production work happens in this repo.
 
@@ -270,32 +269,26 @@ Flow:
 
 **One Durable Object per session** (`SessionRoom`, `worker/src/live.ts`, keyed `<club id>:<date>`; SQLite-backed, as the free plan requires) carries session night live. Every screen on a session page holds a WebSocket to it (`GET /api/live/:date`, upgraded by the Worker, which passes `x-can-write: 1` only for admins). There's **no polling** any more.
 
-- **Score writes** go over the socket: `{ type: 'write', id, op: { op: 'setScore', box, match, set, a, b } }`. The room applies them **strictly one at a time** (a promise queue; `live-core.ts` holds the logic), saves to D1, replies `{ type: 'ack', id, ok }` to the sender, then broadcasts `{ type: 'match', box, match, sets }` (the match's saved sets) to every screen. Write ids are kept (last 2000, in the room's own storage), so a write resent after a reconnect isn't applied twice. Who may write is set by the Worker from the sign-in (`x-is-admin`, `x-player-id`, overwriting anything the browser sent): **admins any box; a signed-in, linked player any match in their own box (V3)**, including matches they sit out; anyone else is refused. Viewers who aren't signed in connect read-only. In the browser, `canEnterScores(bi)` enables the score inputs the same way.
+- **Score writes** go over the socket: `{ type: 'write', id, op: { op: 'setScore', box, match, set, a, b } }`. The room applies them **strictly one at a time** (a promise queue; `live-core.ts` holds the logic), saves to D1, replies `{ type: 'ack', id, ok }` to the sender, then broadcasts `{ type: 'match', box, match, sets }` (the match's saved sets) to every screen. Write ids are kept (last 2000, in the room's own storage), so a write resent after a reconnect isn't applied twice. Who may write is set by the Worker from the sign-in (`x-is-admin`, `x-player-id`, overwriting anything the browser sent): **admins any box; a signed-in, linked player any match in their own box (V3)**, including matches they sit out; anyone else is refused. Viewers who aren't signed in connect read-only. In the browser, the session page's `canEdit` makes the score fields editable the same way.
 - **Other changes** still go through the REST API (attendance, boxes, score, close, reopen, delete, add player); those routes call `notifyLive`, and the room broadcasts `{ type: 'changed' }` so screens reload the session.
 - **Heartbeat:** screens send `ping` every 15 s; the room answers `pong` through the hibernation auto-response (doesn't wake it). A dead network can leave a socket "closing" forever, so a missing pong, a write not acknowledged within 5 s, or a write attempted on a closing socket counts as **connection lost**.
-- **Browser (`js/app.js`, `_startLive`):** scores go out 0.4 s after typing; a cell keeps what was typed (isn't overwritten by incoming updates) until its save is acknowledged. Connection lost: reconnect with backoff, resend unacknowledged writes, refresh the session every 15 s meanwhile, and a banner: "Connection lost – reconnecting…" after 2 s, "Some changes may not have been saved… Reload" after 15 s. When it reconnects the banner clears, unless a write was refused.
+- **Browser (`worker/src/app/lib/live.ts` + `lib/scores.ts`):** scores go out 0.4 s after typing; a cell keeps what was typed (isn't overwritten by incoming updates) until its save is acknowledged. Connection lost: reconnect with backoff, resend unacknowledged writes, refresh the session every 15 s meanwhile, and a banner: "Connection lost – reconnecting…" after 2 s, "Some changes may not have been saved… Reload" after 15 s. When it reconnects the banner clears, unless a write was refused.
 - **D1 stays the only store** of session data; the room keeps only recent write ids.
 - **Free plan:** Durable Objects allow 100,000 requests and 13,000 GB-s a day (incoming WebSocket messages count 20:1; pings answered by auto-response are free). A session night uses well under 1%. Over a limit, operations fail until 00:00 UTC; nothing is charged.
 - **Checks:** `e2e/fast-scores.mjs` (fast entry in one window, another watching, slow reads; this reproduced lost/reverted scores with polling), `e2e/live-offline.mjs` (going offline mid-entry, and a quiet connection dying) and `e2e/player-scores.mjs` (a player's own box editable and saved, another box refused by the server, viewers read-only).
 
 ## Frontend
 
-**Two UIs during the port (UI-PORT.md).** The **new UI** (`worker/src/app`, TanStack Start + Mantine, router basepath `/new`) is being built at `/new/`; it reads through server functions (`src/app/fns`) that call `src/services` (the same code as the API routes), and its header has an "Old version" link. The **old UI** below stays at `/` until the cutover (U9); admins see a "New version" link in its header.
+**The UI is `worker/src/app`: TanStack Start (server-rendered React, TanStack Router + Query) with Mantine 9** (teal theme, Light / Dark in the account menu, first visit follows the device). Ported from the `club-table-lab` prototype in S5 (`UI-PORT.md` has the decisions and the log; the lab's `DECISIONS.md` the design reasoning).
 
-Old UI: single-page app. No framework build step — Alpine.js and Tailwind are loaded from CDN in `index.html`. The rules come from the bundled `js/dist/rules.js` (see below).
+- **Routes** (`src/app/routes`): `/` → `/players`; `/players` (ladder) and `/sessions` (tabs); `/players/:id` (admins); `/sessions/:date` → the furthest step reached; `/sessions/:date/checkin|boxes|results`. `/new/…` (where the UI was built) and the old UI's `#/…` links (incl. WhatsApp shares; `lib/legacy.ts`, handled in the browser since the hash never reaches the server) redirect to these.
+- **Data:** route loaders + TanStack Query over **server functions** (`src/app/fns`), which build a `ServiceContext` (`src/app/server/request.ts`: env, the request's D1 session on the primary, headers) and call `src/services` (the same code the `/api/*` routes call). Score writes go over the live channel (`lib/live.ts`, `lib/scores.ts`); the HelloClub sync and BetterAuth calls use the REST endpoints directly.
+- **ListTable** (`components/list-table`, from the lab, TanStack Table 9.3.1 pinned exactly): search with a count, filters (sheet on phones, popover on desktop) with pills, hidden-by-filters matches, columns chooser, Enter runs the first match's primary action, expandable rows. It renders in the browser only (`ClientOnly`: it reads the screen size while rendering).
+- **Session page** (`components/session`): the card (pills, the way forward, "…", step buttons, the stepper; a compact copy pins when scrolled), Check-in, Assign boxes modal, Boxes (match cards + standings), Results; all steps stay mounted. Printouts in `components/print` (score sheets) and `lib/print.ts` (sign-in sheet), visually identical to the old UI's.
+- **Names:** short name = preferred name, else first name; full name when short names clash in a view (`lib/names.ts`); boxes and printouts use the score sheets' "First L." rule (`boxName`).
+- **Conventions:** informative grey is `c={INFO_TEXT}` (`lib/colors.ts`; legible in dark mode), nothing under 12px; word-labelled buttons (the session card's "…" is the one icon-only button); dates that are YYYY-MM-DD go through `dayStart()` before formatting (otherwise the server, on UTC, renders the next day: a hydration error).
 
-**`js/app.js`** — one large `appData()` function that is the Alpine component. Key state:
-- `view` — `'home' | 'session' | 'player'`
-- `session` — current session object (date, status, attendees, boxes, leaderboardBefore/After)
-- `leaderboard` — ranked name array; `_playerIds`, `_playerHcIds`, `_playerPreferredNames` — parallel lookup maps
-- `player` — current player profile object (player view)
-- `hcSync` — modal state for HC sync log
-
-Routing is hash-based: `/` home, `/:date` session, `/players` leaderboard tab, `/players/:id` player profile.
-
-**`js/storage.js`** — thin HTTP client. All API calls go through `apiJSON(path, opts)`; the BetterAuth session cookie goes with them automatically. `me()` asks who's signed in, `signInWithGoogle()` starts the redirect, `logout()` ends the session.
-
-**Rules (`js/dist/rules.js`)** — the box-night rules live in `worker/src/domain/` (pairings, box sizes, custom layouts, set and match scoring, standings, 2-up-2-down), ported from `club-next` in S1 and shared by the Worker and the browser. `worker/src/browser/algorithm.ts` exposes them to `app.js` as the same globals the old `js/algorithm.js` had: `boxSizeOptions(n)`, `splitBySizes(sortedPlayers, sizes)`, `buildBoxesFromLayout(layout)`, `parseBoxLayout(text, nameByDisplay)`, `getPairings(size)`, `getSitout(box, matchIndex)`, `computeBoxStandings(box, lbBefore)`, `isValidSet`, `getMatchStatus`, `allScoresComplete`, `applyLeaderboardUpdate(boxes, lbBefore)`, `nextTuesday`, `formatDate`. Players are names and scores are numbers or `''`, as before. A set is valid if it's a finished 21-, 15- or 11-point set. Live standings count a game as won only once it's finished, and ignore games with an invalid score.
+**Rules** — the box-night rules live in `worker/src/domain/` (pairings, box sizes, custom layouts, set and match scoring, standings, 2-up-2-down), ported from `club-next` in S1 and shared by the Worker and the UI. A set is valid if it's a finished 21-, 15- or 11-point set. Live standings count a game as won only once it's finished, and ignore games with an invalid score. `worker/src/browser/algorithm.ts` is the old browser API on top of them, kept for the rules tests.
 
 ---
 
@@ -323,7 +316,7 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
 - **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. (There is no `players.current_rank` column any more; 0002 dropped it.)
 - **Box assignment algorithm:** each player plays every other player within their box; sizes 5/6/7 sit out 1/2/3 players per match — derived generically by `getSitout()` from each match's pairing (nobody hardcodes sit-out indices per size). Pairing schedules for all four sizes (`worker/src/domain/pairings.ts`) come from the club's printed score-sheet PDFs (`box6.pdf`, `box7.pdf` — the 4/5 originals aren't kept in-repo). Clicking "Assign Boxes" opens a modal (always, even when there's only one option — see future-work note below) offering every way to split attendees into boxes of 4/5/6, computed by `boxSizeOptions(n)` and ordered most-boxes-first (default selection); exactly 7 attendees instead get the single box-of-7 option, since a 7-box is only ever used as a last resort. Each option's layout (player names per box) comes from `splitBySizes(sortedAttendees, sizes)`, which slices attendees (sorted by leaderboard rank, boxes ascending in size) into the chosen boxes. If there's a previous layout for the session — the current boxes on Reassign, or the boxes cleared by Re-open Attendance (kept in memory only, as `_previousBoxLayout`, so lost on reload) — it's offered first, minus anyone no longer attending, and selected by default. A "Custom" option copies the selected option's layout into an editable textbox (one box per line, comma-separated display names exactly as printed — full names are rejected); re-selecting an option then Custom resets it. Every option is validated through `parseBoxLayout` (every attendee placed exactly once, boxes of 4–7) before `buildBoxesFromLayout` turns it into boxes with fresh pairings. Typical mid-session use: someone leaves → Re-open Attendance → untick them → Assign Boxes (previous layout is preselected, minus them). `boxSizeOptions` also fixed a latent gap: 11 attendees used to be Frobenius-non-representable by 4s/5s alone and hit a dead-end fallback — now resolved as 1 box of 5 + 1 box of 6.
-- **Pairing tables live in one place** (`worker/src/domain/pairings.ts`). They used to be duplicated in `js/algorithm.js` and `worker/src/db.ts`, and adding sizes 6/7 to only the client copy shipped a bug: those boxes came back from the API with empty pairings. Since S1 both the browser bundle and `db.ts` (`getPairing`, used when reading boxes back from D1) import the shared tables.
+- **Pairing tables live in one place** (`worker/src/domain/pairings.ts`). They used to be duplicated in `js/algorithm.js` and `worker/src/db.ts`, and adding sizes 6/7 to only the client copy shipped a bug: those boxes came back from the API with empty pairings. Since S1 both the UI and `db.ts` (`getPairing`, used when reading boxes back from D1) import the shared tables.
 
 ## Considerations for future work
 
@@ -333,7 +326,6 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Known issues
 
-- **Tailwind arbitrary values don't work:** the app loads the static Tailwind 2.2.19 build from CDN, which has no arbitrary values, so classes like `max-h-[65vh]` (three in `index.html`) are silently ignored. Use inline styles for such sizes (as the "Which player are you?" modal does). Goes away with S5.
 - **Ladder import while a session is open:** `replaceLeaderboard` writes the imported order to the latest session's *after* ladder, but an open session (attendance/games) shows its *before* ladder, so the imported order doesn't appear (the ladder shows the old order, minus anyone the import archived). Fine when the latest session is closed (the usual case). Found in S2; behaviour kept as-is for now.
 
 ## Future work

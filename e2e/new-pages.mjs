@@ -14,11 +14,11 @@ const sessions = await (await fetch(`${BASE}/api/sessions`)).json()
 const closed = sessions.find((s) => s.status === 'closed')?.date
 const ladder = (await (await fetch(`${BASE}/api/leaderboard`)).json()).players
 const pages = [
-  '/new/players',
-  '/new/sessions',
-  `/new/sessions/${closed}/checkin`,
-  `/new/sessions/${closed}/boxes`,
-  `/new/sessions/${closed}/results`,
+  '/players',
+  '/sessions',
+  `/sessions/${closed}/checkin`,
+  `/sessions/${closed}/boxes`,
+  `/sessions/${closed}/results`,
 ]
 
 for (const as of [undefined, 'test-player', 'test-admin']) {
@@ -26,7 +26,7 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     for (const scheme of ['light', 'dark']) {
       const s = await open({ as, phone })
       await s.page.emulateMedia({ colorScheme: scheme })
-      const list = as === 'test-admin' ? [...pages, `/new/players/${ladder[0].id}`] : pages
+      const list = as === 'test-admin' ? [...pages, `/players/${ladder[0].id}`] : pages
       for (const path of list) {
         await s.go(path)
         await s.page.waitForTimeout(400)
@@ -49,5 +49,24 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
       await s.browser.close()
     }
   }
+}
+// Old links (the Alpine UI's #/ routes, e.g. shared on WhatsApp, and /new/
+// while the new UI was built) land on today's pages.
+{
+  const s = await open()
+  for (const [from, to] of [
+    ['/#/players', '/players'],
+    ['/#/sessions', '/sessions'],
+    [`/#/${closed}/games`, `/sessions/${closed}/boxes`],
+    [`/#/${closed}/wrapup`, `/sessions/${closed}/results`],
+    [`/#/session/${closed}/leaderboard`, `/sessions/${closed}/results`],
+    ['/new/sessions', '/sessions'],
+    [`/new/sessions/${closed}/checkin`, `/sessions/${closed}/checkin`],
+  ]) {
+    await s.go(from)
+    await s.page.waitForURL((u) => u.pathname === to, { timeout: 10000 }).catch(() => {})
+    check(`${from} → ${to}`, new URL(s.page.url()).pathname === to, s.page.url())
+  }
+  await s.browser.close()
 }
 done('page')
