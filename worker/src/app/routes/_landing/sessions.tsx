@@ -6,7 +6,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ListTable } from '../../components/list-table/ListTable'
 import type { FilterDef } from '../../components/list-table/filters'
-import { SIX_MONTHS, sessionDate } from '../../components/list-helpers'
+import {
+  SIX_MONTHS,
+  dayStart,
+  sessionDate,
+} from '../../components/list-helpers'
 import { NewSessionModal } from '../../components/NewSessionModal'
 import { INFO_TEXT } from '../../lib/colors'
 import { sessionListQuery, viewerQuery } from '../../lib/queries'
@@ -22,7 +26,7 @@ const dateFilter: FilterDef<SessionListRow> = {
   kind: 'within',
   id: 'date',
   label: 'Date',
-  date: (s) => `${s.date}T12:00:00`,
+  date: (s) => dayStart(s.date),
   // The Date column shows it; no "Date: Apr 2026" under hidden matches.
   column: 'date',
 }
