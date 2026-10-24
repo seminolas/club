@@ -88,7 +88,7 @@ export function BoxDetail(props: {
               className="gs-match"
               data-sitout={sitOut.length > 0 || undefined}
             >
-              <Badge className="gs-pill-match" color="gray.7" size="sm">
+              <Badge className="gs-pill-match" color="gray.7" size="sm" fz={12}>
                 Match {mi + 1}
               </Badge>
               <Text
@@ -145,7 +145,7 @@ export function BoxDetail(props: {
                 return (
                   <div key={gi} className="gs-line">
                     <div className="gs-left gs-game">
-                      <Text size="xs" c="dimmed">
+                      <Text size="xs" c="var(--club-info-text)">
                         Game {gi + 1}
                       </Text>
                       {field(0)}
@@ -163,6 +163,7 @@ export function BoxDetail(props: {
                   variant="outline"
                   color="gray"
                   size="sm"
+                  fz={12}
                   tt="none"
                 >
                   Sitting out: {sitOut.map(name).join(', ')}
@@ -187,7 +188,7 @@ function Standings(props: {
     // A card of its own, with a pill like the match cards, so the totals
     // don't run into the next box's row.
     <div className="gs-standings-card">
-      <Badge className="gs-pill-match" color="gray.7" size="sm">
+      <Badge className="gs-pill-match" color="gray.7" size="sm" fz={12}>
         Standings
       </Badge>
       <Table

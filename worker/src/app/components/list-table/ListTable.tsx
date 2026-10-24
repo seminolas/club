@@ -605,7 +605,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
           />
         )}
         {why && (
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="var(--club-info-text)">
             {why}
           </Text>
         )}
@@ -631,7 +631,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
       onClick={() => (sheet.open ? closeSheet() : setSheet({ open: true }))}
       rightSection={
         count > 0 ? (
-          <Badge size="sm" circle>
+          <Badge size="sm" circle fz={12}>
             {count}
           </Badge>
         ) : undefined
@@ -671,7 +671,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
       }
       rightSection={
         shownColumns < allColumns.length ? (
-          <Badge size="sm">
+          <Badge size="sm" fz={12}>
             {shownColumns}/{allColumns.length}
           </Badge>
         ) : undefined
@@ -767,7 +767,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
               {boxCount && (
                 <Text
                   size="sm"
-                  c="dimmed"
+                  c="var(--club-info-text)"
                   style={{ whiteSpace: 'nowrap' }}
                   aria-live="polite"
                   aria-label={`Showing ${shownCount} of ${props.records.length} ${noun(props.records.length)}`}
@@ -981,7 +981,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
           {rows.length === 0 && (
             <Table.Tr>
               <Table.Td colSpan={visibleColumnCount} py="xl" ta="center">
-                <Text c="dimmed" size="sm">
+                <Text c="var(--club-info-text)" size="sm">
                   {q ? `No one matches “${q}”` : 'No one matches the filters'}
                 </Text>
               </Table.Td>
@@ -1217,7 +1217,7 @@ function AlsoLine(props: {
   const shown = props.texts.slice(0, props.max)
   const more = props.texts.length - shown.length
   return (
-    <Text size="xs" c="dimmed" className="lt-also">
+    <Text size="xs" c="var(--club-info-text)" className="lt-also">
       {props.label}:{' '}
       {shown.map((t, i) => (
         <Fragment key={i}>

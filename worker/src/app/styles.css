@@ -3,10 +3,11 @@
    Mantine's "dimmed" is lighter and kept for decoration. Use it as
    c="var(--club-info-text)" (lib/colors.ts: INFO_TEXT). */
 :root {
-  --club-info-text: light-dark(
-    var(--mantine-color-gray-7),
-    var(--mantine-color-dark-1)
-  );
+  --club-info-text: var(--mantine-color-gray-7);
+}
+/* Not light-dark(): inside a custom property it kept the light value. */
+[data-mantine-color-scheme='dark'] {
+  --club-info-text: var(--mantine-color-dark-1);
 }
 
 /* A page's own actions card, the same tint as ListTable's actions card
