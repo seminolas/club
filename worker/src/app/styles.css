@@ -8,3 +8,12 @@
     var(--mantine-color-dark-1)
   );
 }
+
+/* A page's own actions card, the same tint as ListTable's actions card
+   (components/PageCard.tsx). */
+.club-page-card {
+  background: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-8)
+  );
+}
