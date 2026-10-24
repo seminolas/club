@@ -9,6 +9,15 @@ import type { DB } from './db'
 import { CLUB_ID, ServiceError } from './services/context'
 import type { ServiceContext } from './services/context'
 import { importLadder } from './services/ladder'
+import {
+  HcError,
+  playerProfile,
+  removePlayer,
+  searchHcMembers,
+  unlinkPlayer,
+  updatePlayer,
+} from './services/players'
+import type { ProfileChange } from './services/players'
 import { createSession } from './services/sessions'
 import { claimPlayer, claimablePlayers, loadViewer } from './services/viewer'
 
@@ -347,40 +356,32 @@ app.delete('/api/sessions/:date', requireAdmin, async (c) => {
 
 // ── Players ───────────────────────────────────────────────────────────────────
 
-app.get('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const player = await db.getPlayerById(c.get('db'), CLUB_ID, id)
-  if (!player) return c.json({ error: 'Not found' }, 404)
-  return c.json({ ...player, login: await db.getPlayerLogin(c.get('db'), id) })
-})
+app.get('/api/players/:id', requireAdmin, (c) =>
+  run(c, () => playerProfile(ctx(c), parseInt(c.req.param('id')))),
+)
 
 // Unlink a player's sign-in (e.g. someone picked the wrong player).
-app.post('/api/players/:id/unlink', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  await db.unlinkPlayer(c.get('db'), id)
-  return c.json({ ok: true })
-})
+app.post('/api/players/:id/unlink', requireAdmin, (c) =>
+  run(c, async () => {
+    await unlinkPlayer(ctx(c), parseInt(c.req.param('id')))
+    return { ok: true }
+  }),
+)
 
 app.put('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const body = await c.req.json<{
-    email?: string | null
-    hc_member_id?: string | null
-  }>()
-  await db.updatePlayerProfile(c.get('db'), id, body)
-  return c.json({ ok: true })
+  const body = await c.req.json<ProfileChange>()
+  return run(c, async () => {
+    await updatePlayer(ctx(c), parseInt(c.req.param('id')), body)
+    return { ok: true }
+  })
 })
 
-app.delete('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const result = await db.deletePlayer(c.get('db'), id)
-  if (!result.deleted) return c.json({ error: result.reason }, 409)
-  return c.json({ ok: true })
-})
+app.delete('/api/players/:id', requireAdmin, (c) =>
+  run(c, async () => {
+    await removePlayer(ctx(c), parseInt(c.req.param('id')))
+    return { ok: true }
+  }),
+)
 
 app.post('/api/players', requireAdmin, async (c) => {
   const { name, insert_rank, session_date } = await c.req.json<{
@@ -421,41 +422,14 @@ app.post('/api/players', requireAdmin, async (c) => {
 // ── HelloClub sync (server-side proxy) ────────────────────────────────────────
 
 app.get('/api/hc/members', requireAdmin, async (c) => {
-  const q = c.req.query('q') ?? ''
-  if (!q.trim()) return c.json({ members: [] })
-
-  const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`
-  const res = await fetch(
-    `${HC_BASE}/member?search=${encodeURIComponent(q)}&limit=15`,
-    { headers: { 'X-Api-Key': c.env.HC_API_KEY, Accept: 'application/json' } },
-  )
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    return c.json(
-      { error: `HC API error: ${res.status}${body ? ' — ' + body : ''}` },
-      502,
-    )
+  try {
+    return c.json({
+      members: await searchHcMembers(ctx(c), c.req.query('q') ?? ''),
+    })
+  } catch (e) {
+    if (e instanceof HcError) return c.json({ error: e.message }, 502)
+    throw e
   }
-  const data = await res.json<{
-    members?: Array<{
-      id: string
-      firstName: string
-      lastName: string
-      number?: string
-      email?: string
-      isArchived?: boolean
-      isSuspended?: boolean
-    }>
-  }>()
-  const members = (data.members ?? [])
-    .filter((m) => !m.isArchived && !m.isSuspended)
-    .map((m) => ({
-      id: m.id,
-      name: `${m.firstName} ${m.lastName}`.trim(),
-      number: m.number ?? null,
-      email: m.email ?? null,
-    }))
-  return c.json({ members })
 })
 
 app.post('/api/hc/sync', requireAdmin, async (c) => {
