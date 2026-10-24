@@ -325,7 +325,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
     menu,
     stepActions: stepActions[step],
     note:
-      step === 'checkin' && phase !== 'checkin' && admin ? (
+      step === 'checkin' && phase === 'playing' && admin ? (
         <Text size="sm" c={INFO_TEXT}>
           Check-in is closed once boxes are assigned. To change who’s coming,
           re-open check-in (in “…”).

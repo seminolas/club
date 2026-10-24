@@ -16,7 +16,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | U1 | TanStack Start in the Worker, app shell at `/new/`, sign-in | ✅ | branch `u1-start-shell` (on `ui-port-plan`) |
 | U2 | `ListTable` + landing page: Players (ladder), Sessions | ✅ | branch `u2-landing` (on `u1-start-shell`) |
 | U3 | Player page (admin) | ✅ | branch `u3-player-page` (on `u2-landing`) |
-| U4 | Session page frame + Check-in step + Assign boxes | ⬜ | |
+| U4 | Session page frame + Check-in step + Assign boxes | ✅ | branch `u4-session-checkin` (on `u3-player-page`) |
 | U5 | Boxes step: score entry, live channel, Close | ⬜ | |
 | U6 | Results step: stats table, Share, HelloClub sync | ⬜ | |
 | U7 | Printing: sign-in sheet, score sheets (cards, grid) | ⬜ | |
@@ -289,3 +289,13 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
   - Ladder import is refused in the new UI while the latest session isn't closed (the old UI checked only the session it had open).
   - In e2e scripts the ListTable search box is `[role=combobox]`.
 - **2026-10-24 (U3):** done; on staging. Player routes and the HelloClub member search moved into `services/players.ts` (API tests green). New browser-check helper `e2e/new-ui-lib.mjs` (`open({ as, phone })`, `check`, `done`) and `e2e/new-player-page.mjs`. Page actions card for pages without a table: `components/PageCard.tsx` (same tint as ListTable's).
+- **2026-10-24 (U4):** done; on staging; `e2e/new-session.mjs` passes (whole check-in on a 2099 session: Enter marking, Undo, add + remove a player, Assign modal, Re-open check-in with the previous layout first, Delete; cleans up).
+  - All session routes (GET, attendance, boxes, close, re-open ×2, delete, add player) now call `services/session-night.ts`; they await the live notify instead of `waitUntil` (a few ms).
+  - Routes: `/sessions/$date` → furthest step; `/sessions/$date/$step` (`checkin|boxes|results`); a step not reached yet redirects to the furthest. All steps stay mounted in one route component.
+  - The header is no longer fixed (it scrolls away), so the pinned bar and sticky table bars use the top of the screen as in the lab.
+  - `lib/live.ts`: the old `_startLive` protocol as a class (`LiveChannel`) + `useSessionLive`; U4 uses `changed` (reload) and `match` (patch the cached session); writes are ready for U5.
+  - `lib/session.ts`: phases, progress, `ladderAfter` (ids; tested equal to the old `applyLeaderboardUpdate` on 200 random nights), movement counts for the Close confirm.
+  - Assign boxes uses the domain directly (`boxSizeOptions`, `buildBoxes`, `parseBoxLayout`) on player ids; custom layouts are typed in `boxName` (the old "First" / "First L." rule).
+  - **SSR date bug found and fixed:** date-only values were parsed as local noon, which is the next day in NZ when the server (UTC) renders ("Wed 21 Oct" vs "Tue 20 Oct", React hydration error #418). Use `dayStart(date)` (UTC midnight) for YYYY-MM-DD values; a test runs the formatting under `TZ=UTC`.
+  - Steps Boxes and Results show the card and a link to the old page until U5/U6.
+  - The "way forward" button when it can't be used yet (`data-disabled`) says why when tapped (toast), since tooltips don't work on phones.
