@@ -1,0 +1,23 @@
+.list {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  min-height: 6rem;
+}
+
+.row {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: var(--mantine-font-size-sm);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+
+  &:hover {
+    background: var(--mantine-color-default-hover);
+  }
+
+  &[data-selected] {
+    background: var(--mantine-color-teal-light);
+    color: var(--mantine-color-teal-light-color);
+    font-weight: 600;
+  }
+}

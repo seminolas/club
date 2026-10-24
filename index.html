@@ -179,6 +179,11 @@
           </div>
         </template>
 
+        <!-- The new UI, being built at /new/ (UI-PORT.md); admins only until it's ready. -->
+        <template x-if="isAdmin">
+          <a href="/new/" class="text-xs border border-gray-300 rounded px-2 py-1 text-gray-600 hover:bg-gray-100 whitespace-nowrap">New version</a>
+        </template>
+
         <!-- Divider -->
         <div class="w-px h-4 bg-gray-200 mx-1"></div>
 
