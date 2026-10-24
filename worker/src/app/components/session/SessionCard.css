@@ -1,0 +1,70 @@
+/* Session card (club-table-lab src/demos/AppDemo.css; DECISIONS.md there, "Session pages" and its follow-ups). */
+
+/* Stepper: the step being looked at is bold and underlined; the ticks and
+   colours show how far the session has got. Room above and below, so it
+   doesn't crowd the pills or the card's edge. */
+.app-stepper {
+  padding-block: var(--mantine-spacing-sm);
+}
+.app-stepper [data-viewing] .mantine-Stepper-stepLabel {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+/* A locked step looks unavailable but can be tapped, to say what opens it. */
+.app-stepper [data-locked] {
+  cursor: help;
+}
+.app-stepper [data-locked] .mantine-Stepper-stepIcon,
+.app-stepper [data-locked] .mantine-Stepper-stepLabel {
+  opacity: 0.6;
+}
+
+.app-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  align-self: flex-start;
+}
+
+/* The compact step bar, pinned once the full card has scrolled away; the
+   table's search bar pins right under it. */
+.app-pinned {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  padding: 0 16px;
+  /* The actions card's tint (ListTable.css, --lt-toolbar-bg). */
+  background: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-8)
+  );
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+@media (min-width: 36em) {
+  .app-pinned {
+    left: 50%;
+    /* The page content's width: Container md (960px) less its 16px gutters. */
+    width: min(100% - 32px, 928px);
+    transform: translateX(-50%);
+  }
+}
+
+/* Pills (DECISIONS.md, "Session pages, pill style"): the date and count in
+   dark text on a stronger grey than Mantine's light default, so they read
+   next to the coloured status pill. The label ("Date:") lighter than its
+   value. */
+.app-pill[data-info] {
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-dark-0));
+  background: light-dark(
+    var(--mantine-color-gray-3),
+    var(--mantine-color-dark-4)
+  );
+}
+.app-pill-label {
+  font-weight: 500;
+  opacity: 0.8;
+}

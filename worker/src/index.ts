@@ -18,6 +18,16 @@ import {
   updatePlayer,
 } from './services/players'
 import type { ProfileChange } from './services/players'
+import {
+  addPlayer,
+  closeSession,
+  deleteSession,
+  getSession as sessionNight,
+  reopenAttendance,
+  reopenSession,
+  saveBoxes,
+  setAttendance,
+} from './services/session-night'
 import { createSession } from './services/sessions'
 import { claimPlayer, claimablePlayers, loadViewer } from './services/viewer'
 
@@ -64,13 +74,6 @@ async function run(c: AppContext, fn: () => Promise<object>) {
     if (e instanceof ServiceError) return c.json({ error: e.message }, e.status)
     throw e
   }
-}
-
-// The signed-in person's player id (after requireAdmin), for the check-in audit.
-async function actingPlayerId(c: AppContext): Promise<number | null> {
-  const userId = c.get('userId')
-  if (!userId) return null
-  return (await db.getPlayerByUserId(c.get('db'), CLUB_ID, userId))?.id ?? null
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -193,79 +196,29 @@ app.post('/api/sessions', requireAdmin, async (c) => {
   }
 })
 
-app.get('/api/sessions/:date', async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-
-  let lbBefore: { id: number; name: string }[]
-  let lbAfter: { id: number; name: string }[] | null = null
-
-  if (session.status === 'closed') {
-    ;[lbBefore, lbAfter] = await Promise.all([
-      db.getSessionRanks(c.get('db'), session.id, 'before'),
-      db.getSessionRanks(c.get('db'), session.id, 'after'),
-    ])
-  } else {
-    lbBefore = await db.getSessionRanks(c.get('db'), session.id, 'before')
-  }
-
-  const [attendees, boxes] = await Promise.all([
-    db.getAttendees(c.get('db'), session.id),
-    db.getBoxes(c.get('db'), session.id),
-  ])
-
-  return c.json({
-    date: session.date,
-    status: session.status,
-    attendees,
-    boxes,
-    leaderboardBefore: lbBefore,
-    leaderboardAfter: lbAfter,
-  })
-})
+app.get('/api/sessions/:date', (c) =>
+  run(c, () => sessionNight(ctx(c), c.req.param('date'))),
+)
 
 // Toggle attendance for a player by ID
 app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { player_id, attending } = await c.req.json<{
     player_id: number
     attending: boolean
   }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status === 'games' || session.status === 'closed') {
-    return c.json({ error: 'Cannot change attendance in this state' }, 400)
-  }
-
-  await db.setAttendance(
-    c.get('db'),
-    session.id,
-    player_id,
-    attending,
-    await actingPlayerId(c),
-  )
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await setAttendance(ctx(c), c.req.param('date'), player_id, attending)
+    return { ok: true }
+  })
 })
 
 // Store computed box assignment from client (player IDs in boxes.players)
 app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { boxes } = await c.req.json<{ boxes: BoxInput[] }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status === 'closed')
-    return c.json({ error: 'Session is closed' }, 400)
-
-  await db.clearBoxes(c.get('db'), session.id)
-  await db.saveBoxes(c.get('db'), session.id, boxes)
-  await db.updateSessionStatus(c.get('db'), session.id, 'games')
-
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await saveBoxes(ctx(c), c.req.param('date'), boxes)
+    return { ok: true }
+  })
 })
 
 // Update a single set score
@@ -302,57 +255,35 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
 
 // Close session: accept new leaderboard order as player IDs from client
 app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { leaderboard_after } = await c.req.json<{
     leaderboard_after: number[]
   }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-
-  await db.setSessionRanks(c.get('db'), session.id, leaderboard_after, 'after')
-  await db.updateSessionStatus(
-    c.get('db'),
-    session.id,
-    'closed',
-    new Date().toISOString(),
-  )
-
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await closeSession(ctx(c), c.req.param('date'), leaderboard_after)
+    return { ok: true }
+  })
 })
 
-app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status !== 'closed')
-    return c.json({ error: 'Session is not closed' }, 400)
-  await db.updateSessionStatus(c.get('db'), session.id, 'games')
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.post('/api/sessions/:date/reopen', requireAdmin, (c) =>
+  run(c, async () => {
+    await reopenSession(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
-app.post('/api/sessions/:date/reopen-attendance', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status !== 'games')
-    return c.json({ error: 'Session is not in games state' }, 400)
-  await db.clearBoxes(c.get('db'), session.id)
-  await db.updateSessionStatus(c.get('db'), session.id, 'attendance')
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.post('/api/sessions/:date/reopen-attendance', requireAdmin, (c) =>
+  run(c, async () => {
+    await reopenAttendance(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
-app.delete('/api/sessions/:date', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  await db.deleteSession(c.get('db'), session.id)
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.delete('/api/sessions/:date', requireAdmin, (c) =>
+  run(c, async () => {
+    await deleteSession(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
 // ── Players ───────────────────────────────────────────────────────────────────
 
@@ -389,34 +320,14 @@ app.post('/api/players', requireAdmin, async (c) => {
     insert_rank: number
     session_date: string
   }>()
-
-  if (!name || !insert_rank || !session_date)
-    return c.json({ error: 'name, insert_rank, session_date required' }, 400)
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, session_date)
-  if (!session) return c.json({ error: 'Session not found' }, 404)
-  if (session.status === 'closed')
-    return c.json({ error: 'Session is closed' }, 400)
-  if (session.status === 'games')
-    return c.json(
-      { error: 'Cannot add players during games — re-open attendance first' },
-      400,
-    )
-
-  const existing = await db.getPlayerByName(c.get('db'), CLUB_ID, name)
-  if (existing) return c.json({ error: 'Player already exists' }, 409)
-
-  const newId = await db.addPlayerMidSession(
-    c.get('db'),
-    CLUB_ID,
-    session.id,
-    name,
-    insert_rank,
-    await actingPlayerId(c),
-  )
-
-  notifyLive(c, session_date)
-  return c.json({ ok: true, id: newId })
+  return run(c, async () => ({
+    ok: true,
+    id: await addPlayer(ctx(c), {
+      name,
+      insertRank: insert_rank,
+      date: session_date,
+    }),
+  }))
 })
 
 // ── HelloClub sync (server-side proxy) ────────────────────────────────────────
