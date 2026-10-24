@@ -10,6 +10,7 @@ import {
   gte,
   inArray,
   isNull,
+  ne,
   notExists,
   sql,
 } from 'drizzle-orm'
@@ -1021,4 +1022,69 @@ export async function getClub(
     .where(eq(t.clubs.id, clubId))
     .get()
   return row ?? null
+}
+
+// ── New UI (UI-PORT.md, U2) ───────────────────────────────────────────────────
+// These read every attendee row of the club's closed sessions (about 1,300
+// rows read in 2026-10, growing ~1,500 a year), so callers cache them by
+// closedSessionsVersion (services/cache.ts) rather than run them per page view.
+
+/**
+ * Changes whenever the set of closed sessions or their results can have
+ * changed: a session closed, re-opened or deleted. Cheap (reads the club's
+ * session rows only).
+ */
+export async function closedSessionsVersion(
+  db: DB,
+  clubId: number,
+): Promise<string> {
+  const row = await orm(db)
+    .select({
+      n: count(),
+      last: sql<string | null>`max(${t.sessions.closedAt})`,
+      ids: sql<number | null>`sum(${t.sessions.id})`,
+    })
+    .from(t.sessions)
+    .where(and(eq(t.sessions.clubId, clubId), eq(t.sessions.status, 'closed')))
+    .get()
+  return `${row?.n ?? 0}:${row?.last ?? ''}:${row?.ids ?? 0}`
+}
+
+/** Per player: closed sessions attended, and the date of the last one. */
+export async function playedStats(
+  db: DB,
+  clubId: number,
+): Promise<{ playerId: number; nights: number; lastPlayed: string }[]> {
+  return orm(db)
+    .select({
+      playerId: t.attendees.playerId,
+      nights: count(),
+      lastPlayed: sql<string>`max(${t.sessions.date})`,
+    })
+    .from(t.attendees)
+    .innerJoin(t.sessions, eq(t.sessions.id, t.attendees.sessionId))
+    .where(and(eq(t.sessions.clubId, clubId), eq(t.sessions.status, 'closed')))
+    .groupBy(t.attendees.playerId)
+}
+
+/** Who attended each session (closed ones, or the others), by date. */
+export async function sessionAttendeeNames(
+  db: DB,
+  clubId: number,
+  closed: boolean,
+): Promise<{ date: string; name: string }[]> {
+  return orm(db)
+    .select({ date: t.sessions.date, name: t.players.name })
+    .from(t.attendees)
+    .innerJoin(t.sessions, eq(t.sessions.id, t.attendees.sessionId))
+    .innerJoin(t.players, eq(t.players.id, t.attendees.playerId))
+    .where(
+      and(
+        eq(t.sessions.clubId, clubId),
+        closed
+          ? eq(t.sessions.status, 'closed')
+          : ne(t.sessions.status, 'closed'),
+      ),
+    )
+    .orderBy(asc(t.sessions.date), asc(t.players.name))
 }

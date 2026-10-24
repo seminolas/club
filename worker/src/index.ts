@@ -6,11 +6,36 @@ import { getSession, requireAdmin } from './auth'
 import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
+import { CLUB_ID, ServiceError } from './services/context'
+import type { ServiceContext } from './services/context'
+import { importLadder } from './services/ladder'
+import {
+  HcError,
+  playerProfile,
+  removePlayer,
+  searchHcMembers,
+  unlinkPlayer,
+  updatePlayer,
+} from './services/players'
+import type { ProfileChange } from './services/players'
+import {
+  addPlayer,
+  closeSession,
+  deleteSession,
+  getSession as sessionNight,
+  reopenAttendance,
+  reopenSession,
+  saveBoxes,
+  setAttendance,
+} from './services/session-night'
+import { createSession } from './services/sessions'
+import { claimPlayer, claimablePlayers, loadViewer } from './services/viewer'
 
 // The live session Durable Object class, for the Workers runtime (S6a).
 export { SessionRoom } from './live'
 
 type Variables = { db: DB; userId?: string }
+type AppContext = Context<{ Bindings: Env; Variables: Variables }>
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
@@ -34,16 +59,21 @@ app.use('*', async (c, next) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Hard-coded to club_id=1 for now; extend to subdomain routing when multi-club.
-const CLUB_ID = 1
+// The request as the shared services see it.
+const ctx = (c: AppContext): ServiceContext => ({
+  env: c.env,
+  db: c.get('db'),
+  headers: c.req.raw.headers,
+})
 
-// The signed-in person's player id (after requireAdmin), for the check-in audit.
-async function actingPlayerId(
-  c: Context<{ Bindings: Env; Variables: Variables }>,
-): Promise<number | null> {
-  const userId = c.get('userId')
-  if (!userId) return null
-  return (await db.getPlayerByUserId(c.get('db'), CLUB_ID, userId))?.id ?? null
+// A service's result as JSON, or its refusal as `{ error }` with its status.
+async function run(c: AppContext, fn: () => Promise<object>) {
+  try {
+    return c.json(await fn())
+  } catch (e) {
+    if (e instanceof ServiceError) return c.json({ error: e.message }, e.status)
+    throw e
+  }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -58,54 +88,21 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) =>
 // A login with no player yet is linked here if exactly one player has its
 // (Google-verified) email as their HelloClub email; otherwise the browser
 // offers "This is me".
-app.get('/api/me', async (c) => {
-  const session = await getSession(c)
-  if (!session) return c.json({ signedIn: false, isAdmin: false })
-  const { user } = session
-  let player = await db.getPlayerByUserId(c.get('db'), CLUB_ID, user.id)
-  let justLinked = false
-  if (!player && user.emailVerified) {
-    player = await db.autoLinkByEmail(c.get('db'), CLUB_ID, user.id, user.email)
-    justLinked = player !== null
-  }
-  return c.json({
-    signedIn: true,
-    isAdmin: user.role === 'admin',
-    name: user.name,
-    player,
-    justLinked,
-  })
-})
+app.get('/api/me', async (c) => c.json(await loadViewer(ctx(c))))
 
 // "This is me": the players a signed-in login can pick, and picking one.
-app.get('/api/me/claimable', async (c) => {
-  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401)
-  return c.json({
-    players: await db.listClaimablePlayers(c.get('db'), CLUB_ID),
-  })
-})
+app.get('/api/me/claimable', (c) =>
+  run(c, async () => ({ players: await claimablePlayers(ctx(c)) })),
+)
 
 app.post('/api/me/claim', async (c) => {
-  const session = await getSession(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const { player_id } = await c.req.json<{ player_id: number }>()
-  if (!Number.isInteger(player_id))
-    return c.json({ error: 'player_id required' }, 400)
-  const ok = await db.claimPlayer(
-    c.get('db'),
-    CLUB_ID,
-    player_id,
-    session.user.id,
-  )
-  if (!ok)
-    return c.json(
-      { error: 'That player is already linked to a sign-in. Ask an admin.' },
-      409,
-    )
-  return c.json({
+  const { player_id } = await c.req
+    .json<{ player_id: number }>()
+    .catch(() => ({ player_id: NaN }))
+  return run(c, async () => ({
     ok: true,
-    player: await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id),
-  })
+    player: await claimPlayer(ctx(c), player_id),
+  }))
 })
 
 // ── Live session (S6a) ────────────────────────────────────────────────────────
@@ -176,10 +173,10 @@ app.get('/api/leaderboard', async (c) => {
 
 app.post('/api/leaderboard/import', requireAdmin, async (c) => {
   const { players } = await c.req.json<{ players: string[] }>()
-  if (!Array.isArray(players) || players.length === 0)
-    return c.json({ error: 'players array required' }, 400)
-  await db.replaceLeaderboard(c.get('db'), CLUB_ID, players)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await importLadder(ctx(c), players)
+    return { ok: true }
+  })
 })
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -191,111 +188,37 @@ app.get('/api/sessions', async (c) => {
 
 app.post('/api/sessions', requireAdmin, async (c) => {
   const { date } = await c.req.json<{ date: string }>()
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
-    return c.json({ error: 'Invalid date' }, 400)
-
-  const existing = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (existing) return c.json({ error: 'Session already exists' }, 409)
-
-  // Fetch leaderboard BEFORE creating the session — after creation the new
-  // session becomes the most recent, making getLeaderboardPlayers return nothing.
-  const players = await db.getLeaderboardPlayers(c.get('db'), CLUB_ID)
-
-  const sessionId = await db.createSession(c.get('db'), CLUB_ID, date)
-  await db.setSessionRanks(
-    c.get('db'),
-    sessionId,
-    players.map((p) => p.id),
-    'before',
-  )
-
-  const lbBefore = players.map((p) => ({ id: p.id, name: p.name }))
-  return c.json(
-    {
-      date,
-      status: 'attendance',
-      attendees: [],
-      boxes: [],
-      leaderboardBefore: lbBefore,
-      leaderboardAfter: null,
-    },
-    201,
-  )
-})
-
-app.get('/api/sessions/:date', async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-
-  let lbBefore: { id: number; name: string }[]
-  let lbAfter: { id: number; name: string }[] | null = null
-
-  if (session.status === 'closed') {
-    ;[lbBefore, lbAfter] = await Promise.all([
-      db.getSessionRanks(c.get('db'), session.id, 'before'),
-      db.getSessionRanks(c.get('db'), session.id, 'after'),
-    ])
-  } else {
-    lbBefore = await db.getSessionRanks(c.get('db'), session.id, 'before')
+  try {
+    return c.json(await createSession(ctx(c), date), 201)
+  } catch (e) {
+    if (e instanceof ServiceError) return c.json({ error: e.message }, e.status)
+    throw e
   }
-
-  const [attendees, boxes] = await Promise.all([
-    db.getAttendees(c.get('db'), session.id),
-    db.getBoxes(c.get('db'), session.id),
-  ])
-
-  return c.json({
-    date: session.date,
-    status: session.status,
-    attendees,
-    boxes,
-    leaderboardBefore: lbBefore,
-    leaderboardAfter: lbAfter,
-  })
 })
+
+app.get('/api/sessions/:date', (c) =>
+  run(c, () => sessionNight(ctx(c), c.req.param('date'))),
+)
 
 // Toggle attendance for a player by ID
 app.put('/api/sessions/:date/attendance', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { player_id, attending } = await c.req.json<{
     player_id: number
     attending: boolean
   }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status === 'games' || session.status === 'closed') {
-    return c.json({ error: 'Cannot change attendance in this state' }, 400)
-  }
-
-  await db.setAttendance(
-    c.get('db'),
-    session.id,
-    player_id,
-    attending,
-    await actingPlayerId(c),
-  )
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await setAttendance(ctx(c), c.req.param('date'), player_id, attending)
+    return { ok: true }
+  })
 })
 
 // Store computed box assignment from client (player IDs in boxes.players)
 app.put('/api/sessions/:date/boxes', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { boxes } = await c.req.json<{ boxes: BoxInput[] }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status === 'closed')
-    return c.json({ error: 'Session is closed' }, 400)
-
-  await db.clearBoxes(c.get('db'), session.id)
-  await db.saveBoxes(c.get('db'), session.id, boxes)
-  await db.updateSessionStatus(c.get('db'), session.id, 'games')
-
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await saveBoxes(ctx(c), c.req.param('date'), boxes)
+    return { ok: true }
+  })
 })
 
 // Update a single set score
@@ -332,94 +255,64 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
 
 // Close session: accept new leaderboard order as player IDs from client
 app.post('/api/sessions/:date/close', requireAdmin, async (c) => {
-  const date = c.req.param('date')
   const { leaderboard_after } = await c.req.json<{
     leaderboard_after: number[]
   }>()
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-
-  await db.setSessionRanks(c.get('db'), session.id, leaderboard_after, 'after')
-  await db.updateSessionStatus(
-    c.get('db'),
-    session.id,
-    'closed',
-    new Date().toISOString(),
-  )
-
-  notifyLive(c, date)
-  return c.json({ ok: true })
+  return run(c, async () => {
+    await closeSession(ctx(c), c.req.param('date'), leaderboard_after)
+    return { ok: true }
+  })
 })
 
-app.post('/api/sessions/:date/reopen', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status !== 'closed')
-    return c.json({ error: 'Session is not closed' }, 400)
-  await db.updateSessionStatus(c.get('db'), session.id, 'games')
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.post('/api/sessions/:date/reopen', requireAdmin, (c) =>
+  run(c, async () => {
+    await reopenSession(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
-app.post('/api/sessions/:date/reopen-attendance', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  if (session.status !== 'games')
-    return c.json({ error: 'Session is not in games state' }, 400)
-  await db.clearBoxes(c.get('db'), session.id)
-  await db.updateSessionStatus(c.get('db'), session.id, 'attendance')
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.post('/api/sessions/:date/reopen-attendance', requireAdmin, (c) =>
+  run(c, async () => {
+    await reopenAttendance(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
-app.delete('/api/sessions/:date', requireAdmin, async (c) => {
-  const date = c.req.param('date')
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
-  if (!session) return c.json({ error: 'Not found' }, 404)
-  await db.deleteSession(c.get('db'), session.id)
-  notifyLive(c, date)
-  return c.json({ ok: true })
-})
+app.delete('/api/sessions/:date', requireAdmin, (c) =>
+  run(c, async () => {
+    await deleteSession(ctx(c), c.req.param('date'))
+    return { ok: true }
+  }),
+)
 
 // ── Players ───────────────────────────────────────────────────────────────────
 
-app.get('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const player = await db.getPlayerById(c.get('db'), CLUB_ID, id)
-  if (!player) return c.json({ error: 'Not found' }, 404)
-  return c.json({ ...player, login: await db.getPlayerLogin(c.get('db'), id) })
-})
+app.get('/api/players/:id', requireAdmin, (c) =>
+  run(c, () => playerProfile(ctx(c), parseInt(c.req.param('id')))),
+)
 
 // Unlink a player's sign-in (e.g. someone picked the wrong player).
-app.post('/api/players/:id/unlink', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  await db.unlinkPlayer(c.get('db'), id)
-  return c.json({ ok: true })
-})
+app.post('/api/players/:id/unlink', requireAdmin, (c) =>
+  run(c, async () => {
+    await unlinkPlayer(ctx(c), parseInt(c.req.param('id')))
+    return { ok: true }
+  }),
+)
 
 app.put('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const body = await c.req.json<{
-    email?: string | null
-    hc_member_id?: string | null
-  }>()
-  await db.updatePlayerProfile(c.get('db'), id, body)
-  return c.json({ ok: true })
+  const body = await c.req.json<ProfileChange>()
+  return run(c, async () => {
+    await updatePlayer(ctx(c), parseInt(c.req.param('id')), body)
+    return { ok: true }
+  })
 })
 
-app.delete('/api/players/:id', requireAdmin, async (c) => {
-  const id = parseInt(c.req.param('id'))
-  if (isNaN(id)) return c.json({ error: 'Invalid id' }, 400)
-  const result = await db.deletePlayer(c.get('db'), id)
-  if (!result.deleted) return c.json({ error: result.reason }, 409)
-  return c.json({ ok: true })
-})
+app.delete('/api/players/:id', requireAdmin, (c) =>
+  run(c, async () => {
+    await removePlayer(ctx(c), parseInt(c.req.param('id')))
+    return { ok: true }
+  }),
+)
 
 app.post('/api/players', requireAdmin, async (c) => {
   const { name, insert_rank, session_date } = await c.req.json<{
@@ -427,74 +320,27 @@ app.post('/api/players', requireAdmin, async (c) => {
     insert_rank: number
     session_date: string
   }>()
-
-  if (!name || !insert_rank || !session_date)
-    return c.json({ error: 'name, insert_rank, session_date required' }, 400)
-
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, session_date)
-  if (!session) return c.json({ error: 'Session not found' }, 404)
-  if (session.status === 'closed')
-    return c.json({ error: 'Session is closed' }, 400)
-  if (session.status === 'games')
-    return c.json(
-      { error: 'Cannot add players during games — re-open attendance first' },
-      400,
-    )
-
-  const existing = await db.getPlayerByName(c.get('db'), CLUB_ID, name)
-  if (existing) return c.json({ error: 'Player already exists' }, 409)
-
-  const newId = await db.addPlayerMidSession(
-    c.get('db'),
-    CLUB_ID,
-    session.id,
-    name,
-    insert_rank,
-    await actingPlayerId(c),
-  )
-
-  notifyLive(c, session_date)
-  return c.json({ ok: true, id: newId })
+  return run(c, async () => ({
+    ok: true,
+    id: await addPlayer(ctx(c), {
+      name,
+      insertRank: insert_rank,
+      date: session_date,
+    }),
+  }))
 })
 
 // ── HelloClub sync (server-side proxy) ────────────────────────────────────────
 
 app.get('/api/hc/members', requireAdmin, async (c) => {
-  const q = c.req.query('q') ?? ''
-  if (!q.trim()) return c.json({ members: [] })
-
-  const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`
-  const res = await fetch(
-    `${HC_BASE}/member?search=${encodeURIComponent(q)}&limit=15`,
-    { headers: { 'X-Api-Key': c.env.HC_API_KEY, Accept: 'application/json' } },
-  )
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    return c.json(
-      { error: `HC API error: ${res.status}${body ? ' — ' + body : ''}` },
-      502,
-    )
+  try {
+    return c.json({
+      members: await searchHcMembers(ctx(c), c.req.query('q') ?? ''),
+    })
+  } catch (e) {
+    if (e instanceof HcError) return c.json({ error: e.message }, 502)
+    throw e
   }
-  const data = await res.json<{
-    members?: Array<{
-      id: string
-      firstName: string
-      lastName: string
-      number?: string
-      email?: string
-      isArchived?: boolean
-      isSuspended?: boolean
-    }>
-  }>()
-  const members = (data.members ?? [])
-    .filter((m) => !m.isArchived && !m.isSuspended)
-    .map((m) => ({
-      id: m.id,
-      name: `${m.firstName} ${m.lastName}`.trim(),
-      number: m.number ?? null,
-      email: m.email ?? null,
-    }))
-  return c.json({ members })
 })
 
 app.post('/api/hc/sync', requireAdmin, async (c) => {

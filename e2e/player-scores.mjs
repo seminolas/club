@@ -5,6 +5,7 @@
 // Cleans up: deletes the session, unlinks the player.
 // Usage: node player-scores.mjs   (password from e2e/.env.staging)
 import { chromium } from '@playwright/test'
+import { SCORE, editable, gamesPath, openBoxes } from './ui-mode.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'https://club-api-staging.vilhelmas-f78.workers.dev'
@@ -60,16 +61,16 @@ await api(admin, 'PUT', `/api/sessions/${DATE}/boxes`, {
 
 // In the browser: own box editable, the other not; typing saves.
 const page = await player.newPage()
-await page.goto(`${BASE}/#/${DATE}/games`, { waitUntil: 'networkidle' })
-await page.waitForSelector('.score-input')
-const enabled = await page.locator('.score-input:visible').evaluateAll((els) => els.map((e) => !e.disabled))
+await page.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
+await openBoxes(page)
+const enabled = await page.locator(`${SCORE}:visible`).evaluateAll(editable)
 // Each box of 4: 3 matches × 2 sets × 2 sides = 12 visible inputs.
 check('player: box 1 inputs editable', enabled.slice(0, 12).every(Boolean), JSON.stringify(enabled.slice(0, 12)))
 check('player: box 2 inputs not editable', enabled.slice(12, 24).every((e) => !e), JSON.stringify(enabled.slice(12, 24)))
-const first = page.locator('.score-input:visible').first()
+const first = page.locator(`${SCORE}:visible`).first()
 await first.click()
 await first.pressSequentially('21', { delay: 60 })
-const second = page.locator('.score-input:visible').nth(1)
+const second = page.locator(`${SCORE}:visible`).nth(1)
 await second.click()
 await second.pressSequentially('16', { delay: 60 })
 let saved = null
@@ -93,9 +94,9 @@ check('server: a write to another box is refused', reply?.ok === false && /own b
 // A signed-out viewer: nothing editable.
 const viewer = await browser.newContext()
 const vpage = await viewer.newPage()
-await vpage.goto(`${BASE}/#/${DATE}/games`, { waitUntil: 'networkidle' })
-await vpage.waitForSelector('.score-input')
-const viewerEnabled = await vpage.locator('.score-input:visible').evaluateAll((els) => els.some((e) => !e.disabled))
+await vpage.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
+await openBoxes(vpage)
+const viewerEnabled = await vpage.locator(`${SCORE}:visible`).evaluateAll((els, isNew) => els.some((e) => !(isNew ? e.readOnly : e.disabled)), process.env.UI === 'new')
 check('signed-out viewer: nothing editable', !viewerEnabled)
 
 await api(admin, 'DELETE', `/api/sessions/${DATE}`)

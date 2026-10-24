@@ -9,9 +9,12 @@ Comprehensive context for AI agents working on this codebase.
 ```
 GitHub repo: seminolas/club  (branch: master)
 │
-├── Static assets (index.html, js/) ← served by Cloudflare Workers assets
-└── worker/                                ← Cloudflare Worker (Hono API)
-    ├── src/index.ts                       ← all API routes
+├── Old UI (index.html, js/)             ← copied into the build, served as static files at /
+└── worker/                                ← the Cloudflare Worker, built with Vite
+    ├── src/server.ts                      ← Worker entry: /api/* → Hono, else → TanStack Start
+    ├── src/index.ts                       ← all API routes (Hono)
+    ├── src/app/                           ← the new UI (TanStack Start + Mantine), at /new/ (UI-PORT.md)
+    ├── src/services/                      ← logic shared by API routes and the new UI's server functions
     ├── src/better-auth.ts                 ← BetterAuth (sign-in) setup
     ├── src/auth.ts                        ← requireAdmin middleware, getSession
     ├── src/db.ts                          ← all D1 queries (Drizzle)
@@ -36,21 +39,21 @@ The Worker serves both the static frontend and the `/api/*` routes from a single
 
 ```bash
 cd worker
-npx wrangler deploy                    # prod
-npx wrangler deploy --env staging      # staging
+npm run deploy            # prod
+npm run deploy:staging    # staging
 ```
 
-The Worker compiles `src/index.ts` via wrangler on deploy. The only frontend build is the rules bundle: `wrangler.toml`'s `[build]` runs `npm run build:web` (esbuild) before every deploy, writing `js/dist/rules.js` (gitignored). Everything else under `js/` is served as written.
+Since U1 (2026-10-24) everything is built with **Vite** (`vite.config.mts`, `@cloudflare/vite-plugin` + TanStack Start): `npm run build` (or `build:staging`, which builds for wrangler's staging env via `--mode staging`) bundles the rules for the old UI (`build:web` → `js/dist/rules.js`), copies the old UI (`index.html`, `js/`) into `worker/.legacy` (`scripts/copy-legacy.mjs`), then builds the Worker and the new UI into `worker/dist`. `wrangler deploy` then deploys that build (the plugin leaves a redirect in `.wrangler/deploy`). **A bare `wrangler deploy` without a build deploys nothing useful**, so always use the npm scripts. `wrangler.toml` stays the config (the plugin ignores its old `[build]`/`[assets]` keys, which are gone); after changing it, run `npm run types` to regenerate `worker-configuration.d.ts`.
 
-**If wrangler prompts to create `wrangler.jsonc`:** decline. The existing `wrangler.toml` is correct. The proposed config uses `directory: "."` (worker subdirectory) instead of `directory: ".."` (repo root), which would break static asset serving.
+**If wrangler prompts to create `wrangler.jsonc`:** decline; `wrangler.toml` is correct.
 
 **Commit before deploying** — wrangler deploys from the filesystem, not from git. It's easy to deploy uncommitted changes. Check `git status` first.
 
 **Staging from GitHub:** the "Deploy branch to staging" workflow (`.github/workflows/deploy-staging.yml`, run from the Actions tab or `gh workflow run deploy-staging.yml --ref <branch>`) typechecks, lints, tests and deploys a committed branch to staging.
 
-**Assets:** the Worker serves the repo root as static files, minus what `.assetsignore` lists (docs, `temp/`, `e2e/`, `worker/`, tooling). Anything new at the root that isn't part of the site must be added there, or it becomes public.
+**Assets:** only what the build puts in `worker/dist/client` is served as static files: the old UI's `index.html` and `js/` at `/`, and the new UI's bundles under `/new/assets/`. Nothing else in the repo is public (the root `.assetsignore` no longer matters; it goes in U9). To serve another root file, add it to `scripts/copy-legacy.mjs`. Static files are served before the Worker runs; any other path goes to the Worker (`src/server.ts`): `/api/*` to Hono, the rest to TanStack Start, which redirects unknown paths to `/new/…` and shows its not-found page.
 
-**Every push to `master` deploys to prod automatically** (Cloudflare Workers Builds is connected to the repo; it shows up as a "Workers Builds: club" check). Builds for other branches are switched off: before 2026-10-21 they were on and deployed branches straight to prod. So merging a PR is the prod deploy, and a manual `npx wrangler deploy` is only needed to redeploy without a commit. The build runs `sh deploy.sh` (`npm ci` + `wrangler deploy` in `worker/`).
+**Every push to `master` deploys to prod automatically** (Cloudflare Workers Builds is connected to the repo; it shows up as a "Workers Builds: club" check). Builds for other branches are switched off: before 2026-10-21 they were on and deployed branches straight to prod. So merging a PR is the prod deploy, and a manual `npx wrangler deploy` is only needed to redeploy without a commit. The build runs `sh deploy.sh` (`npm ci` + `npm run deploy` in `worker/`).
 
 **Usual flow:** branch → CI green → deploy to staging → browser checks (`e2e/`) → merge (deploys to prod) → check prod.
 
@@ -126,7 +129,9 @@ npm run typecheck   # worker code (workers types) + tests (also node types, via 
 npm test            # vitest
 npm run lint        # ESLint (club-next's config)
 npm run format      # Prettier + eslint --fix (CI runs format:check)
-npm run build:web   # bundle the rules for the browser (deploys do this automatically)
+npm run build:web   # bundle the rules for the old UI (part of npm run build)
+npm run build       # everything a deploy builds (CI runs it too)
+npm run dev         # local dev server (Vite + local workerd + local D1) on :8788; old UI at /, new at /new/
 npx tsx scripts/replay-ladder.mts   # replay every closed session through old and new rules
 
 cd e2e              # first time: npm install && npx playwright install chromium
@@ -275,7 +280,9 @@ Flow:
 
 ## Frontend
 
-Single-page app. No framework build step — Alpine.js and Tailwind are loaded from CDN in `index.html`. The rules come from the bundled `js/dist/rules.js` (see below).
+**Two UIs during the port (UI-PORT.md).** The **new UI** (`worker/src/app`, TanStack Start + Mantine, router basepath `/new`) is being built at `/new/`; it reads through server functions (`src/app/fns`) that call `src/services` (the same code as the API routes), and its header has an "Old version" link. The **old UI** below stays at `/` until the cutover (U9); admins see a "New version" link in its header.
+
+Old UI: single-page app. No framework build step — Alpine.js and Tailwind are loaded from CDN in `index.html`. The rules come from the bundled `js/dist/rules.js` (see below).
 
 **`js/app.js`** — one large `appData()` function that is the Alpine component. Key state:
 - `view` — `'home' | 'session' | 'player'`
@@ -311,7 +318,7 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Development notes
 
-- **No local dev server for the Worker** — changes are checked with `npm run typecheck` and `npm test` locally, then by deploying to staging. The frontend can be opened directly as a file for layout work, but API calls will fail without the Worker, and `npm run build:web` must have run once for the rules bundle.
+- **Local dev server:** `npm run dev` (Vite + workerd, local D1 in `.wrangler/state`). The local D1 needs the migrations first (`npx wrangler d1 migrations apply club-prod --local`) and has no data unless you load some (made-up only; never real dumps in the repo). `vite preview` (after `npm run build`) runs the production build the same way. Changes are still checked for real on staging.
 - **CRLF warnings** — the repo uses LF line endings but the Windows working copy triggers CRLF conversion warnings on `git add`. These are harmless; the committed content is correct.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
 - **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. (There is no `players.current_rank` column any more; 0002 dropped it.)

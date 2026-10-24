@@ -1,0 +1,125 @@
+/* Score entry inside a box's detail panel, after the live app's layout:
+   pair 1 right-aligned | "vs" / "–" | pair 2, one line per set, a status
+   mark on the right. Colours follow Mantine's -text colours (both themes). */
+
+.gs-cards {
+  display: grid;
+  /* Cards side by side when there's room, stacked on phones. */
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: var(--mantine-spacing-sm);
+}
+/* One match, drawn like a card on the printed score sheet. */
+.gs-match,
+.gs-standings-card {
+  /* White cards on the panel's tint. */
+  background: var(--mantine-color-body);
+}
+.gs-match {
+  position: relative;
+  border: 1.5px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  padding: 2.25rem var(--mantine-spacing-sm) var(--mantine-spacing-sm);
+}
+.gs-match[data-sitout] {
+  /* Room for the "Sitting out" pill in the bottom-right corner. */
+  padding-bottom: 2.25rem;
+}
+.gs-pill-match {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+}
+.gs-pill-sitout {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  max-width: 70%;
+  background: var(--mantine-color-body);
+}
+.gs-status {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+}
+
+.gs-line {
+  display: grid;
+  grid-template-columns: 1fr 2rem 1fr;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.gs-left {
+  text-align: right;
+  justify-self: end;
+}
+.gs-mid {
+  text-align: center;
+}
+
+.gs-field {
+  width: 3.5rem;
+}
+.gs-field input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.gs-field input[data-tone='win'] {
+  border-color: var(--mantine-color-teal-6);
+  background: light-dark(
+    var(--mantine-color-teal-0),
+    color-mix(
+      in srgb,
+      var(--mantine-color-teal-9) 25%,
+      var(--mantine-color-body)
+    )
+  );
+}
+.gs-field input[data-tone='lose'],
+.gs-field input[data-tone='bad'] {
+  border-color: var(--mantine-color-red-5);
+  background: light-dark(
+    var(--mantine-color-red-0),
+    color-mix(
+      in srgb,
+      var(--mantine-color-red-9) 25%,
+      var(--mantine-color-body)
+    )
+  );
+}
+
+[data-tone='win'].mantine-Text-root {
+  color: var(--mantine-color-teal-text);
+}
+[data-tone='lose'].mantine-Text-root,
+[data-tone='bad'].mantine-Text-root {
+  color: var(--mantine-color-red-text);
+}
+.gs-status {
+  line-height: 1;
+  font-size: var(--mantine-font-size-xl);
+  font-weight: 700;
+  text-align: center;
+}
+.gs-status[data-tone='wait'] {
+  color: var(--mantine-color-yellow-6);
+}
+
+/* Standings: a card like the matches, with its pill top-left. */
+.gs-standings-card {
+  position: relative;
+  margin-top: var(--mantine-spacing-sm);
+  border: 1.5px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  padding: 2.25rem var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+}
+.gs-standings thead th {
+  background: var(--lt-header-bg);
+}
+
+/* "Game N" and pair 1's field, right-aligned against the "–". */
+.gs-game {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-xs);
+}

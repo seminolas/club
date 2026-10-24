@@ -1,0 +1,193 @@
+/* ListTable's layers (DECISIONS.md, "Colour and layers"): a tinted filters
+   block, tinted column headers, striped results, and a warm-tinted hidden-
+   matches section with an orange bar. Colours are opaque mixes of Mantine's
+   palette with the page background, via light-dark(): the datatable paints
+   both rows and cells, which would double any translucent colour. */
+
+.lt-root {
+  --lt-body: var(--mantine-color-body);
+  --lt-toolbar-bg: light-dark(
+    var(--mantine-color-gray-1),
+    var(--mantine-color-dark-8)
+  );
+  --lt-header-bg: light-dark(
+    var(--mantine-color-gray-0),
+    var(--mantine-color-dark-6)
+  );
+  --lt-stripe-bg: light-dark(
+    color-mix(in srgb, var(--mantine-color-gray-1) 85%, var(--lt-body)),
+    color-mix(in srgb, var(--mantine-color-dark-5) 50%, var(--lt-body))
+  );
+  --lt-hidden-bg: light-dark(
+    color-mix(in srgb, var(--mantine-color-yellow-1) 45%, var(--lt-body)),
+    color-mix(in srgb, var(--mantine-color-yellow-9) 10%, var(--lt-body))
+  );
+  --lt-hidden-stripe-bg: light-dark(
+    color-mix(in srgb, var(--mantine-color-yellow-2) 60%, var(--lt-body)),
+    color-mix(in srgb, var(--mantine-color-yellow-9) 18%, var(--lt-body))
+  );
+  --lt-hidden-head-bg: light-dark(
+    var(--mantine-color-yellow-2),
+    color-mix(in srgb, var(--mantine-color-yellow-9) 32%, var(--lt-body))
+  );
+  --lt-hidden-bar: light-dark(
+    var(--mantine-color-orange-5),
+    var(--mantine-color-orange-8)
+  );
+  --lt-active-bg: light-dark(
+    color-mix(in srgb, var(--mantine-color-teal-2) 70%, var(--lt-body)),
+    color-mix(in srgb, var(--mantine-color-teal-8) 30%, var(--lt-body))
+  );
+}
+
+.lt-toolbar {
+  background: var(--lt-toolbar-bg);
+}
+
+.lt-root thead th {
+  background: var(--lt-header-bg);
+}
+
+/* Stripes replace row lines: no lines at all in the body (a transparent 1px
+   line still shows as a white seam on the pinned column). */
+.lt-root tbody tr,
+.lt-root tbody td {
+  border-bottom-width: 0;
+}
+.lt-root tbody tr.lt-odd {
+  background-color: var(--lt-stripe-bg);
+}
+
+/* Hidden matches */
+.lt-root tbody tr.lt-hidden {
+  background-color: var(--lt-hidden-bg);
+}
+.lt-root tbody tr.lt-hidden.lt-odd {
+  background-color: var(--lt-hidden-stripe-bg);
+}
+.lt-root tbody tr.lt-hidden > td:first-child,
+.lt-root tbody tr.lt-hidden-head > td:first-child {
+  box-shadow: inset 4px 0 0 var(--lt-hidden-bar);
+}
+/* The heading is a stronger band with a line above, so it can't be mistaken
+   for the first hidden row. */
+.lt-root tbody tr.lt-hidden-head > td {
+  background-color: var(--lt-hidden-head-bg);
+  border-top: 2px solid var(--lt-hidden-bar);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Actions card: same tint as the filters block (DECISIONS.md, "Page actions"). */
+.lt-actions {
+  background: var(--lt-toolbar-bg);
+}
+
+/* Active row (keyboard): what Enter will act on. Wins over stripes and the
+   hidden-matches tint; its bar replaces the orange one. */
+.lt-root tbody tr {
+  scroll-margin-top: var(--lt-sticky-h, 0px);
+}
+.lt-root tbody tr.lt-active,
+.lt-root tbody tr.lt-active.lt-odd,
+.lt-root tbody tr.lt-hidden.lt-active {
+  background-color: var(--lt-active-bg);
+}
+.lt-root tbody tr.lt-active > td:first-child {
+  box-shadow: inset 4px 0 0 var(--mantine-primary-color-filled);
+}
+
+/* Grouped columns (DECISIONS.md, "Grouped columns"). */
+.lt-root thead th.lt-group-th {
+  text-align: center;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+  padding-block: 4px;
+}
+.lt-root .lt-gstart {
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+.lt-root .lt-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Column widths (DECISIONS.md, "Column widths"): every column but the
+   primary one shrinks to its content; the primary one takes what's left. */
+.lt-root .lt-fit {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Short headers: ListTable sets data-compact on the root when full titles
+   would overflow the table's box; then every short title shows. */
+.lt-root .lt-th-label {
+  /* Positioned, so the visually hidden full title stays inside the table's
+     scroll area; otherwise it widens the whole page on phones. */
+  position: relative;
+}
+.lt-root .lt-full,
+.lt-root .lt-short {
+  white-space: nowrap;
+}
+.lt-root .lt-short {
+  display: none;
+}
+.lt-root[data-compact] .lt-th-label .lt-full {
+  /* Visually hidden, still read by screen readers. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.lt-root[data-compact] .lt-th-label .lt-short {
+  display: inline;
+}
+
+/* The primary column stays put while the table scrolls sideways. Cells need
+   an opaque background, so every row gets one for them to inherit. */
+.lt-root tbody tr {
+  background-color: var(--mantine-color-body);
+}
+.lt-root .lt-pin {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+/* Its edge only while the table is scrolled sideways (data-scrolled). */
+.lt-root[data-scrolled] .lt-pin {
+  box-shadow: inset -1px 0 0 var(--mantine-color-default-border);
+}
+.lt-root tbody td.lt-pin {
+  background-color: inherit;
+}
+
+/* Rows that expand (DECISIONS.md, "Rows that expand"): the open row is bold
+   and its detail panel sits on the page background, framed by lines. */
+.lt-root tbody tr.lt-open > td {
+  font-weight: 600;
+}
+.lt-root tbody tr.lt-detail > td {
+  /* No padding or lines on the cell itself, so a closed (collapsed) panel
+     takes no height; they're on the sliding body instead. */
+  background-color: var(--mantine-color-body);
+  padding: 0;
+  cursor: default;
+}
+.lt-root .lt-detail-body {
+  /* An inset, tinted area (the filters block's tint): it reads as belonging
+     to the row above and ends clearly before the next row. */
+  background: var(--lt-toolbar-bg);
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md)
+    var(--mantine-spacing-md);
+  border-top: 1px solid var(--mantine-color-default-border);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+/* Reduced motion: chevrons don't turn gradually either (panels already open
+   instantly, see DetailCollapse). */
+@media (prefers-reduced-motion: reduce) {
+  .lt-root button svg {
+    transition: none !important;
+  }
+}

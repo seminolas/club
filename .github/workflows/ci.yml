@@ -23,3 +23,5 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      # The Worker, the new UI and the old UI's files, as a deploy builds them.
+      - run: npm run build

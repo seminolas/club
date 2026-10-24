@@ -2,10 +2,10 @@
   "name": "club-api",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "npm run prebuild-assets && vite dev --port 8788",
     "build:web": "esbuild src/browser/index.ts --bundle --format=iife --target=es2020 --outfile=../js/dist/rules.js",
-    "deploy": "wrangler deploy",
-    "deploy:staging": "wrangler deploy --env staging",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:staging": "npm run build:staging && wrangler deploy",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "lint": "eslint",
@@ -14,25 +14,48 @@
     "db:migrate:prod": "wrangler d1 migrations apply club-prod --remote",
     "db:migrate:staging": "wrangler d1 migrations apply club-staging --env staging --remote",
     "migrate-data": "tsx scripts/migrate-data.ts",
-    "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging"
+    "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging",
+    "types": "wrangler types --include-runtime=true worker-configuration.d.ts",
+    "prebuild-assets": "npm run build:web && node scripts/copy-legacy.mjs",
+    "build": "npm run prebuild-assets && vite build",
+    "build:staging": "npm run prebuild-assets && vite build --mode staging"
   },
   "dependencies": {
+    "@mantine/core": "9.6.3",
+    "@mantine/hooks": "9.6.3",
+    "@mantine/modals": "9.6.3",
+    "@mantine/notifications": "9.6.3",
+    "@tabler/icons-react": "3.47.0",
+    "@tanstack/react-query": "5.104.5",
+    "@tanstack/react-router": "1.170.38",
+    "@tanstack/react-router-ssr-query": "1.167.3",
+    "@tanstack/react-start": "1.168.56",
+    "@tanstack/react-table": "9.3.1",
     "better-auth": "^1.7.12",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261019.1",
+    "@cloudflare/vite-plugin": "1.65.0",
     "@tanstack/eslint-config": "^0.4.0",
     "@types/node": "^24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "fast-check": "^4.10.2",
+    "postcss": "8.5.28",
+    "postcss-preset-mantine": "1.18.0",
+    "postcss-simple-vars": "7.0.1",
     "prettier": "^3.9.10",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
+    "vite": "8.3.0",
     "vitest": "^5.0.5",
-    "wrangler": "^4.151.3"
+    "wrangler": "4.152.0"
   }
 }
