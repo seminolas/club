@@ -15,7 +15,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | U0 | This plan; MIGRATION.md updated | ✅ | branch `ui-port-plan` |
 | U1 | TanStack Start in the Worker, app shell at `/new/`, sign-in | ✅ | branch `u1-start-shell` (on `ui-port-plan`) |
 | U2 | `ListTable` + landing page: Players (ladder), Sessions | ✅ | branch `u2-landing` (on `u1-start-shell`) |
-| U3 | Player page (admin) | ⬜ | |
+| U3 | Player page (admin) | ✅ | branch `u3-player-page` (on `u2-landing`) |
 | U4 | Session page frame + Check-in step + Assign boxes | ⬜ | |
 | U5 | Boxes step: score entry, live channel, Close | ⬜ | |
 | U6 | Results step: stats table, Share, HelloClub sync | ⬜ | |
@@ -288,3 +288,4 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
   - Sessions "Played" search: closed sessions' attendees cached the same way, open sessions' read live.
   - Ladder import is refused in the new UI while the latest session isn't closed (the old UI checked only the session it had open).
   - In e2e scripts the ListTable search box is `[role=combobox]`.
+- **2026-10-24 (U3):** done; on staging. Player routes and the HelloClub member search moved into `services/players.ts` (API tests green). New browser-check helper `e2e/new-ui-lib.mjs` (`open({ as, phone })`, `check`, `done`) and `e2e/new-player-page.mjs`. Page actions card for pages without a table: `components/PageCard.tsx` (same tint as ListTable's).
