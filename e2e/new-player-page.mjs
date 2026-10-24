@@ -6,10 +6,10 @@ import { BASE, check, done, open } from './new-ui-lib.mjs'
 
 const admin = await open({ as: 'test-admin' })
 const { page } = admin
-await admin.go('/new/players')
+await admin.go('/players')
 await page.locator('[role=combobox]').fill('a')
 await page.keyboard.press('Enter')
-await page.waitForURL(/\/new\/players\/\d+$/)
+await page.waitForURL(/\/players\/\d+$/)
 const id = page.url().match(/(\d+)$/)[1]
 check('Enter on the ladder opens the first match\'s page', !!id)
 const name = (await page.locator('.club-page-card').first().innerText()).split('\n')[0]
@@ -37,7 +37,7 @@ check('no console errors (admin)', admin.errors().length === 0, admin.errors().j
 await admin.browser.close()
 
 const player = await open({ as: 'test-player' })
-await player.go(`/new/players/${id}`)
-check('a player is sent back to the ladder', player.page.url().endsWith('/new/players'), player.page.url())
+await player.go(`/players/${id}`)
+check('a player is sent back to the ladder', player.page.url().endsWith('/players'), player.page.url())
 await player.browser.close()
 done('player page')

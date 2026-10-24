@@ -1,12 +1,13 @@
-// The printed score sheets (UI-PORT.md, U7): the same throwaway session (boxes
-// of 4, 5, 6 and 7) printed from the old and the new UI, Cards and Grid. Writes
-// PDFs and print-mode screenshots to <outDir> for comparing by eye (never
-// commit them: real names), and checks the page counts match.
-// Usage: node print-compare.mjs <outDir>
+// The printed score sheets: a throwaway session (boxes of 4, 5, 6 and 7)
+// printed as Cards and Grid. Writes PDFs and print-mode screenshots to
+// <outDir> to look at (never commit them: real names) and checks there's one
+// page per box. (Until the cutover, U7 compared these with the old UI's
+// sheets: same layout and page counts.)
+// Usage: node print-sheets.mjs <outDir>
 import { mkdirSync, readFileSync } from 'node:fs'
 import { BASE, check, done, open } from './new-ui-lib.mjs'
 const out = process.argv[2]
-if (!out) throw new Error('Usage: node print-compare.mjs <outDir>')
+if (!out) throw new Error('Usage: node print-sheets.mjs <outDir>')
 mkdirSync(out, { recursive: true })
 const DATE = '2099-01-13'
 const PAIRINGS = {
@@ -38,30 +39,22 @@ const pdf = async (name) => {
   await p.emulateMedia({ media: null })
   await p.setViewportSize({ width: 1280, height: 900 })
 }
-await a.go(`/#/${DATE}/games`)
-await p.waitForTimeout(1500)
-await pdf('old-cards')
-await p.evaluate(() => {
-  document.querySelector('[x-data]')._x_dataStack[0].printLayout = 'grid'
-})
-await p.waitForTimeout(500)
-await pdf('old-grid')
 await p.addInitScript(() => {
   window.print = () => {}
 })
-await a.go(`/new/sessions/${DATE}/boxes`)
+await a.go(`/sessions/${DATE}/boxes`)
 await p.waitForTimeout(1000)
 for (const layout of ['Cards', 'Grid']) {
   await p.getByRole('button', { name: 'Print score sheets' }).click()
   await p.getByRole('menuitem', { name: layout }).click()
   await p.waitForTimeout(500)
-  await pdf(`new-${layout.toLowerCase()}`)
+  await pdf(layout.toLowerCase())
 }
 await api('DELETE', `/api/sessions/${DATE}`)
 const pages = (f) =>
   (readFileSync(`${out}/${f}.pdf`, 'latin1').match(/\/Type \/Page[^s]/g) ?? []).length
 for (const layout of ['cards', 'grid'])
-  check(`${layout}: same page count (one page per box)`, pages(`old-${layout}`) === 4 && pages(`new-${layout}`) === 4, `${pages(`old-${layout}`)} vs ${pages(`new-${layout}`)}`)
+  check(`${layout}: one page per box`, pages(layout) === 4, String(pages(layout)))
 const errors = a.errors()
 check('no console errors', errors.length === 0, errors.join('\n'))
 await a.browser.close()

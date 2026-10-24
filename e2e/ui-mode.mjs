@@ -1,10 +1,11 @@
-// Which UI the score checks drive: the old one at / (default), or the new one
-// at /new/ with UI=new (UI-PORT.md; until the cutover both are checked).
-export const NEW = process.env.UI === 'new'
+// Which UI the score checks drive: the current one (default), or the old
+// Alpine one with UI=old (still on prod until the cutover is merged,
+// UI-PORT.md U9; remove this switch once it is).
+export const NEW = process.env.UI !== 'old'
 
 /** A session's games / Boxes page. */
 export const gamesPath = (date) =>
-  NEW ? `/new/sessions/${date}/boxes` : `/#/${date}/games`
+  NEW ? `/sessions/${date}/boxes` : `/#/${date}/games`
 
 /** A score field. */
 export const SCORE = NEW ? '[data-score]' : '.score-input'

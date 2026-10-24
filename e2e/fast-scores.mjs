@@ -60,7 +60,7 @@ async function openWindow() {
   // Slow reads of this session, like a phone on poor data: the server answers
   // straight away, the answer arrives LATENCY_MS later.
   // (The new UI reads through its server functions.)
-  await page.route(process.env.UI === 'new' ? '**/_serverFn/**' : `**/api/sessions/${DATE}`, async (route) => {
+  await page.route(process.env.UI !== 'old' ? '**/_serverFn/**' : `**/api/sessions/${DATE}`, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
     try {
       const response = await route.fetch()

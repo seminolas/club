@@ -1,116 +1,113 @@
 // Dev helper: browser checks of sign-in on staging (signed out -> Google,
-// Test Admin UI + sign out, "This is me" + admin unlink, no skipping the
-// box, failed sign-in).
+// Test Admin UI + sign out, "Which player are you?" + admin unlink, no
+// skipping the box, failed sign-in), on the current UI.
 // Usage: node auth-ui.mjs   (password from e2e/.env.staging)
-import { chromium } from '@playwright/test'
-import { readFileSync } from 'node:fs'
-const BASE = 'https://club-api-staging.vilhelmas-f78.workers.dev'
-const PW = readFileSync(new URL('./.env.staging', import.meta.url), 'utf8').match(/TEST_LOGIN_PASSWORD=(.*)/)[1].trim()
-const browser = await chromium.launch()
-const errors = []
-let fails = 0
-const check = (label, ok, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'}  ${label}${!ok && detail ? ' — ' + detail : ''}`) }
-async function fresh() {
-  const ctx = await browser.newContext()
-  const page = await ctx.newPage()
-  page.on('pageerror', (e) => errors.push(e.message))
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
-  return { ctx, page }
-}
-const signIn = (page, id) => page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email: `${id}@staging.invalid`, password: PW }, headers: { origin: BASE } })
+import { BASE, check, done, open } from './new-ui-lib.mjs'
+
 const me = async (page) => (await page.request.get(`${BASE}/api/me`)).json()
-const signedInAs = async (page) => (await page.locator('[data-test=signed-in-as]').innerText().catch(() => '')).trim()
+const signedInAs = async (page) =>
+  (await page.locator('[data-test=signed-in-as]').innerText().catch(() => '')).trim()
+const signOutFromMenu = async (page) => {
+  await page.locator('[data-test=user-menu]').click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+  await page.waitForTimeout(800)
+}
+const allErrors = []
+const keep = (s) => allErrors.push(...s.errors().filter((e) => !/401|Unauthorized/.test(e)))
 
 // 1. Signed out → Sign in → Google
 {
-  const { ctx, page } = await fresh()
-  await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
-  check('signed out: header shows "Sign in", no Admin pill', await page.getByRole('button', { name: 'Sign in', exact: true }).isVisible() && !(await page.getByText('Admin', { exact: true }).isVisible()))
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  const btn = page.getByRole('button', { name: 'Sign in with Google' })
+  const s = await open()
+  await s.go('/players')
+  check('signed out: header shows "Sign in", no account menu', (await s.page.getByRole('button', { name: 'Sign in', exact: true }).isVisible()) && !(await s.page.locator('[data-test=user-menu]').count()))
+  await s.page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  const btn = s.page.getByRole('button', { name: 'Sign in with Google' })
   check('modal shows "Sign in with Google"', await btn.waitFor({ timeout: 5000 }).then(() => true, () => false))
-  await Promise.all([page.waitForURL(/accounts\.google\.com/, { timeout: 15000 }).catch(() => {}), btn.click()])
-  check('clicking it goes to Google', page.url().startsWith('https://accounts.google.com/'), page.url().slice(0, 80))
-  await ctx.close()
+  await Promise.all([s.page.waitForURL(/accounts\.google\.com/, { timeout: 15000 }).catch(() => {}), btn.click()])
+  check('clicking it goes to Google', s.page.url().startsWith('https://accounts.google.com/'), s.page.url().slice(0, 80))
+  keep(s)
+  await s.browser.close()
 }
-// 2. Test Admin: admin UI, admin-only page, logout
+// 2. Test Admin: account menu with Admin, admin-only page, sign out
 {
-  const { ctx, page } = await fresh()
-  check('test admin signs in', (await signIn(page, 'test-admin')).ok())
-  await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
-  check('admin (linked to their player): not asked "Which player are you?"', !(await page.getByText('Which player are you?').isVisible()))
-  check('admin: header shows Admin, "Signed in as Test" and Sign out', await page.getByText('Admin', { exact: true }).isVisible() && (await signedInAs(page)) === 'Signed in as Test' && await page.locator('[data-test=signed-in-as]').locator('xpath=..').getByRole('button', { name: 'Sign out' }).isVisible())
-  await page.goto(BASE + '/#/players/30', { waitUntil: 'networkidle' })
-  await page.waitForTimeout(500)
-  check('admin-only player page stays open', page.url().includes('/players/30'), page.url())
-  await page.locator('[data-test=signed-in-as]').locator('xpath=..').getByRole('button', { name: 'Sign out' }).click()
-  await page.waitForTimeout(800)
-  check('sign out: back to "Sign in", session ended', await page.getByRole('button', { name: 'Sign in', exact: true }).isVisible() && !(await me(page)).signedIn)
-  await ctx.close()
+  const s = await open({ as: 'test-admin' })
+  await s.go('/players')
+  check('admin (linked to their player): not asked "Which player are you?"', !(await s.page.getByText('Which player are you?').isVisible()))
+  check('admin: header "Signed in as Test"', (await signedInAs(s.page)) === 'Signed in as Test', await signedInAs(s.page))
+  await s.page.locator('[data-test=user-menu]').click()
+  check('admin: the menu shows Admin, Light / Dark and Sign out', (await s.page.getByText('Admin', { exact: true }).isVisible()) && (await s.page.getByText('Dark', { exact: true }).isVisible()) && (await s.page.getByRole('menuitem', { name: 'Sign out' }).isVisible()))
+  await s.page.keyboard.press('Escape')
+  const id = (await (await s.page.request.get(`${BASE}/api/leaderboard`)).json()).players[0].id
+  await s.go(`/players/${id}`)
+  check('admin-only player page stays open', s.page.url().endsWith(`/players/${id}`), s.page.url())
+  await signOutFromMenu(s.page)
+  check('sign out: back to "Sign in", session ended', (await s.page.getByRole('button', { name: 'Sign in', exact: true }).isVisible()) && !(await me(s.page)).signedIn)
+  keep(s)
+  await s.browser.close()
 }
 // 3. A player with no link picks themselves ("This is me"); the admin then sees
 //    the link on that player's page and unlinks it (leaving staging as it was).
 {
-  // Clean up a link left by an earlier, interrupted run.
+  // Start unlinked (an earlier run, or player-scores.mjs, may have linked it).
   {
-    const p = await fresh()
-    await signIn(p.page, 'test-player')
+    const p = await open({ as: 'test-player' })
     const linked = (await me(p.page)).player
-    await p.ctx.close()
+    await p.browser.close()
     if (linked) {
-      const a = await fresh()
-      await signIn(a.page, 'test-admin')
+      const a = await open({ as: 'test-admin' })
       await a.page.request.post(`${BASE}/api/players/${linked.id}/unlink`, { data: {}, headers: { origin: BASE } })
-      await a.ctx.close()
+      await a.browser.close()
     }
   }
-  const { ctx, page } = await fresh()
-  await signIn(page, 'test-player')
-  await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
-  check('player: "Which player are you?" offered', await page.getByText('Which player are you?').isVisible())
-  const claimable = await (await page.request.get(`${BASE}/api/me/claimable`)).json()
-  const pick = claimable.players[Math.floor(claimable.players.length / 2)]
-  await page.getByPlaceholder('Search names').fill(pick.name)
-  await page.getByRole('button', { name: pick.name, exact: true }).click()
-  await page.getByRole('button', { name: 'This is me' }).click()
-  await page.waitForTimeout(800)
+  const s = await open({ as: 'test-player' })
+  await s.go('/players')
+  const dialog = s.page.getByRole('dialog')
+  check('player: "Which player are you?" offered', await dialog.getByText('Which player are you?').isVisible())
+  const claimable = (await (await s.page.request.get(`${BASE}/api/me/claimable`)).json()).players
+  const pick = claimable[Math.floor(claimable.length / 2)]
+  await dialog.getByPlaceholder('Search names').fill(pick.name)
+  await dialog.getByRole('button', { name: pick.name, exact: true }).click()
+  await dialog.getByRole('button', { name: 'This is me' }).click()
+  await s.page.waitForTimeout(1200)
   const first = pick.name.trim().split(/\s+/)[0]
-  check(`player: linked to ${pick.name}, header "Signed in as ${first}", no Admin pill`, (await me(page)).player?.id === pick.id && (await signedInAs(page)) === `Signed in as ${first}` && !(await page.getByText('Admin', { exact: true }).isVisible()))
-  await page.reload({ waitUntil: 'networkidle' })
-  check('player: not asked again once linked', !(await page.getByText('Which player are you?').isVisible()))
-  await ctx.close()
+  check(`player: linked to ${pick.name}, header "Signed in as ${first}"`, (await me(s.page)).player?.id === pick.id && (await signedInAs(s.page)) === `Signed in as ${first}`, await signedInAs(s.page))
+  await s.page.reload({ waitUntil: 'networkidle' })
+  check('player: not asked again once linked', !(await s.page.getByText('Which player are you?').isVisible()))
+  keep(s)
+  await s.browser.close()
 
-  const admin = await fresh()
-  await signIn(admin.page, 'test-admin')
-  await admin.page.goto(BASE + `/#/players/${pick.id}`, { waitUntil: 'networkidle' })
-  await admin.page.waitForTimeout(500)
-  check('admin: player page shows the Google sign-in', await admin.page.getByText('Google: test-player@staging.invalid').isVisible())
-  admin.page.once('dialog', (d) => d.accept())
-  await admin.page.getByRole('button', { name: 'Unlink' }).click()
-  await admin.page.waitForTimeout(800)
-  check('admin: Unlink removes it', await admin.page.getByText('Not linked').isVisible() && (await (await admin.page.request.get(`${BASE}/api/players/${pick.id}`)).json()).login === null)
-  await admin.ctx.close()
+  const a = await open({ as: 'test-admin' })
+  await a.go(`/players/${pick.id}`)
+  check('admin: player page shows the Google sign-in', await a.page.getByText('Google: test-player@staging.invalid').isVisible())
+  await a.page.getByRole('button', { name: 'Unlink' }).click()
+  await a.page.getByRole('dialog').getByRole('button', { name: 'Unlink' }).click()
+  await a.page.waitForTimeout(1200)
+  check('admin: Unlink removes it', (await a.page.getByText('Not linked').isVisible()) && (await (await a.page.request.get(`${BASE}/api/players/${pick.id}`)).json()).login === null)
+  keep(a)
+  await a.browser.close()
 }
-// 4. "Which player are you?" can't be skipped: no "Not now", only Sign out.
+// 4. "Which player are you?" can't be skipped: no close button, only Sign out.
 {
-  const { ctx, page } = await fresh()
-  await signIn(page, 'test-player')
-  await page.goto(BASE + '/#/players', { waitUntil: 'networkidle' })
-  check('no player: box offers "New here?" and Sign out, no "Not now"', await page.getByText('New here? For now, an admin needs to add you.').isVisible() && !(await page.getByRole('button', { name: 'Not now' }).count()))
-  await page.locator('div.fixed').filter({ hasText: 'Which player are you?' }).getByRole('button', { name: 'Sign out' }).click()
-  await page.waitForTimeout(800)
-  check('Sign out from the box: signed out, box gone', !(await me(page)).signedIn && !(await page.getByText('Which player are you?').isVisible()))
-  await ctx.close()
+  const s = await open({ as: 'test-player' })
+  await s.go('/players')
+  const dialog = s.page.getByRole('dialog')
+  check('no player: box offers "New here?" and Sign out, no way to close it', (await dialog.getByText('New here? For now, an admin needs to add you.').isVisible()) && !(await dialog.getByRole('button', { name: /close/i }).count()))
+  await s.page.keyboard.press('Escape')
+  check('Escape doesn\'t close it', await dialog.getByText('Which player are you?').isVisible())
+  await dialog.getByRole('button', { name: 'Sign out' }).click()
+  await s.page.waitForTimeout(1200)
+  check('Sign out from the box: signed out, box gone', !(await me(s.page)).signedIn && !(await s.page.getByText('Which player are you?').isVisible()))
+  keep(s)
+  await s.browser.close()
 }
 // 5. A failed sign-in (?error=) shows a message and cleans the URL
 {
-  const { ctx, page } = await fresh()
-  await page.goto(BASE + '/?error=access_denied#/players', { waitUntil: 'networkidle' })
-  check('error: message shown', await page.getByText('Sign-in didn’t complete').isVisible())
-  check('error: URL cleaned', !page.url().includes('error='), page.url())
-  await ctx.close()
+  const s = await open()
+  await s.go('/players?error=access_denied')
+  check('error: message shown', await s.page.getByText('Sign-in didn’t complete').isVisible())
+  check('error: URL cleaned', !s.page.url().includes('error='), s.page.url())
+  keep(s)
+  await s.browser.close()
 }
-const relevant = errors.filter((e) => !/401|Unauthorized/.test(e))
-check('no console errors', relevant.length === 0, relevant.slice(0, 3).join(' | '))
-await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nAll UI checks passed.')
+check('no console errors', allErrors.length === 0, allErrors.slice(0, 3).join(' | '))
+done('sign-in UI')

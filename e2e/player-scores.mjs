@@ -96,7 +96,7 @@ const viewer = await browser.newContext()
 const vpage = await viewer.newPage()
 await vpage.goto(BASE + gamesPath(DATE), { waitUntil: 'networkidle' })
 await openBoxes(vpage)
-const viewerEnabled = await vpage.locator(`${SCORE}:visible`).evaluateAll((els, isNew) => els.some((e) => !(isNew ? e.readOnly : e.disabled)), process.env.UI === 'new')
+const viewerEnabled = await vpage.locator(`${SCORE}:visible`).evaluateAll((els, isNew) => els.some((e) => !(isNew ? e.readOnly : e.disabled)), process.env.UI !== 'old')
 check('signed-out viewer: nothing editable', !viewerEnabled)
 
 await api(admin, 'DELETE', `/api/sessions/${DATE}`)

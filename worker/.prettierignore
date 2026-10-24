@@ -8,5 +8,4 @@ scripts/*
 !scripts/replay-ladder.mts
 worker-configuration.d.ts
 src/app/routeTree.gen.ts
-.legacy
 dist

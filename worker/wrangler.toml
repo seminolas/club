@@ -3,13 +3,10 @@ main = "src/server.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Bundles the shared rules for the browser (js/dist/rules.js, not committed)
-# before every deploy, so a deploy can never ship a stale bundle.
-[build]
-command = "npm run build:web"
-
-[assets]
-directory = ".."          # repo root — serves index.html, js/, data/
+# Built with Vite (`npm run build`, see vite.config.mts), which also sets the
+# static files (the UI's bundles). Deploy with `npm run deploy` /
+# `npm run deploy:staging`, never a bare `wrangler deploy` (nothing would be
+# built).
 
 [[d1_databases]]
 binding = "DB"
