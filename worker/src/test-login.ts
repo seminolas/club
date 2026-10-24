@@ -10,7 +10,11 @@ const hex = (b: ArrayBuffer | Uint8Array) =>
 const unhex = (s: string) =>
   new Uint8Array(s.match(/../g)?.map((h) => parseInt(h, 16)) ?? [])
 
-async function derive(password: string, salt: Uint8Array, iterations: number) {
+async function derive(
+  password: string,
+  salt: Uint8Array<ArrayBuffer>,
+  iterations: number,
+) {
   const key = await crypto.subtle.importKey(
     'raw',
     enc.encode(password),
