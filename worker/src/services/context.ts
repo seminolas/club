@@ -19,3 +19,21 @@ export const CLUB_ID = 1
 export function signedIn(ctx: ServiceContext) {
   return createAuth(ctx.env, ctx.db).api.getSession({ headers: ctx.headers })
 }
+
+/** A refusal a service can give, with the HTTP status the API answers with. */
+export class ServiceError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 401 | 403 | 404 | 409,
+  ) {
+    super(message)
+  }
+}
+
+/** Admins only (as the API's requireAdmin); returns the admin's user id. */
+export async function requireAdmin(ctx: ServiceContext): Promise<string> {
+  const session = await signedIn(ctx)
+  if (!session) throw new ServiceError('Unauthorized', 401)
+  if (session.user.role !== 'admin') throw new ServiceError('Forbidden', 403)
+  return session.user.id
+}

@@ -1,6 +1,6 @@
 // Who's signed in, and "This is me" (V1).
 import * as db from '../db'
-import { CLUB_ID, signedIn } from './context'
+import { CLUB_ID, ServiceError, signedIn } from './context'
 import type { ServiceContext } from './context'
 
 export interface Viewer {
@@ -32,15 +32,6 @@ export async function loadViewer(ctx: ServiceContext): Promise<Viewer> {
     name: user.name,
     player,
     justLinked,
-  }
-}
-
-export class ServiceError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 401 | 403 | 404 | 409,
-  ) {
-    super(message)
   }
 }
 
