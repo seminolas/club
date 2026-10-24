@@ -2,10 +2,19 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
+import {
+  Alert,
+  Anchor,
+  Box,
+  Button,
+  Group,
+  Menu,
+  Stack,
+  Text,
+} from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { IconChevronLeft } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronLeft } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
@@ -33,6 +42,8 @@ import { ladderAfter, movement, phaseOf, progress } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
 import { AssignBoxesModal } from './AssignBoxesModal'
+import { ScoreSheets } from '../print/ScoreSheets'
+import type { SheetLayout } from '../print/ScoreSheets'
 import { BoxesStep } from './BoxesStep'
 import { HcSyncModal } from './HcSyncModal'
 import { ResultsStep } from './ResultsStep'
@@ -57,6 +68,12 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const { data: sessions } = useSuspenseQuery(sessionListQuery)
   const [assigning, setAssigning] = useState(false)
   const [syncing, setSyncing] = useState<string | null>(null)
+  const [sheets, setSheets] = useState<SheetLayout>('cards')
+  // Print the score sheets in a layout, once React has drawn it.
+  const printSheets = (layout: SheetLayout) => {
+    setSheets(layout)
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()))
+  }
 
   const reload = () =>
     Promise.all([
@@ -289,7 +306,23 @@ export function SessionPage(props: { date: string; step: StepId }) {
         Print sign-in sheet
       </Button>
     ),
-    boxes: null,
+    boxes: (
+      <Menu position="bottom-start">
+        <Menu.Target>
+          <Button
+            variant="default"
+            size="xs"
+            rightSection={<IconChevronDown size={14} />}
+          >
+            Print score sheets
+          </Button>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item onClick={() => printSheets('cards')}>Cards</Menu.Item>
+          <Menu.Item onClick={() => printSheets('grid')}>Grid</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ),
     results: (
       <>
         <Button
@@ -423,6 +456,9 @@ export function SessionPage(props: { date: string; step: StepId }) {
             stickyTop={PINNED_H}
           />,
         )}
+      {session.boxes.length > 0 && (
+        <ScoreSheets boxes={session.boxes} layout={sheets} label={label} />
+      )}
       <HcSyncModal date={syncing} onClose={() => setSyncing(null)} />
       <AssignBoxesModal
         opened={assigning}
