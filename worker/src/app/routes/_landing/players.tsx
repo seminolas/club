@@ -13,6 +13,7 @@ import {
   playedDate,
 } from '../../components/list-helpers'
 import type { PersonRow } from '../../components/list-helpers'
+import { RankingsHelp } from '../../components/RankingsHelp'
 import { importLadderFn } from '../../fns/ladder'
 import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../lib/csv'
 import { nextTuesday } from '../../lib/dates'
@@ -27,6 +28,8 @@ export const Route = createFileRoute('/_landing/players')({
 
 interface Row extends PersonRow {
   rank: number
+  /** Rank by Skill, or null without a game yet. */
+  skillRank: number | null
   nights: number
 }
 
@@ -44,6 +47,7 @@ function PlayersPage() {
     lastPlayed: p.lastPlayed,
     helloClub: p.hcMemberId !== null,
     rank: p.rank,
+    skillRank: p.skillRank,
     nights: p.nights,
   }))
 
@@ -120,6 +124,7 @@ function PlayersPage() {
       title="Ladder"
       actions={
         <>
+          <RankingsHelp />
           <Button variant="default" onClick={exportCsv}>
             Export CSV
           </Button>
@@ -142,6 +147,16 @@ function PlayersPage() {
         const label = nameLabels(inView, query)
         return [
           { accessor: 'rank', title: '#', sortable: true, numeric: true },
+          {
+            // A statistical estimate of strength (domain/skill.ts), as a rank.
+            accessor: 'skillRank',
+            title: 'Skill',
+            sortable: true,
+            numeric: true,
+            defaultHidden: true,
+            render: (r) =>
+              r.skillRank === null ? <Dash /> : `#${r.skillRank}`,
+          },
           {
             accessor: 'displayName',
             title: 'Player',

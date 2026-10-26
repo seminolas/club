@@ -82,7 +82,7 @@ Staging receives prod's already-migrated schema via the dump, so **apply new mig
 
 ```
 match_players → match_sets → matches → box_players → boxes → attendance_events → attendees
-→ session_ranks → sessions → players → session → account → verification
+→ session_ranks → session_skill → sessions → players → session → account → verification
 → user → clubs → d1_migrations
 ```
 (The list also still drops long-gone tables, e.g. `session_lb`, `roles`; harmless with `IF EXISTS`.)
@@ -160,6 +160,7 @@ clubs           -- id, name, short_name, config (JSON)
 players         -- id, club_id, name, hc_member_id, archived_at, email, preferred_name, user_id (→ user)
 sessions        -- id, club_id, date (YYYY-MM-DD), status, created_at, closed_at
 session_ranks   -- session_id, player_id, rank_position, phase ('before'|'after')  (replaces old session_lb)
+session_skill   -- session_id, player_id, strength, rank, games  (skill as of each closed session; 0014)
 attendees       -- session_id, player_id  (who's coming now)
 attendance_events -- id, session_id, player_id, attending (0/1), by_player_id, at  (check-in audit, append-only)
 boxes           -- id, session_id, box_number
@@ -183,7 +184,7 @@ npm run db:migrate:staging                                         # rehearse on
 npx wrangler d1 export club-prod --remote --output <backup.sql>      # back up prod
 npm run db:migrate:prod
 ```
-Don't use `wrangler d1 execute --file` for migrations any more: wrangler wouldn't record them and would try to run them again. Files 0002–0010 were applied that way and backfilled into `d1_migrations` on 2026-10-21 (`worker/scripts/backfill-d1-migrations.sql`). There is a naming collision at `0002` (two files); both were applied. The next migration is `0014`.
+Don't use `wrangler d1 execute --file` for migrations any more: wrangler wouldn't record them and would try to run them again. Files 0002–0010 were applied that way and backfilled into `d1_migrations` on 2026-10-21 (`worker/scripts/backfill-d1-migrations.sql`). There is a naming collision at `0002` (two files); both were applied. The next migration is `0015`.
 
 ---
 
