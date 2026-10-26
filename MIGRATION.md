@@ -39,7 +39,7 @@ Improvements players or admins will notice, mostly already prototyped in `club-n
 | V5 | **Stats:** session summary, player page, club stats (ladder movement, distributions) | `domain/stats.ts`, `services/stats.ts`, routes `summary`, `people/$id`, `_tabs/stats` | S1, S2 (S5 for the new UI) |
 | V6 | **Display names** (default first name; full name only when names clash) | `domain/names.ts` | S3 |
 | V7 | **OpenSkill rating** shown next to the ladder; ladder sort/filter ("played in last 3 months") | `domain/rating.ts`, `services/clubs.ts` (`ladderRows`) | S1, S2 |
-| V8 | **Multiple clubs** (Thursday juniors) with per-club settings (points per set, box sizes, OpenSkill on/off) | `services/clubs.ts`, `components/ClubForm.tsx` | S3 |
+| V8 | **Multiple clubs** (Thursday juniors) with per-club settings (points per set, box sizes, OpenSkill on/off). Also a second seniors night: thinking so far in `MULTI-CLUB.md` (2026-10-27, nothing decided) | `services/clubs.ts`, `components/ClubForm.tsx` | S3 |
 | V9 | **Sessions created automatically** about an hour before the HelloClub event; manual create lists HelloClub events | `server/jobs.ts`, `components/CreateSessionModal.tsx` | S7, S3 (session id + HelloClub event id) |
 | V10 | **Better HelloClub sync:** marks *everyone* who came as attended, stores results, re-run button, clear failures for unlinked people | `server/jobs.ts` (`hcAttendanceSync`), `routes/jobs/*` | S7 (live writes need verifying first) |
 | V11 | **Admin notifications** (bell with recent items: sync results, failures) | `components/AppHeader.tsx`, `fns/jobs.ts` | S7, S5 |
