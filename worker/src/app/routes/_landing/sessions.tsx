@@ -36,6 +36,8 @@ function SessionsPage() {
   const { data: sessions } = useSuspenseQuery(sessionListQuery)
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const me = viewer.player?.name ?? null
+  const played = me !== null && sessions.some((s) => s.players.includes(me))
   const view = (date: string) =>
     void navigate({ to: '/sessions/$date', params: { date } })
 
@@ -48,7 +50,29 @@ function SessionsPage() {
         searchText={(s) => `${sessionDate(s.date)} ${s.date.slice(0, 4)}`}
         searchAlso={{ label: 'Played', texts: (s) => s.players }}
         searchPlaceholder="Find a date or player…"
-        filters={[dateFilter]}
+        filters={[
+          dateFilter,
+          ...(played
+            ? [
+                {
+                  kind: 'options' as const,
+                  id: 'mine',
+                  label: 'Played',
+                  options: [
+                    {
+                      value: 'yes',
+                      label: 'Sessions I played',
+                      pill: 'I played',
+                      test: (s: SessionListRow) => s.players.includes(me),
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ]}
+        quickFilters={
+          played ? [{ label: 'I played', filter: 'mine', value: ['yes'] }] : []
+        }
         defaultFilters={{ date: SIX_MONTHS }}
         stickyHeader
         hideColumnChooser

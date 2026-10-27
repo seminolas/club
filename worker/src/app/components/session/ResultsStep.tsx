@@ -24,6 +24,8 @@ export function ResultsStep(props: {
   session: Session
   /** Preferred names by player id. */
   preferred: Map<number, string | null>
+  /** The signed-in player, if any (for "My box"). */
+  meId: number | null
   header: ReactNode
   stickyTop: number
 }) {
@@ -35,6 +37,7 @@ export function ResultsStep(props: {
   const boxOf = new Map(
     session.boxes.flatMap((b, bi) => b.players.map((p) => [p.id, bi + 1])),
   )
+  const myBox = props.meId === null ? null : (boxOf.get(props.meId) ?? null)
   const rows: Row[] = session.attendees.map((p) => {
     const b = before.get(p.id) ?? null
     const a = after.get(p.id) ?? null
@@ -62,6 +65,11 @@ export function ResultsStep(props: {
       header={props.header}
       primaryColumn="displayName"
       initialSort={{ column: 'rankAfter', direction: 'asc' }}
+      quickFilters={
+        myBox !== null
+          ? [{ label: 'My box', filter: 'box', value: [String(myBox)] }]
+          : []
+      }
       filters={[
         {
           kind: 'options',

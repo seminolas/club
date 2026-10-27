@@ -439,6 +439,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
             session={session}
             label={label}
             canEdit={canEdit}
+            meId={viewer.player?.id ?? null}
             onScore={scores.setScore}
             header={card.content('boxes')}
             stickyTop={PINNED_H}
@@ -449,6 +450,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
           'results',
           <ResultsStep
             session={session}
+            meId={viewer.player?.id ?? null}
             preferred={
               new Map(ladder.map((p) => [p.id, p.preferredName] as const))
             }

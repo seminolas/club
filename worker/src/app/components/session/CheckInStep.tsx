@@ -139,6 +139,7 @@ export function CheckInStep(props: {
           helloClubFilter,
         ]}
         defaultFilters={{ played: SIX_MONTHS }}
+        quickFilters={[{ label: 'Coming', filter: 'coming', value: ['yes'] }]}
         stickyHeader
         stickyTop={props.stickyTop}
         primaryColumn="displayName"

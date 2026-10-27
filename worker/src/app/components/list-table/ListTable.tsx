@@ -111,6 +111,13 @@ export interface PrimaryAction {
 }
 
 /** What a row's action or detail panel can do with its own row. */
+export interface QuickFilter {
+  label: string
+  /** The filter's id and the value the shortcut applies. */
+  filter: string
+  value: FilterValue
+}
+
 export interface RowControls {
   expanded: boolean
   expand: () => void
@@ -153,6 +160,14 @@ export interface ListTableProps<T> {
   filters?: FilterDef<T>[]
   /** Filters applied when the screen opens, and what Reset goes back to. */
   defaultFilters?: FilterState
+  /**
+   * Shortcuts to a filter value used often on this screen, e.g. "Coming" on
+   * check-in (at most two, one word each). Tapping one applies that filter
+   * like the Filters panel would; it's then an ordinary pill, and the
+   * shortcut hides until that filter no longer has this value. Shown left of
+   * Filters (on phones, at the start of the pill row).
+   */
+  quickFilters?: QuickFilter[]
   /**
    * The row's main column (e.g. Player): the only one that takes spare
    * width, pinned while the table scrolls sideways, always shown, and where
@@ -681,6 +696,25 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
     </Button>
   )
   const pillSize = phone ? 'md' : 'sm'
+  // Shortcuts whose value isn't applied right now.
+  const quick = (props.quickFilters ?? []).filter(
+    (qf) =>
+      !sameState({ v: state[qf.filter] }, { v: qf.value }) &&
+      defs.some((d) => d.id === qf.filter),
+  )
+  const quickButtons = quick.map((qf) => (
+    <Button
+      key={qf.filter}
+      variant="outline"
+      size={pillSize}
+      fz="sm"
+      radius="xl"
+      aria-label={`Add filter: ${qf.label}`}
+      onClick={() => setValue(qf.filter, qf.value)}
+    >
+      + {qf.label}
+    </Button>
+  ))
 
   // The count sits in the search box, like a browser's find bar.
   const boxCount = filtered ? `${shownCount} of ${props.records.length}` : ''
@@ -798,12 +832,16 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
         enterKeyHint={props.primaryAction ? 'go' : 'search'}
         autoComplete="off"
       />
+      {!phone && quickButtons}
       {!phone && controls}
     </Group>
   )
 
-  const pillsRow = (count > 0 || canReset || (phone && hasControls)) && (
+  const pillsRow = (count > 0 ||
+    canReset ||
+    (phone && (hasControls || quick.length > 0))) && (
     <Group gap="xs">
+      {phone && quickButtons}
       {phone && controls}
       {defs.map((d) => {
         const v = state[d.id]

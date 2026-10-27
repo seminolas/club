@@ -97,6 +97,8 @@ export function BoxesStep(props: {
   /** Display name per player id (the score sheets' rule). */
   label: (id: number) => string
   canEdit: (boxIndex: number) => boolean
+  /** The signed-in player, if any (for "My box"). */
+  meId: number | null
   onScore: (
     box: number,
     match: number,
@@ -108,6 +110,9 @@ export function BoxesStep(props: {
   stickyTop: number
 }) {
   const rows = props.session.boxes.map(rowOf)
+  const { meId } = props
+  const inABox =
+    meId !== null && rows.some((r) => r.data.players.some((p) => p.id === meId))
   const ladderBefore = props.session.leaderboardBefore.map((p) => p.id)
 
   return (
@@ -123,7 +128,28 @@ export function BoxesStep(props: {
       primaryColumn="players"
       initialSort={{ column: 'box', direction: 'asc' }}
       header={props.header}
+      quickFilters={
+        inABox ? [{ label: 'My box', filter: 'mine', value: ['yes'] }] : []
+      }
       filters={[
+        ...(inABox
+          ? [
+              {
+                kind: 'options' as const,
+                id: 'mine',
+                label: 'My box',
+                options: [
+                  {
+                    value: 'yes',
+                    label: 'My box',
+                    pill: 'My box',
+                    test: (r: BoxRow) =>
+                      r.data.players.some((p) => p.id === meId),
+                  },
+                ],
+              },
+            ]
+          : []),
         {
           kind: 'options',
           id: 'status',
