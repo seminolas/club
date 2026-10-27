@@ -139,6 +139,12 @@
   },
   {
     "type": "table",
+    "name": "session_skill",
+    "tbl_name": "session_skill",
+    "sql": "CREATE TABLE session_skill (\n  session_id INTEGER NOT NULL REFERENCES sessions(id),\n  player_id INTEGER NOT NULL REFERENCES players(id),\n  strength REAL NOT NULL,\n  rank INTEGER NOT NULL,\n  games INTEGER NOT NULL,\n  PRIMARY KEY (session_id, player_id)\n)"
+  },
+  {
+    "type": "table",
     "name": "sessions",
     "tbl_name": "sessions",
     "sql": "CREATE TABLE sessions (\n  id         INTEGER PRIMARY KEY,\n  club_id    INTEGER NOT NULL REFERENCES clubs(id),\n  date       TEXT NOT NULL,\n  status     TEXT NOT NULL,  \n  created_at TEXT NOT NULL,\n  closed_at  TEXT\n)"

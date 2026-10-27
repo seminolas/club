@@ -6,6 +6,7 @@ import * as db from '../db'
 import type { BoxInput, SessionResponse } from '../types'
 import { CLUB_ID, ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
+import { skillChangedFrom } from './skill'
 
 /** The session's live room (one per club + date), if there is one. */
 export const sessionRoom = (ctx: ServiceContext, date: string) =>
@@ -95,6 +96,7 @@ export async function closeSession(
   const s = await session(ctx, date)
   await db.setSessionRanks(ctx.db, s.id, ladderAfter, 'after')
   await db.updateSessionStatus(ctx.db, s.id, 'closed', new Date().toISOString())
+  await skillChangedFrom(ctx, date)
   await notifyLive(ctx, date)
 }
 
@@ -105,6 +107,7 @@ export async function reopenSession(ctx: ServiceContext, date: string) {
   if (s.status !== 'closed')
     throw new ServiceError('Session is not closed', 400)
   await db.updateSessionStatus(ctx.db, s.id, 'games')
+  await skillChangedFrom(ctx, date)
   await notifyLive(ctx, date)
 }
 
@@ -123,6 +126,7 @@ export async function deleteSession(ctx: ServiceContext, date: string) {
   await requireAdmin(ctx)
   const s = await session(ctx, date)
   await db.deleteSession(ctx.db, s.id)
+  if (s.status === 'closed') await skillChangedFrom(ctx, date)
   await notifyLive(ctx, date)
 }
 
