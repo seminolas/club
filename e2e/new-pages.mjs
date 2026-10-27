@@ -50,4 +50,21 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     }
   }
 }
+// The Ladder's Skill column (hidden by default) and "How rankings work".
+{
+  const s = await open()
+  await s.go('/new/players')
+  check('Skill column hidden by default', !(await s.page.getByRole('columnheader', { name: /Skill/ }).count()))
+  await s.page.getByRole('button', { name: 'Columns' }).click()
+  await s.page.getByText('Skill', { exact: true }).click()
+  await s.page.keyboard.press('Escape')
+  const cells = await s.page.locator('tbody tr td:nth-child(2)').allInnerTexts()
+  check('Skill column shows ranks', cells.length > 0 && cells.some((c) => /^#\d+$/.test(c.trim())), cells.slice(0, 5).join(', '))
+  await s.page.getByRole('button', { name: 'How rankings work' }).click()
+  await s.page.getByRole('dialog').getByText('Ladder position (#)').waitFor({ timeout: 5000 }).catch(() => {})
+  check('"How rankings work" explains both', (await s.page.getByRole('dialog').getByText('Ladder position (#)').isVisible()) && (await s.page.getByRole('dialog').getByRole('heading', { name: 'Skill' }).isVisible()))
+  const errors = s.errors()
+  check('no console errors (Skill)', errors.length === 0, errors.join('\n'))
+  await s.browser.close()
+}
 done('page')
