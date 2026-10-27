@@ -19,7 +19,11 @@ function Landing() {
   const navigate = useNavigate()
   const current = TABS.find((t) => pathname.endsWith(t.to))?.to ?? '/players'
   return (
-    <Tabs value={current} onChange={(v) => v && void navigate({ to: v })}>
+    <Tabs
+      className="club-tabs"
+      value={current}
+      onChange={(v) => v && void navigate({ to: v })}
+    >
       <Tabs.List grow mb="sm">
         {TABS.map((t) => (
           <Tabs.Tab key={t.to} value={t.to}>

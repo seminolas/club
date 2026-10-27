@@ -13,7 +13,6 @@ import {
   playedDate,
 } from '../../components/list-helpers'
 import type { PersonRow } from '../../components/list-helpers'
-import { RankingsHelp } from '../../components/RankingsHelp'
 import { importLadderFn } from '../../fns/ladder'
 import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../lib/csv'
 import { nextTuesday } from '../../lib/dates'
@@ -124,7 +123,6 @@ function PlayersPage() {
       title="Ladder"
       actions={
         <>
-          <RankingsHelp />
           <Button variant="default" onClick={exportCsv}>
             Export CSV
           </Button>
@@ -146,11 +144,22 @@ function PlayersPage() {
       columns={(inView, query) => {
         const label = nameLabels(inView, query)
         return [
-          { accessor: 'rank', title: '#', sortable: true, numeric: true },
+          {
+            accessor: 'rank',
+            title: '#',
+            menuTitle: 'Ladder position',
+            description:
+              'Decides your box. After each night the top two in each box move up, the bottom two down.',
+            sortable: true,
+            numeric: true,
+          },
           {
             // A statistical estimate of strength (domain/skill.ts), as a rank.
             accessor: 'skillRank',
             title: 'Skill',
+            menuTitle: 'Estimated skill',
+            description:
+              'From all your game scores this past year. Doesn’t decide boxes.',
             sortable: true,
             numeric: true,
             defaultHidden: true,

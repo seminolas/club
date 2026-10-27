@@ -29,6 +29,10 @@ export interface ListColumn<T> {
   defaultHidden?: boolean
   /** false: always shown, and not listed as optional in Columns. */
   toggleable?: boolean
+  /** Its name in the Columns sheet, when the header is short ("#"). */
+  menuTitle?: string
+  /** One line under its name in the Columns sheet, saying what it is. */
+  description?: string
 }
 
 /**
