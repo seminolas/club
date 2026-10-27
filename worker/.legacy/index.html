@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Northland Badminton Tuesday Box</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏸</text></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <style>
+    [x-cloak] { display: none !important; }
+    @media screen { .print-only { display: none !important; } }
+    @media print {
+      @page { size: A4 landscape; margin: 0.6cm 1.5cm; }
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { position: absolute; inset: 0; }
+      .no-print { display: none !important; }
+      .print-page-break { page-break-after: always; }
+      /* "grid" layout only — one score cell per player per match, needs shrinking
+         to fit; the "cards" layout is sized to fit at full scale already. */
+      .print-only-grid { zoom: 0.85; }
+      .sitout-cell {
+        background-color: #6b7280 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+    /* Not gated to @media print — the pill's dark fill should also show on
+       screen (in the digital preview) as well as in the printed sheet;
+       the print-color-adjust properties are what matter for the printed page. */
+    .game-pill {
+      background-color: #52525b !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  </style>
+
+  <!-- Google Identity Services — loaded async, initialised in app.js init() -->
+
+  <script src="js/csv.js"></script>
+  <script src="js/dist/rules.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800" x-data="appData()" x-init="init()" x-cloak>
+
+  <!-- ── Toast ─────────────────────────────────────────────────────────── -->
+  <div x-show="toast" x-transition
+       :class="toast?.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+       class="fixed top-14 right-4 z-50 text-white px-4 py-2 rounded shadow-lg text-sm max-w-xs no-print">
+    <span x-text="toast?.msg"></span>
+  </div>
+
+  <!-- ── Loading overlay ───────────────────────────────────────────────── -->
+  <div x-show="loading" class="fixed inset-0 bg-white/60 z-40 flex items-center justify-center no-print">
+    <div class="text-blue-700 text-lg font-medium animate-pulse">Loading…</div>
+  </div>
+
+  <!-- ── Login modal ──────────────────────────────────────────────────── -->
+  <div x-show="showLogin" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center no-print">
+    <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4">
+      <h3 class="font-bold text-lg text-blue-700 mb-1">Sign in</h3>
+      <p class="text-xs text-gray-400 mb-5">Sign in with your Google account.</p>
+
+      <button @click="signInWithGoogle()"
+              class="w-full mb-3 border border-gray-300 rounded-lg py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        Sign in with Google
+      </button>
+
+      <p x-show="loginError" x-text="loginError" class="text-red-500 text-xs mb-2 text-center"></p>
+      <button @click="showLogin = false; loginError = null"
+              class="w-full text-sm text-gray-400 hover:text-gray-600 mt-1">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- ── "This is me" modal ────────────────────────────────────────────── -->
+  <div x-show="claim.open" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center no-print">
+    <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm mx-4 flex flex-col" style="max-height: 85vh">
+      <h3 class="font-bold text-lg text-blue-700 mb-1">Which player are you?</h3>
+      <p class="text-xs text-gray-500 mb-3">We couldn’t match your Google account to a player. Find yourself and tap your name.</p>
+      <input type="search" x-model="claim.search" placeholder="Search names"
+             class="border rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-700">
+      <ul class="overflow-y-auto border rounded divide-y flex-1" style="min-height: 6rem">
+        <template x-for="p in claimMatches" :key="p.id">
+          <li>
+            <button @click="claim.selectedId = p.id"
+                    :class="claim.selectedId === p.id ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50'"
+                    class="w-full text-left px-3 py-2 text-sm" x-text="p.name"></button>
+          </li>
+        </template>
+        <li x-show="claimMatches.length === 0" class="px-3 py-2 text-sm text-gray-400">No one by that name.</li>
+      </ul>
+      <p x-show="claim.error" x-text="claim.error" class="text-red-500 text-xs mt-2"></p>
+      <button @click="confirmClaim()" :disabled="!claim.selectedId || claim.saving"
+              :class="!claim.selectedId || claim.saving ? 'opacity-40 cursor-not-allowed' : ''"
+              class="w-full mt-3 bg-blue-700 text-white rounded-lg py-2 text-sm font-medium">
+        This is me
+      </button>
+      <p class="text-xs text-gray-500 mt-3 text-center">New here? For now, an admin needs to add you.</p>
+      <button @click="logout()" class="w-full text-sm text-gray-400 hover:text-gray-600 mt-1">Sign out</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- GLOBAL NAV                                                          -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <nav class="no-print bg-white border-b sticky top-0 z-30">
+    <div class="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
+
+      <!-- Left: title (home) or home link + session info (session) -->
+      <div class="flex items-center gap-2 min-w-0">
+        <template x-if="view === 'home'">
+          <h1 class="font-bold text-blue-700 text-sm">NBA Senior Tuesday Box</h1>
+        </template>
+        <template x-if="view === 'player'">
+          <div class="flex items-center gap-2 min-w-0">
+            <button @click="location.hash = '/players'"
+                    class="text-gray-500 hover:text-gray-700 shrink-0 text-lg leading-none">🏠</button>
+            <span class="font-bold text-blue-700 text-sm truncate" x-text="player?.name ?? ''"></span>
+          </div>
+        </template>
+        <template x-if="view === 'session'">
+          <div class="flex items-center gap-2 min-w-0">
+            <button @click="location.hash = '/players'"
+                    class="text-gray-500 hover:text-gray-700 shrink-0 text-lg leading-none">🏠</button>
+            <span class="font-bold text-blue-700 text-sm truncate"
+                  x-text="session ? formatDate(session.date) : ''"></span>
+            <span class="text-xs px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
+                  :class="{
+                    'bg-yellow-100 text-yellow-700': session?.status === 'attendance',
+                    'bg-orange-100 text-orange-700': session?.status === 'games',
+                    'bg-green-100 text-green-700': session?.status === 'closed',
+                  }"
+                  x-text="session?.status?.replace(/_/g, ' ')"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- Right: context buttons + admin/login -->
+      <div class="flex items-center gap-1 shrink-0">
+
+        <!-- ── HOME buttons ── -->
+        <template x-if="view === 'home' && isAdmin">
+          <label class="text-xs bg-gray-100 hover:bg-gray-200 rounded px-2 py-1 cursor-pointer text-gray-600 whitespace-nowrap">
+            ⬆ Import
+            <input type="file" accept=".csv,.txt" @change="importCSV($event)" class="hidden">
+          </label>
+        </template>
+        <template x-if="view === 'home'">
+          <button @click="exportCSV()"
+                  class="text-xs bg-gray-100 hover:bg-gray-200 rounded px-2 py-1 text-gray-600 whitespace-nowrap">
+            ⬇ Export
+          </button>
+        </template>
+
+        <!-- ── SESSION admin: Edit + Delete buttons ── -->
+        <template x-if="view === 'session' && isAdmin">
+          <div class="flex items-center gap-1">
+            <div class="relative group">
+              <button @click="canEditSession && enableEditing()"
+                      :disabled="!canEditSession"
+                      :class="!canEditSession ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"
+                      class="text-xs border border-gray-300 rounded px-2 py-1 text-gray-600 whitespace-nowrap">
+                ✏ Edit
+              </button>
+              <div x-show="!canEditSession"
+                   class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                <span>Session must be closed to edit</span>
+                <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
+              </div>
+            </div>
+            <button @click="deleteSession()"
+                    class="text-xs bg-red-100 text-red-600 hover:bg-red-200 border border-red-200 rounded px-2 py-1 font-medium whitespace-nowrap">
+              🗑 Delete
+            </button>
+          </div>
+        </template>
+
+        <!-- The new UI, being built at /new/ (UI-PORT.md); admins only until it's ready. -->
+        <template x-if="isAdmin">
+          <a href="/new/" class="text-xs border border-gray-300 rounded px-2 py-1 text-gray-600 hover:bg-gray-100 whitespace-nowrap">New version</a>
+        </template>
+
+        <!-- Divider -->
+        <div class="w-px h-4 bg-gray-200 mx-1"></div>
+
+        <!-- Signed in (admin pill for admins) / Sign in -->
+        <template x-if="me.signedIn">
+          <div class="flex items-center gap-1.5">
+            <span x-show="isAdmin" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
+            <!-- Phones: just the first name ("Signed in as" doesn't fit next to the admin buttons). -->
+            <span data-test="signed-in-as" class="text-xs text-gray-500 whitespace-nowrap"><span class="hidden sm:inline">Signed in as </span><span x-text="signedInFirstName"></span></span>
+            <span class="text-xs text-gray-300">·</span>
+            <button @click="logout()" class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">Sign out</button>
+          </div>
+        </template>
+        <template x-if="!me.signedIn">
+          <button @click="showLogin = true"
+                  class="text-xs text-gray-400 hover:text-gray-600 whitespace-nowrap">
+            Sign in
+          </button>
+        </template>
+
+      </div>
+    </div>
+  </nav>
+
+  <!-- Live session problems (S6a) -->
+  <div x-show="liveProblem" class="no-print bg-yellow-50 border-b border-yellow-200 text-yellow-800 text-sm px-4 py-2 flex items-center justify-center gap-3">
+    <span x-text="liveProblem === 'reconnecting' ? 'Connection lost – reconnecting…' : 'Some changes may not have been saved. Reload the page and check the scores.'"></span>
+    <button x-show="liveProblem === 'reload'" @click="location.reload()"
+            class="border border-yellow-400 rounded px-2 py-0.5 text-yellow-900 hover:bg-yellow-100 whitespace-nowrap">Reload</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- HOME VIEW                                                           -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div x-show="view === 'home'" class="max-w-3xl mx-auto px-4 py-4">
+
+    <!-- Home tabs -->
+    <div class="flex border-b mb-4 no-print">
+      <template x-for="[label, num] in [['Players', 1], ['Sessions', 2]]" :key="num">
+        <button @click="setHomeTab(num)"
+                :class="homeTab === num
+                  ? 'border-b-2 border-blue-700 text-blue-700 font-medium'
+                  : 'text-gray-500 hover:text-gray-700'"
+                class="px-4 py-2 text-base -mb-px" x-text="label">
+        </button>
+      </template>
+    </div>
+
+    <!-- Tab 1: Players -->
+    <div x-show="homeTab === 1">
+      <div class="relative mb-3 no-print">
+        <input type="search" x-model="homeSearch"
+               placeholder="Search players…"
+               autocomplete="off"
+               class="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700">
+        <span x-show="!homeSearch" class="absolute right-3 top-2.5 text-gray-400 text-xs"
+              x-text="leaderboard.length + ' players'"></span>
+      </div>
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="divide-y max-h-[75vh] overflow-y-auto">
+          <template x-for="p in filteredLeaderboard" :key="p.rank">
+            <div class="flex items-center px-4 py-2 text-sm hover:bg-gray-50 cursor-pointer"
+                 @click="isAdmin && p.id && (location.hash = '/players/' + p.id)"
+                 :class="isAdmin ? 'cursor-pointer' : 'cursor-default'">
+              <span class="w-8 text-gray-400 text-xs shrink-0" x-text="p.rank"></span>
+              <span class="flex-1" x-text="p.name"></span>
+              <div class="flex items-center gap-1 ml-2">
+                <span x-show="p.hc_member_id"
+                      class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">HC ✅</span>
+                <span x-show="!p.hc_member_id"
+                      class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">HC ❌</span>
+              </div>
+            </div>
+          </template>
+          <template x-if="leaderboard.length === 0 && !loading">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">
+              No leaderboard data. Sign in as admin to import a CSV.
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Sessions -->
+    <div x-show="homeTab === 2">
+
+      <!-- New session card: date picker always visible; button only when date has no session -->
+      <div class="bg-white rounded-xl shadow p-4 mb-4 no-print">
+        <div class="flex gap-3 items-center flex-wrap">
+          <input type="date" x-model="selectedDate" class="border rounded px-2 py-2 text-sm">
+          <template x-if="!sessionDateExists">
+            <div class="relative group">
+              <button @click="startSession(selectedDate)"
+                      :disabled="!isAdmin || (mostRecentSessionStatus && mostRecentSessionStatus !== 'closed')"
+                      :class="(!isAdmin || (mostRecentSessionStatus && mostRecentSessionStatus !== 'closed')) ? 'opacity-40 cursor-not-allowed' : ''"
+                      class="text-sm bg-green-600 text-white rounded px-4 py-2 font-medium whitespace-nowrap">
+                + New Session
+              </button>
+              <div x-show="mostRecentSessionStatus && mostRecentSessionStatus !== 'closed'"
+                   class="absolute bottom-full left-1/2 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+                   style="transform: translateX(-50%)">
+                Close the current session first.
+                <div class="absolute top-full left-1/2 border-4 border-transparent border-t-gray-800"
+                     style="transform: translateX(-50%)"></div>
+              </div>
+              <div x-show="!isAdmin && !(mostRecentSessionStatus && mostRecentSessionStatus !== 'closed')"
+                   class="absolute bottom-full left-1/2 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+                   style="transform: translateX(-50%)">
+                Sign in as admin to create sessions.
+                <div class="absolute top-full left-1/2 border-4 border-transparent border-t-gray-800"
+                     style="transform: translateX(-50%)"></div>
+              </div>
+            </div>
+          </template>
+          <template x-if="sessionDateExists">
+            <span class="text-sm text-gray-400 italic">Session already exists for this date.</span>
+          </template>
+        </div>
+      </div>
+
+      <!-- Session list -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="divide-y max-h-[75vh] overflow-y-auto">
+          <template x-for="s in sessionList" :key="s.date">
+            <div @click="openSession(s.date)"
+                 :class="{
+                   'bg-green-50': s.status === 'closed',
+                   'bg-blue-50':  s.status !== 'closed'
+                 }"
+                 class="flex items-center px-4 py-3 text-sm cursor-pointer hover:brightness-95 select-none">
+              <span class="flex-1 font-medium" x-text="shortDate(s.date) + ': ' + s.attendee_count + ' players'"></span>
+              <span x-show="s.status === 'closed'" class="text-green-500 text-lg">✓</span>
+              <span x-show="s.status !== 'closed'" class="text-yellow-400 text-lg">⏱</span>
+            </div>
+          </template>
+          <template x-if="sessionList.length === 0 && !loading">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">No sessions yet.</div>
+          </template>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- SESSION VIEW                                                        -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div x-show="view === 'session' && session" class="max-w-3xl mx-auto px-4 py-4">
+
+    <!-- Tabs -->
+    <div class="flex border-b mb-4 no-print">
+      <template x-for="[label, num] in [['Attendance', 1], ['Games', 2], ['Wrap-up', 3]]" :key="num">
+        <button @click="setSessionTab(num)"
+                :disabled="isTabLocked(num)"
+                :class="sessionTab === num
+                  ? 'border-b-2 border-blue-700 text-blue-700 font-medium'
+                  : isTabLocked(num)
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-500 hover:text-gray-700'"
+                class="px-4 py-2 text-base -mb-px" x-text="label">
+        </button>
+      </template>
+    </div>
+
+    <!-- ── Tab 1: Attendance ─────────────────────────────────────────── -->
+    <div x-show="sessionTab === 1">
+
+      <!-- Action card -->
+      <div class="bg-white rounded-xl shadow p-4 mb-3 no-print flex items-center gap-3">
+        <span class="text-sm text-gray-600 shrink-0">
+          Attending: <span class="font-bold" x-text="attendingCount"></span>
+        </span>
+        <div class="w-px h-5 bg-gray-200 shrink-0"></div>
+        <div class="flex items-center gap-2 ml-auto">
+          <button @click="printLadder()"
+                  class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
+            🖨 Sign In Sheet
+          </button>
+        </div>
+      </div>
+
+      <template x-if="session?.status === 'games'">
+        <div class="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2 mb-3 text-sm text-orange-700 no-print">
+          Games in progress — go to the Games tab to re-open attendance.
+        </div>
+      </template>
+
+      <div class="flex gap-2 mb-3 no-print items-center">
+        <div class="relative flex-1">
+          <input type="search" x-model="sessionSearch"
+                 @input="onSearchInput()"
+                 @keydown="attendanceKeydown($event)"
+                 placeholder="Search players…"
+                 autocomplete="off"
+                 class="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700">
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow divide-y mb-4">
+        <template x-for="(p, pi) in filteredPlayers" :key="pi">
+          <div @click="toggleAttendance(p.name); clearSearch()"
+               :class="{
+                 'bg-green-50': isAttending(p.name),
+                 'bg-blue-50 player-row-highlighted': pi === highlightIdx
+               }"
+               class="flex items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 select-none">
+            <span class="w-8 text-gray-400 text-xs" x-text="p.rank"></span>
+            <span class="flex-1" x-text="p.name"></span>
+            <span x-show="isAttending(p.name)" class="text-green-500 text-lg">✓</span>
+          </div>
+        </template>
+
+        <template x-if="isAdmin && searchHasNoMatch && !showAddPlayer && session?.status === 'attendance'">
+          <div class="px-4 py-3">
+            <p class="text-sm text-gray-400 mb-2">No match for "<span x-text="sessionSearch"></span>"</p>
+            <button @click="prepareAddPlayer()"
+                    class="text-sm text-blue-700 font-medium">
+              + Add "<span x-text="sessionSearch"></span>" as new player
+            </button>
+          </div>
+        </template>
+
+        <template x-if="showAddPlayer">
+          <div class="px-4 py-3 bg-blue-50">
+            <p class="text-sm font-medium mb-2">Add new player</p>
+            <div class="flex gap-2 flex-wrap items-end">
+              <div>
+                <label class="text-xs text-gray-500">Name</label>
+                <input x-model="addPlayerName" type="text"
+                       class="block border rounded px-2 py-1.5 text-sm w-48 focus:ring-2 focus:ring-blue-700 focus:outline-none">
+              </div>
+              <div>
+                <label class="text-xs text-gray-500">Insert at position</label>
+                <input x-model="addPlayerPos" type="number" :min="1" :max="leaderboard.length + 1"
+                       class="block border rounded px-2 py-1.5 text-sm w-20 focus:ring-2 focus:ring-blue-700 focus:outline-none">
+              </div>
+              <button @click="confirmAddPlayer()"
+                      class="bg-blue-700 text-white text-sm rounded px-3 py-1.5">Add & Mark Attending</button>
+              <button @click="showAddPlayer = false; sessionSearch = ''"
+                      class="text-gray-400 text-sm px-2 py-1.5">Cancel</button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div>
+
+    <!-- ── Tab 2: Games ──────────────────────────────────────────────── -->
+    <div x-show="sessionTab === 2">
+
+      <!-- Action card -->
+      <div class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-3 flex-wrap">
+        <!-- attendance state: assign boxes button -->
+        <template x-if="session?.status === 'attendance'">
+          <div class="flex items-center gap-2 ml-auto">
+            <div class="relative group">
+              <button @click="assignBoxes()"
+                      :disabled="attendingCount < 4"
+                      :class="attendingCount < 4 ? 'opacity-40 cursor-not-allowed' : ''"
+                      class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                ▶ Assign Boxes
+              </button>
+              <div x-show="attendingCount < 4"
+                   class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                Need at least 4 players attending
+                <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <!-- games or closed state: full toolbar -->
+        <template x-if="session?.status !== 'attendance'">
+          <div class="flex items-center gap-3 w-full flex-wrap">
+            <template x-if="isAdmin && session?.status === 'games'">
+              <button @click="reopenAttendance()"
+                      class="text-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                ← Re-open Attendance
+              </button>
+            </template>
+            <button @click="toggleAllBoxes()"
+                    class="text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                    x-text="anyBoxCollapsed ? '⊕ Expand all' : '⊖ Collapse all'">
+            </button>
+            <div class="flex items-center gap-2 ml-auto">
+              <span class="text-sm text-gray-400 whitespace-nowrap">Scoresheets:</span>
+              <button @click="printBoxes('cards')"
+                      class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
+                🖨 Cards
+              </button>
+              <button @click="printBoxes('grid')"
+                      class="text-sm bg-gray-100 hover:bg-gray-200 rounded px-3 py-1.5 text-gray-600 whitespace-nowrap">
+                🖨 Grid
+              </button>
+              <template x-if="isAdmin && session?.status === 'games'">
+                <button @click="assignBoxes()"
+                        class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                  ↺ Reassign
+                </button>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <template x-if="!session?.boxes?.length">
+        <p class="text-center text-gray-400 py-10 text-sm">
+          Mark who is attending, then click Assign Boxes above.
+        </p>
+      </template>
+
+      <div class="flex gap-2 mb-3 no-print items-center" x-show="session?.boxes?.length">
+        <div class="relative flex-1">
+          <input type="search" x-model="sessionSearch"
+                 placeholder="Search players…"
+                 autocomplete="off"
+                 class="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700">
+        </div>
+      </div>
+
+      <div id="print-area">
+        <template x-for="(box, bi) in (session?.boxes ?? [])" :key="bi">
+          <div :class="bi < (session?.boxes?.length - 1) ? 'print-page-break' : ''">
+
+            <!-- Print-only score sheet: "cards" layout -->
+            <template x-if="printLayout === 'cards'">
+            <div class="print-only mb-8">
+              <div class="flex items-center gap-4 mb-2">
+                <div class="flex items-center gap-3 shrink-0">
+                  <span class="text-xl font-bold text-gray-800">Box</span>
+                  <div class="flex items-center justify-center font-bold text-xl text-gray-800"
+                       style="width:2.4rem;height:2.4rem;border-radius:50%;border:2.5px solid #1f2937;"
+                       x-text="bi + 1"></div>
+                </div>
+                <div class="text-xl font-bold text-gray-800 uppercase border-l-2 border-gray-200 pl-4"
+                     x-text="box.players.map((_, pi) => boxDisplayName(box, pi)).join('  ·  ')"></div>
+              </div>
+
+              <div class="grid" :style="'grid-template-columns: repeat(' + (box.players.length > 6 ? 3 : 2) + ', 1fr); gap:6px'">
+                <template x-for="(match, mi) in box.matches" :key="mi">
+                  <div class="relative grid border-2 border-gray-700 rounded"
+                       :style="'grid-template-columns:1fr auto 1fr; align-items:center; column-gap:18px; height:' + cardHeightMm() + 'mm'">
+                    <div class="game-pill absolute text-white font-bold rounded-full"
+                         style="top:5px;left:8px;padding:2px 12px;font-size:12px;letter-spacing:0.3px">
+                      GAME <span x-text="mi + 1"></span>
+                    </div>
+                    <!-- Box of 7 uses the narrower 3-column card grid, where this
+                         pill would overlap the third set's score boxes — its
+                         sitting-out info moves to separate summary cards
+                         below instead (see "Sitting out" cards, easy to
+                         revert to this inline pill by flipping the bound
+                         back to `box.players.length > 4`). -->
+                    <template x-if="box.players.length > 4 && box.players.length <= 6">
+                      <div class="absolute font-semibold rounded-full text-gray-700 bg-white"
+                           style="bottom:5px;right:8px;padding:1px 10px;font-size:12px;border:1.5px solid #9ca3af;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        ✕ <span x-text="sitoutName(box, mi)"></span>
+                      </div>
+                    </template>
+                    <div class="flex flex-col items-center justify-self-center font-bold uppercase"
+                         style="font-size:14px;line-height:1.4">
+                      <span x-text="boxDisplayName(box, match.pair1[0])"></span>
+                      <span class="text-gray-400 normal-case font-normal" style="font-size:11px">&amp;</span>
+                      <span x-text="boxDisplayName(box, match.pair1[1])"></span>
+                    </div>
+                    <div class="flex flex-col items-center" style="gap:16px">
+                      <template x-for="setN in [1, 2, 3]" :key="setN">
+                        <div class="flex items-center" style="gap:8px">
+                          <div style="width:14mm;height:10mm;border:1.5px solid #9ca3af;border-radius:4px"></div>
+                          <span class="text-gray-400" style="font-size:13px">−</span>
+                          <div style="width:14mm;height:10mm;border:1.5px solid #9ca3af;border-radius:4px"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="flex flex-col items-center justify-self-center font-bold uppercase"
+                         style="font-size:14px;line-height:1.4">
+                      <span x-text="boxDisplayName(box, match.pair2[0])"></span>
+                      <span class="text-gray-400 normal-case font-normal" style="font-size:11px">&amp;</span>
+                      <span x-text="boxDisplayName(box, match.pair2[1])"></span>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Box of 7 only (see note above the inline pill): sitting-out
+                     names as separate cards, up to 4 games per card, instead of
+                     a per-card pill. Revert by deleting this block and
+                     restoring the inline pill's condition to `> 4`. -->
+                <template x-if="box.players.length > 6">
+                  <template x-for="(rows, ci) in sitoutCards(box)" :key="ci">
+                    <div class="relative border-2 border-gray-700 rounded flex flex-col"
+                         :style="'height:' + cardHeightMm() + 'mm; padding: 4px 12px'">
+                      <div class="game-pill absolute text-white font-bold rounded-full"
+                           style="top:5px;left:8px;padding:2px 12px;font-size:12px;letter-spacing:0.3px">
+                        SITTING OUT
+                      </div>
+                      <div class="flex-1 flex flex-col justify-center" style="gap:6px;margin-top:14px">
+                        <template x-for="row in rows" :key="row.name">
+                          <div class="grid items-center" style="grid-template-columns:29mm 1fr; column-gap:6px">
+                            <span class="font-bold uppercase" style="display:block;font-size:14px;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" x-text="row.name + ':'"></span>
+                            <div class="flex flex-wrap" style="gap:4px">
+                              <template x-for="g in row.games" :key="g">
+                                <span class="game-pill text-white font-bold rounded-full"
+                                      style="padding:1px 8px;font-size:10px;letter-spacing:0.3px;white-space:nowrap">
+                                  GAME <span x-text="g"></span>
+                                </span>
+                              </template>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </template>
+              </div>
+
+              <div style="height:24px"></div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="border-2 border-gray-700 bg-gray-100 text-center px-3 py-1 text-sm font-bold uppercase">Totals</th>
+                    <template x-for="(name, pi) in box.players" :key="pi">
+                      <th class="border-2 border-gray-700 text-center px-2 py-1 font-bold text-sm uppercase leading-tight"
+                          x-text="boxDisplayName(box, pi)"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Matches Won</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Games (Won − Lost)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Points (For − Against)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="height:6px"></div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-base uppercase">Final Placing</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            </template>
+
+            <!-- Print-only score sheet: "grid" layout -->
+            <template x-if="printLayout === 'grid'">
+            <div class="print-only print-only-grid mb-8">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="flex items-center justify-center font-bold text-xl text-gray-800"
+                     style="width:2.4rem;height:2.4rem;border-radius:50%;border:2.5px solid #1f2937;"
+                     x-text="bi + 1"></div>
+                <span class="text-xl font-bold text-gray-800">Box <span x-text="bi + 1"></span></span>
+              </div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="border-2 border-gray-700 bg-gray-100 text-center px-3 py-3 text-base font-bold uppercase">Pairing</th>
+                    <template x-for="(name, pi) in box.players" :key="pi">
+                      <th class="border-2 border-gray-700 text-center px-2 py-3 font-bold text-base uppercase leading-tight"
+                          x-text="boxDisplayName(box, pi)"></th>
+                    </template>
+                  </tr>
+                  <tr>
+                    <td class="px-3 py-2 text-xs text-gray-400" style="border-left-style:hidden"></td>
+                    <template x-for="(name, pi) in box.players" :key="pi">
+                      <td class="text-center py-2 font-bold text-base" x-text="pi + 1"
+                          :style="pi === box.players.length - 1 ? 'border-right-style:hidden' : ''"></td>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(match, mi) in box.matches" :key="mi">
+                    <tr>
+                      <td class="border-2 border-gray-700 px-3 py-7 text-center font-bold text-base"
+                          x-text="(match.pair1.map(i=>i+1).join(' & ') + '  v  ' + match.pair2.map(i=>i+1).join(' & '))"></td>
+                      <template x-for="(name, pi) in box.players" :key="pi">
+                        <td :class="isSitout(bi, mi, pi) ? 'sitout-cell bg-gray-400' : ''"
+                            class="border-2 border-gray-700 text-center py-7"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+
+              <div style="height:14px"></div>
+
+              <!-- Totals table: boxes of 6/7 have an extra row of matches
+                   above, so the totals rows use tighter spacing here to
+                   keep Final Placing from overflowing onto a second printed
+                   page; boxes of 4/5 keep the original roomier spacing. -->
+              <template x-if="box.players.length <= 5">
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-4 text-center font-bold text-base uppercase">Matches Won</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-4"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-4 text-center font-bold text-base uppercase">Games<br>(Won − Lost)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-4"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-4 text-center font-bold text-base uppercase">Points<br>(For − Against)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-4"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+              </template>
+              <template x-if="box.players.length > 5">
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Matches Won</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Games (Won − Lost)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-1 text-center font-bold text-sm uppercase" style="white-space:nowrap">Points (For − Against)</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-1"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+              </template>
+
+              <div style="height:14px"></div>
+
+              <table class="w-full border-collapse border-2 border-gray-700" style="table-layout:fixed">
+                <colgroup>
+                  <col style="width:26%">
+                  <template x-for="p in box.players" :key="p"><col></template>
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td class="border-2 border-gray-700 px-3 py-2 text-center font-bold text-base uppercase">Final Placing</td>
+                    <template x-for="p in box.players" :key="p"><td class="border-2 border-gray-700 py-2"></td></template>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            </template>
+
+            <!-- Digital score entry -->
+            <div class="no-print bg-white rounded-xl shadow mb-4" x-show="isBoxVisible(bi)"
+                 :class="!isBoxExpanded(bi) ? 'px-4 py-3 cursor-pointer' : 'p-4'"
+                 @click="!isBoxExpanded(bi) && toggleBoxExpanded(bi)">
+              <div class="flex items-center justify-between cursor-pointer select-none"
+                   :class="{ 'mb-4': isBoxExpanded(bi) }"
+                   @click.stop="toggleBoxExpanded(bi)">
+                <span class="font-semibold text-sm text-gray-700"
+                      x-text="boxHeaderLabel(box, bi)"></span>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span x-show="!isBoxExpanded(bi)"
+                        :class="isBoxComplete(bi) ? 'text-green-500' : 'text-yellow-400'"
+                        class="text-base leading-none"
+                        x-text="isBoxComplete(bi) ? '✓' : '⏱'"></span>
+                  <span class="text-gray-400 text-sm leading-none"
+                        x-text="isBoxExpanded(bi) ? '▲' : '▼'"></span>
+                </div>
+              </div>
+
+              <div x-show="isBoxExpanded(bi)">
+                <template x-for="(match, mi) in box.matches" :key="mi">
+                  <div class="mb-5 pb-5 border-b last:border-b-0 flex gap-3">
+                    <div class="hidden sm:flex sm:flex-row sm:items-center shrink-0 text-xs text-gray-400 font-medium whitespace-nowrap">
+                      <span x-text="match.pair1.map(i=>i+1).join(' & ')"></span>
+                      <span class="mx-1">vs</span>
+                      <span x-text="match.pair2.map(i=>i+1).join(' & ')"></span>
+                    </div>
+                    <div class="flex-1">
+                      <div class="flex sm:hidden mb-1 text-xs text-gray-400 font-medium">
+                        <div class="flex-1 flex justify-end pr-3">
+                          <span x-text="match.pair1.map(i=>i+1).join(' & ')"></span>
+                        </div>
+                        <div class="w-8 text-center shrink-0">vs</div>
+                        <div class="flex-1 pl-3">
+                          <span x-text="match.pair2.map(i=>i+1).join(' & ')"></span>
+                        </div>
+                      </div>
+                      <div class="flex items-baseline mb-2">
+                        <div class="flex-1 flex justify-end pr-3">
+                          <span class="font-semibold text-sm" :class="pairResultClass(match, 0)"
+                                x-text="pairLabel(box, match.pair1)"></span>
+                        </div>
+                        <div class="w-8 text-center shrink-0">
+                          <span class="text-gray-400 text-xs font-medium">vs</span>
+                        </div>
+                        <div class="flex-1 pl-3">
+                          <span class="font-semibold text-sm" :class="pairResultClass(match, 1)"
+                                x-text="pairLabel(box, match.pair2)"></span>
+                        </div>
+                      </div>
+                      <template x-for="setIdx in [0, 1, 2]" :key="setIdx">
+                        <div class="flex items-center mb-1.5" x-show="setIdx < 2 || showThirdSet(match)">
+                          <div class="flex-1 flex justify-end items-center gap-2 pr-3">
+                            <span class="text-xs text-gray-400 shrink-0 whitespace-nowrap">Set <span x-text="setIdx + 1"></span></span>
+                            <input type="number" min="0" max="99"
+                                   :value="match.sets[setIdx]?.[0] ?? ''"
+                                   @input="setScore(bi, mi, setIdx, 0, $event.target.value)"
+                                   :disabled="!canEnterScores(bi)"
+                                   class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
+                                   :class="scoreInputClass(match, setIdx, 0)">
+                          </div>
+                          <div class="w-8 text-center shrink-0">
+                            <span class="text-gray-300 text-sm">–</span>
+                          </div>
+                          <div class="flex-1 pl-3">
+                            <input type="number" min="0" max="99"
+                                   :value="match.sets[setIdx]?.[1] ?? ''"
+                                   @input="setScore(bi, mi, setIdx, 1, $event.target.value)"
+                                   @keydown.tab="handleScoreTab(bi, mi, setIdx, $event)"
+                                   :disabled="!canEnterScores(bi)"
+                                   class="score-input w-14 border rounded px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-700 focus:outline-none"
+                                   :class="scoreInputClass(match, setIdx, 1)">
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="shrink-0 w-8 flex items-center justify-center">
+                      <span class="text-xl font-bold leading-none"
+                            :class="{
+                              'text-yellow-400': matchStatus(bi, mi) === 'not_started' || matchStatus(bi, mi) === 'in_progress',
+                              'text-green-500': matchStatus(bi, mi) === 'complete',
+                              'text-red-500': matchStatus(bi, mi) === 'invalid'
+                            }"
+                            x-text="matchStatus(bi, mi) === 'complete' ? '✓' : matchStatus(bi, mi) === 'invalid' ? '✗' : '⏱'">
+                      </span>
+                    </div>
+                  </div>
+                </template>
+
+                <template x-if="box.matches.some(m => m.sets && m.sets.length > 0)">
+                  <div class="mt-3 overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                      <thead>
+                        <tr class="bg-gray-50 border-b">
+                          <th class="text-left px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide w-8">#</th>
+                          <th class="text-left px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Player</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Won</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Games</th>
+                          <th class="text-right px-2 py-2 text-xs font-bold text-gray-600 uppercase tracking-wide">Points</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="s in getBoxStandings(bi)" :key="s.name">
+                          <tr class="border-b last:border-b-0 hover:bg-gray-50">
+                            <td class="px-2 py-2 text-sm font-bold text-gray-500" x-text="s.placing + '.'"></td>
+                            <td class="px-2 py-2" x-text="boxDisplayName(box, box.players.indexOf(s.name))"></td>
+                            <td class="px-2 py-2 text-right tabular-nums" x-text="s.matchesWon"></td>
+                            <td class="px-2 py-2 text-right tabular-nums"
+                                x-text="(s.setsWon - s.setsLost >= 0 ? '+' : '') + (s.setsWon - s.setsLost)"></td>
+                            <td class="px-2 py-2 text-right tabular-nums"
+                                x-text="(s.pointsFor - s.pointsAgainst >= 0 ? '+' : '') + (s.pointsFor - s.pointsAgainst)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+          </div>
+        </template>
+      </div>
+
+    </div>
+
+    <!-- ── Tab 3: Wrap-up ────────────────────────────────────────────── -->
+    <div x-show="sessionTab === 3">
+
+      <!-- Action card -->
+      <div class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-3 flex-wrap">
+        <template x-if="isAdmin && session?.status === 'games'">
+          <div class="relative group ml-auto">
+            <button @click="allScoresComplete && closeSession()"
+                    :disabled="!allScoresComplete"
+                    :class="!allScoresComplete ? 'opacity-40 cursor-not-allowed' : ''"
+                    class="text-sm bg-green-600 text-white rounded px-3 py-1.5 font-medium whitespace-nowrap">
+              ✓ Close Session
+            </button>
+            <div x-show="!allScoresComplete"
+                 class="absolute bottom-full right-0 mb-2 px-2 py-1.5 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+              Enter all scores first
+              <div class="absolute top-full right-3 border-4 border-transparent border-t-gray-800"></div>
+            </div>
+          </div>
+        </template>
+        <template x-if="session?.status === 'closed'">
+          <div class="flex items-center gap-3 w-full flex-wrap">
+            <template x-if="isAdmin">
+              <div class="flex items-center gap-3">
+                <button @click="syncHelloClub()"
+                        class="text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+                  🔄 Sync HC
+                </button>
+                <div class="w-px h-5 bg-gray-200 shrink-0"></div>
+              </div>
+            </template>
+            <button @click="shareOnWhatsApp()"
+                    class="text-sm bg-green-100 text-green-700 hover:bg-green-200 rounded px-3 py-1.5 font-medium whitespace-nowrap">
+              📱 Share on WhatsApp
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <template x-if="session?.status === 'games'">
+        <p class="text-center text-gray-400 py-10 text-sm">
+          Enter all scores in the Games tab, then close the session.
+        </p>
+      </template>
+
+      <template x-if="session?.leaderboardAfter && session?.status === 'closed'">
+        <div>
+          <div class="flex gap-2 mb-3 items-center">
+            <div class="relative flex-1">
+              <input type="search" x-model="sessionSearch"
+                     placeholder="Search players…"
+                     autocomplete="off"
+                     class="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700">
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow overflow-hidden">
+            <div class="px-4 py-3 border-b">
+              <h3 class="font-semibold">Post-game ranking</h3>
+            </div>
+            <div class="divide-y max-h-[65vh] overflow-y-auto">
+              <template x-for="entry in session.leaderboardAfter.map((n,i)=>({n,i})).filter(e=>!sessionSearch||e.n.toLowerCase().includes(sessionSearch.toLowerCase()))" :key="entry.i">
+                <div class="flex items-center px-4 py-2 text-sm"
+                     :class="session.attendees.includes(entry.n) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                  <span class="w-8 text-gray-400 text-xs" x-text="entry.i + 1"></span>
+                  <span class="flex-1" x-text="entry.n"></span>
+                  <span x-show="session.attendees.includes(entry.n)"
+                        :class="deltaClass(entry.n)"
+                        class="text-xs ml-2 w-8 text-right"
+                        x-text="deltaLabel(entry.n)"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- ── Assign Boxes Modal ───────────────────────────────────────────── -->
+    <div x-show="boxOptionsModal.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col" style="max-height:85vh">
+        <div class="px-5 py-4 border-b border-gray-200 shrink-0">
+          <h2 class="font-bold text-gray-800">Assign Boxes</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Choose how to split <span x-text="boxOptionsModal.sortedAttendees.length"></span> players into boxes.
+          </p>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <div class="space-y-2">
+            <template x-for="(option, i) in boxOptionsModal.options" :key="i">
+              <label class="flex items-center gap-2 p-2 rounded border cursor-pointer text-sm"
+                     :class="boxOptionsModal.selectedIndex === i ? 'border-blue-600 bg-blue-50 text-gray-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+                <input type="radio" name="boxOption"
+                       :checked="!boxOptionsModal.custom && boxOptionsModal.selectedIndex === i"
+                       @change="selectBoxOption(i)">
+                <span x-text="boxOptionLabel(option)"></span>
+              </label>
+            </template>
+            <label class="flex items-center gap-2 p-2 rounded border cursor-pointer text-sm"
+                   :class="boxOptionsModal.custom ? 'border-blue-600 bg-blue-50 text-gray-800' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+              <input type="radio" name="boxOption"
+                     :checked="boxOptionsModal.custom"
+                     @change="selectCustomBoxes()">
+              <span>Custom — edit the selected layout below</span>
+            </label>
+          </div>
+
+          <div class="mt-4">
+            <label class="text-xs font-medium text-gray-500 uppercase tracking-wide"
+                   x-text="boxOptionsModal.custom ? 'Custom (one box per line, comma-separated)' : 'Preview'"></label>
+            <textarea x-show="!boxOptionsModal.custom" readonly rows="10"
+                      :value="boxOptionsPreview()"
+                      class="w-full mt-1 border rounded px-2 py-1.5 text-xs font-mono text-gray-600 bg-gray-50 resize-none"></textarea>
+            <textarea x-show="boxOptionsModal.custom" rows="10"
+                      x-model="boxOptionsModal.customText"
+                      spellcheck="false"
+                      class="w-full mt-1 border rounded px-2 py-1.5 text-xs font-mono text-gray-800 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-700"></textarea>
+            <ul x-show="boxOptionsParsed().errors.length" class="mt-2 space-y-0.5 text-xs text-red-600">
+              <template x-for="(err, ei) in boxOptionsParsed().errors" :key="ei">
+                <li x-text="err"></li>
+              </template>
+            </ul>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2 shrink-0">
+          <button @click="closeBoxOptionsModal()"
+                  :disabled="loading"
+                  :class="loading ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700">
+            Cancel
+          </button>
+          <button @click="confirmAssignBoxes()"
+                  :disabled="loading || boxOptionsParsed().errors.length > 0"
+                  :class="loading || boxOptionsParsed().errors.length > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-800'"
+                  class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded font-medium">
+            Assign
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HelloClub Sync Modal ──────────────────────────────────────── -->
+    <div x-show="hcSync.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col"
+           style="max-height:80vh">
+        <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+          <h2 class="font-bold text-gray-800">HelloClub Sync</h2>
+          <span x-show="hcSync.running" class="text-xs text-blue-500 animate-pulse">Running…</span>
+        </div>
+        <div class="flex-1 overflow-y-auto px-5 py-4 font-mono text-xs space-y-0.5"
+             x-ref="hcLog"
+             x-effect="hcSync.log.length && $nextTick(() => $refs.hcLog.scrollTop = $refs.hcLog.scrollHeight)">
+          <template x-for="(line, i) in hcSync.log" :key="i">
+            <div :class="{
+                   'text-green-600': line.type === 'ok',
+                   'text-red-500':   line.type === 'error',
+                   'text-yellow-600':line.type === 'warn',
+                   'text-gray-500':  line.type === 'info',
+                 }"
+                 x-text="line.text || ' '"></div>
+          </template>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end shrink-0">
+          <button @click="hcSync.open = false"
+                  :disabled="hcSync.running"
+                  :class="hcSync.running ? 'opacity-40 cursor-not-allowed' : 'hover:bg-gray-100'"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- PLAYER VIEW                                                          -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div x-show="view === 'player' && player" class="max-w-3xl mx-auto px-4 py-4">
+
+    <!-- Tabs -->
+    <div class="flex border-b mb-4 no-print">
+      <button @click="playerTab = 1"
+              :class="playerTab === 1 ? 'border-b-2 border-blue-700 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'"
+              class="px-4 py-2 text-base -mb-px">Profile</button>
+    </div>
+
+    <!-- ── Tab 1: Profile ────────────────────────────────────────────── -->
+    <div x-show="playerTab === 1">
+
+      <!-- Action bar -->
+      <div x-show="isAdmin" class="bg-white rounded-xl shadow p-4 mb-4 no-print flex items-center gap-2 justify-end">
+        <template x-if="!_editingPlayer">
+          <div class="flex items-center gap-2">
+            <button @click="removePlayer()"
+                    class="text-sm border border-red-300 rounded px-3 py-1.5 text-red-600 hover:bg-red-50 font-medium mr-auto">
+              Remove player
+            </button>
+            <button @click="startEditPlayer()"
+                    class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-700 hover:bg-gray-50 font-medium">
+              Edit
+            </button>
+            <button @click="openHCSearch()"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium">
+              Find in HelloClub
+            </button>
+          </div>
+        </template>
+        <template x-if="_editingPlayer">
+          <div class="flex items-center gap-2">
+            <button @click="cancelEditPlayer()"
+                    class="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button @click="savePlayerProfile()"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 font-medium">
+              Save
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <div class="space-y-4">
+
+          <!-- Name -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Name</span>
+            <span x-show="!_editingPlayer" class="text-sm font-medium" x-text="player?.name"></span>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.name"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700">
+          </div>
+
+          <!-- Email -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Email</span>
+            <span x-show="!_editingPlayer" class="text-sm"
+                  :class="player?.email ? 'text-gray-800' : 'text-gray-400 italic'"
+                  x-text="player?.email ?? 'Not set'"></span>
+            <input x-show="_editingPlayer" type="email" x-model="_playerDraft.email"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="email@example.com">
+          </div>
+
+          <!-- Preferred name -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Preferred</span>
+            <span x-show="!_editingPlayer" class="text-sm"
+                  :class="player?.preferred_name ? 'text-gray-800' : 'text-gray-400 italic'"
+                  x-text="player?.preferred_name ?? 'Not set'"></span>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.preferred_name"
+                   @keydown.enter="savePlayerProfile()" @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="Short name used in boxes (blank to use first name)">
+          </div>
+
+          <!-- HelloClub ID -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">HelloClub</span>
+            <div x-show="!_editingPlayer" class="flex items-center gap-2">
+              <span class="text-sm font-mono text-gray-700" x-show="player?.hc_member_id" x-text="player?.hc_member_id"></span>
+              <span x-show="player?.hc_member_id"
+                    class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">LINKED</span>
+              <span x-show="!player?.hc_member_id"
+                    class="text-sm text-gray-400 italic">Not set</span>
+            </div>
+            <input x-show="_editingPlayer" type="text" x-model="_playerDraft.hc_member_id"
+                   @keydown.escape="cancelEditPlayer()"
+                   class="border rounded px-2 py-1 text-sm flex-1 font-mono focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="HelloClub member ID (blank to unlink)">
+          </div>
+
+          <!-- Google sign-in -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500 w-24 shrink-0">Sign-in</span>
+            <span x-show="player?.login" class="text-sm text-gray-700 truncate" x-text="'Google: ' + player?.login?.email"></span>
+            <span x-show="!player?.login" class="text-sm text-gray-400 italic">Not linked</span>
+            <button x-show="isAdmin && player?.login && !_editingPlayer" @click="unlinkPlayerLogin()"
+                    class="ml-auto text-xs border border-gray-300 rounded px-2 py-1 text-gray-600 hover:bg-gray-50">
+              Unlink
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── HelloClub member search modal ──────────────────────────────── -->
+    <div x-show="_hcModal.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col" style="max-height:80vh">
+        <div class="px-5 py-4 border-b border-gray-200 shrink-0">
+          <h2 class="font-bold text-gray-800 mb-3">Find in HelloClub</h2>
+          <div class="flex gap-2">
+            <input type="search" x-model="_hcModal.query"
+                   @input="scheduleHCSearch()"
+                   @keydown.enter="doHCSearch()"
+                   class="border rounded px-3 py-1.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                   placeholder="Search by name…">
+            <button @click="doHCSearch()"
+                    :disabled="_hcModal.loading"
+                    class="text-sm bg-blue-700 text-white rounded px-3 py-1.5 disabled:opacity-50">
+              Search
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <div x-show="_hcModal.loading" class="px-5 py-6 text-center text-sm text-gray-400 animate-pulse">
+            Searching…
+          </div>
+          <div x-show="!_hcModal.loading && _hcModal.results.length === 0 && _hcModal.query.trim()"
+               class="px-5 py-6 text-center text-sm text-gray-400">
+            No active members found.
+          </div>
+          <template x-for="m in _hcModal.results" :key="m.id">
+            <div class="flex items-center justify-between px-5 py-3 border-b last:border-b-0 hover:bg-gray-50">
+              <div class="min-w-0 mr-3">
+                <div class="text-sm font-medium" x-text="m.name"></div>
+                <div class="text-xs text-gray-400">
+                  <span x-show="m.number" x-text="'#' + m.number" class="mr-2"></span>
+                  <span x-show="m.email" x-text="m.email"></span>
+                </div>
+              </div>
+              <button @click="selectHCMember(m)"
+                      class="text-xs bg-blue-700 text-white rounded px-3 py-1.5 shrink-0">
+                Select
+              </button>
+            </div>
+          </template>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end shrink-0">
+          <button @click="_hcModal.open = false"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HC sync confirmation modal -->
+    <div x-show="_hcConfirm.open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 no-print"
+         style="display:none">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+        <div class="px-5 py-4 border-b border-gray-200">
+          <h2 class="font-bold text-gray-800">Sync from HelloClub</h2>
+          <p class="text-sm text-gray-500 mt-0.5"
+             x-text="_hcConfirm.member?.name + (_hcConfirm.member?.number ? ' (#' + _hcConfirm.member.number + ')' : '')"></p>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+          <template x-if="_hcConfirm.nameDiffers">
+            <label class="flex items-start gap-3 cursor-pointer select-none">
+              <input type="checkbox" x-model="_hcConfirm.updateName" class="mt-0.5 shrink-0">
+              <span class="text-sm">
+                Update name:
+                <span class="line-through text-gray-400" x-text="player?.name"></span>
+                → <span class="font-medium" x-text="_hcConfirm.member?.name"></span>
+              </span>
+            </label>
+          </template>
+          <template x-if="_hcConfirm.emailDiffers">
+            <label class="flex items-start gap-3 cursor-pointer select-none">
+              <input type="checkbox" x-model="_hcConfirm.updateEmail" class="mt-0.5 shrink-0">
+              <span class="text-sm">
+                Update email:
+                <span class="line-through text-gray-400" x-text="player?.email || '(none)'"></span>
+                → <span class="font-medium" x-text="_hcConfirm.member?.email"></span>
+              </span>
+            </label>
+          </template>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex gap-2 justify-end">
+          <button @click="_hcConfirm.open = false"
+                  class="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-700 hover:bg-gray-100">
+            Cancel
+          </button>
+          <button @click="confirmHCLink()"
+                  class="text-sm px-4 py-1.5 bg-blue-700 text-white rounded hover:bg-blue-800">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

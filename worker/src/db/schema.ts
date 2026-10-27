@@ -4,6 +4,7 @@ import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   unique,
@@ -194,6 +195,23 @@ export const attendanceEvents = sqliteTable(
       .default(sql`(datetime('now'))`),
   },
   (t) => [index('attendance_events_session').on(t.sessionId, t.playerId, t.at)],
+)
+
+// Skill per closed session (0014; domain/skill.ts).
+export const sessionSkill = sqliteTable(
+  'session_skill',
+  {
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id),
+    strength: real('strength').notNull(),
+    rank: integer('rank').notNull(),
+    games: integer('games').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.sessionId, t.playerId] })],
 )
 
 export const boxes = sqliteTable(

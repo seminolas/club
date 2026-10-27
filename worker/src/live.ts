@@ -7,6 +7,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { handleWrite, parseClientMessage } from './live-core'
 import type { SeenWrites, ServerMessage, Writer } from './live-core'
+import { fillSkill } from './services/skill'
 import type { Env } from './types'
 
 const CLUB_ID = 1
@@ -31,6 +32,12 @@ export class SessionRoom extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    // Skill snapshots (services/skill.ts): the club's "skill:<club>" room
+    // computes them, as a fit needs more CPU than a Worker request has.
+    if (new URL(request.url).pathname === '/skill') {
+      await fillSkill(this.env.DB.withSession('first-primary'), CLUB_ID)
+      return new Response(null, { status: 204 })
+    }
     if (new URL(request.url).pathname === '/notify') {
       this.broadcast({ type: 'changed' })
       return new Response(null, { status: 204 })

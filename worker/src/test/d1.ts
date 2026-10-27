@@ -39,6 +39,7 @@ const DATA_TABLES = [
   'account',
   'verification',
   'session_ranks',
+  'session_skill',
   'sessions',
   'players',
   'user',

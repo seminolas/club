@@ -509,6 +509,7 @@ export async function deleteSession(db: DB, sessionId: number): Promise<void> {
       .delete(t.attendanceEvents)
       .where(eq(t.attendanceEvents.sessionId, sessionId)),
     d.delete(t.sessionRanks).where(eq(t.sessionRanks.sessionId, sessionId)),
+    d.delete(t.sessionSkill).where(eq(t.sessionSkill.sessionId, sessionId)),
     d.delete(t.sessions).where(eq(t.sessions.id, sessionId)),
   ])
 }
@@ -995,6 +996,7 @@ export async function deletePlayer(
       .set({ byPlayerId: null })
       .where(eq(t.attendanceEvents.byPlayerId, id)),
     d.delete(t.sessionRanks).where(eq(t.sessionRanks.playerId, id)),
+    d.delete(t.sessionSkill).where(eq(t.sessionSkill.playerId, id)),
     d.delete(t.players).where(eq(t.players.id, id)),
   ])
   return { deleted: true }
@@ -1087,4 +1089,139 @@ export async function sessionAttendeeNames(
       ),
     )
     .orderBy(asc(t.sessions.date), asc(t.players.name))
+}
+
+// ── Skill (domain/skill.ts; 0014) ─────────────────────────────────────────────
+
+/**
+ * Every game of the club's closed sessions: the four players by side, the
+ * points, and the session's date. Reads all match rows (about 4,000 in
+ * 2026-10), so it runs only when skill snapshots are (re)computed.
+ */
+export async function skillGames(
+  db: DB,
+  clubId: number,
+): Promise<
+  {
+    a: number[]
+    b: number[]
+    pointsA: number
+    pointsB: number
+    date: string
+  }[]
+> {
+  const d = orm(db)
+  const closed = and(
+    eq(t.sessions.clubId, clubId),
+    eq(t.sessions.status, 'closed'),
+  )
+  const [players, sets] = await Promise.all([
+    d
+      .select({
+        matchId: t.matchPlayers.matchId,
+        playerId: t.matchPlayers.playerId,
+        side: t.matchPlayers.side,
+        date: t.sessions.date,
+      })
+      .from(t.matchPlayers)
+      .innerJoin(t.matches, eq(t.matches.id, t.matchPlayers.matchId))
+      .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+      .innerJoin(t.sessions, eq(t.sessions.id, t.boxes.sessionId))
+      .where(closed),
+    d
+      .select({
+        matchId: t.matchSets.matchId,
+        a: t.matchSets.scoreA,
+        b: t.matchSets.scoreB,
+      })
+      .from(t.matchSets)
+      .innerJoin(t.matches, eq(t.matches.id, t.matchSets.matchId))
+      .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+      .innerJoin(t.sessions, eq(t.sessions.id, t.boxes.sessionId))
+      .where(closed)
+      .orderBy(asc(t.matchSets.matchId), asc(t.matchSets.setNumber)),
+  ])
+  const byMatch = new Map<number, { a: number[]; b: number[]; date: string }>()
+  for (const p of players) {
+    const m = byMatch.get(p.matchId) ?? { a: [], b: [], date: p.date }
+    ;(p.side === 0 ? m.a : m.b).push(p.playerId)
+    byMatch.set(p.matchId, m)
+  }
+  return sets.flatMap((s) => {
+    const m = byMatch.get(s.matchId)
+    if (
+      !m ||
+      s.a === null ||
+      s.b === null ||
+      m.a.length !== 2 ||
+      m.b.length !== 2
+    )
+      return []
+    return [{ a: m.a, b: m.b, pointsA: s.a, pointsB: s.b, date: m.date }]
+  })
+}
+
+/** The club's closed sessions (id, date), oldest first, and whether each has a skill snapshot. */
+export async function closedSessionsSkill(
+  db: DB,
+  clubId: number,
+): Promise<{ id: number; date: string; hasSkill: boolean }[]> {
+  const rows = await orm(db)
+    .select({
+      id: t.sessions.id,
+      date: t.sessions.date,
+      hasSkill: sql<number>`EXISTS (SELECT 1 FROM ${t.sessionSkill} WHERE ${t.sessionSkill.sessionId} = ${t.sessions.id})`,
+    })
+    .from(t.sessions)
+    .where(and(eq(t.sessions.clubId, clubId), eq(t.sessions.status, 'closed')))
+    .orderBy(asc(t.sessions.date))
+  return rows.map((r) => ({ ...r, hasSkill: Boolean(r.hasSkill) }))
+}
+
+/** Replace a session's skill snapshot. */
+export async function saveSessionSkill(
+  db: DB,
+  sessionId: number,
+  rows: { playerId: number; strength: number; rank: number; games: number }[],
+): Promise<void> {
+  const d = orm(db)
+  await runBatch(db, [
+    d.delete(t.sessionSkill).where(eq(t.sessionSkill.sessionId, sessionId)),
+    // One statement per row (D1: at most 100 bound parameters each).
+    ...rows.map((r) => d.insert(t.sessionSkill).values({ sessionId, ...r })),
+  ])
+}
+
+/** Delete the skill snapshots of the club's sessions on or after a date. */
+export async function deleteSkillFrom(
+  db: DB,
+  clubId: number,
+  date: string,
+): Promise<void> {
+  const from = orm(db)
+    .select({ id: t.sessions.id })
+    .from(t.sessions)
+    .where(and(eq(t.sessions.clubId, clubId), gte(t.sessions.date, date)))
+  await orm(db)
+    .delete(t.sessionSkill)
+    .where(inArray(t.sessionSkill.sessionId, from))
+}
+
+/** A session's skill snapshot, best first. */
+export async function getSessionSkill(
+  db: DB,
+  sessionId: number,
+): Promise<
+  { playerId: number; strength: number; rank: number; games: number }[]
+> {
+  return orm(db)
+    .select({
+      playerId: t.sessionSkill.playerId,
+      strength: t.sessionSkill.strength,
+      rank: t.sessionSkill.rank,
+      games: t.sessionSkill.games,
+    })
+    .from(t.sessionSkill)
+    .where(eq(t.sessionSkill.sessionId, sessionId))
+    .orderBy(asc(t.sessionSkill.rank))
 }

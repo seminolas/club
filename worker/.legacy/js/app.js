@@ -1,0 +1,1495 @@
+// Strip leading/trailing asterisks (and surrounding spaces) used as ladder markers.
+function cleanName(name) {
+  return name.replace(/^\*+\s*|\s*\*+$/g, '');
+}
+
+// Filter a ranked list [{name, rank}] by query, with word-boundary hits first.
+function searchRanked(items, q) {
+  return items
+    .filter(p => p.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const words = n => cleanName(n).toLowerCase().split(/\s+/);
+      const aWord = words(a.name).some(w => w.startsWith(q)) ? 0 : 1;
+      const bWord = words(b.name).some(w => w.startsWith(q)) ? 0 : 1;
+      if (aWord !== bWord) return aWord - bWord;
+      return a.rank - b.rank;
+    });
+}
+
+function appData() {
+  return {
+    // ── State ──────────────────────────────────────────────────────────────
+    view: 'home',
+    homeTab: 1,            // 1=Players, 2=Sessions
+    homeSearch: '',
+    sessionTab: 1,         // 1=Attendance, 2=Games, 3=Wrap-up
+    loading: false,
+    error: null,
+    toast: null,
+    toastTimer: null,
+
+    // Auth
+    isAdmin: false,
+    showLogin: false,
+    loginError: null,
+    me: { signedIn: false, isAdmin: false, name: null, player: null },
+    // "This is me": a signed-in login with no player picks themselves.
+    claim: { open: false, players: [], search: '', selectedId: null, error: null, saving: false },
+
+    // Leaderboard
+    leaderboard: [],        // string[] — names, rank order
+    _playerIds: {},
+    _playerHcIds: {},
+    _playerPreferredNames: {},  // id → preferred_name
+
+    // Player view
+    player: null,
+    playerTab: 1,
+    _editingPlayer: false,
+    _playerDraft: { name: '', email: '', hc_member_id: '', preferred_name: '' },
+    _hcModal: { open: false, query: '', results: [], loading: false },
+    _hcConfirm: { open: false, member: null, nameDiffers: false, emailDiffers: false, updateName: false, updateEmail: false },
+    _hcSearchTimer: null,
+
+    // Sessions list — full objects {date, status, attendee_count}, newest first
+    sessionList: [],
+    mostRecentSessionStatus: null,
+    selectedDate: null,
+
+    // Active session
+    session: null,
+
+    // UI helpers
+    sessionSearch: '',
+    boxExpanded: {},
+    allBoxesExpanded: true,
+    highlightIdx: -1,
+    addPlayerName: '',
+    addPlayerPos: null,
+    showAddPlayer: false,
+    _scoreSaveTimers: {},  // key: "bi-mi-si" → timer id
+    _pollInterval: null,
+    _dirtyScoreCells: new Set(),  // cells being typed in or not yet confirmed saved
+    // Live session channel (WebSocket to the session's Durable Object).
+    _live: null,
+    liveProblem: null,  // null | 'reconnecting' | 'reload'
+
+    // Which print-only scoresheet layout to render — 'cards' or 'grid'
+    printLayout: 'cards',
+
+    // HelloClub sync modal
+    hcSync: { open: false, running: false, log: [] },
+
+    // Assign Boxes modal — options computed by boxSizeOptions() for the
+    // current attendee count, most-boxes-first (see algorithm.js).
+    boxOptionsModal: { open: false, options: [], selectedIndex: 0, custom: false, customText: '', sortedAttendees: [] },
+
+    // { date, layout } — the boxes (player names per box) cleared by the last
+    // Re-open Attendance, offered back as the default in the Assign Boxes
+    // modal. In memory only: lost on reload, which just means no default.
+    _previousBoxLayout: null,
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    async init() {
+      await this.checkSignIn();
+
+      await this.loadHome();
+      this.initSelectedDate();
+
+      window.addEventListener('hashchange', () => this.route());
+      this.route();
+    },
+
+    get sessionDates() { return this.sessionList.map(s => s.date); },
+
+    initSelectedDate() {
+      if (this.mostRecentSessionStatus && this.mostRecentSessionStatus !== 'closed' && this.sessionList[0]) {
+        this.selectedDate = this.sessionList[0].date;
+      } else {
+        this.selectedDate = nextTuesday();
+      }
+    },
+
+    get filteredLeaderboard() {
+      const q = this.homeSearch.trim().toLowerCase();
+      const ranked = this.leaderboard.map((name, i) => {
+        const id = this._playerIds[name];
+        return { id, name, rank: i + 1, hc_member_id: this._playerHcIds[id] ?? null };
+      });
+      return q ? searchRanked(ranked, q) : ranked;
+    },
+
+    shortDate(isoDate) {
+      const d = new Date(isoDate + 'T00:00:00');
+      return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    async route() {
+      const hash = location.hash.replace('#', '') || '/';
+
+      // Redirect old URL format (from previously shared WhatsApp links)
+      const oldM = hash.match(/^\/session\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
+      if (oldM) {
+        const tab = oldM[3] === 'results' ? 'games' : oldM[3] === 'leaderboard' ? 'wrapup' : 'attendance';
+        location.hash = `/${oldM[1]}/${tab}`;
+        return;
+      }
+
+      // Player profile: /players/:id — admin only
+      const playerM = hash.match(/^\/players\/(\d+)/);
+      if (playerM) {
+        if (!this.isAdmin) { location.hash = '/'; return; }
+        const id = parseInt(playerM[1]);
+        if (this.view !== 'player' || this.player?.id !== id) {
+          await this.openPlayer(id);
+        }
+        return;
+      }
+
+      // Session: /YYYY-MM-DD or /YYYY-MM-DD/tab
+      const m = hash.match(/^\/(\d{4}-\d{2}-\d{2})(\/(\w+))?/);
+      if (m) {
+        const date = m[1];
+        if (this.view !== 'session' || this.session?.date !== date) {
+          await this.openSession(date, { pushHash: false });
+        }
+        const sub = m[3];
+        if (sub === 'games') this.sessionTab = 2;
+        else if (sub === 'wrapup') this.sessionTab = 3;
+        else this.sessionTab = 1;
+        return;
+      }
+
+      // Home tabs
+      this.view = 'home';
+      this._stopPolling();
+      if (hash === '/sessions') this.homeTab = 2;
+      else this.homeTab = 1;
+    },
+
+    setHomeTab(num) {
+      this.homeTab = num;
+      location.hash = num === 2 ? '/sessions' : '/players';
+    },
+
+    setSessionTab(num) {
+      if (this.isTabLocked(num)) return;
+      this.sessionTab = num;
+      const date = this.session?.date;
+      if (!date) return;
+      const slug = num === 2 ? 'games' : num === 3 ? 'wrapup' : 'attendance';
+      location.hash = `/${date}/${slug}`;
+    },
+
+    isTabLocked(num) {
+      if (!this.session) return num !== 1;
+      return false;
+    },
+
+    // ── Auth (BetterAuth, Google redirect) ─────────────────────────────────
+    // On load: who's signed in. Coming back from Google, an account that isn't
+    // an admin is signed out again with a message, as the old sign-in refused
+    // it (players signing in comes later).
+    async checkSignIn() {
+      const params = new URLSearchParams(location.search);
+      const returning = sessionStorage.getItem('signingIn') === '1';
+      sessionStorage.removeItem('signingIn');
+      if (params.has('error')) {
+        this.loginError = 'Sign-in didn’t complete. Please try again.';
+        this.showLogin = true;
+        history.replaceState(null, '', location.pathname + location.hash);
+      }
+      const me = await Storage.me().catch(() => ({ signedIn: false, isAdmin: false }));
+      this.me = { name: null, player: null, ...me };
+      this.isAdmin = me.isAdmin;
+      if (me.justLinked) this.showToast(`Signed in as ${me.player.name}.`);
+      // Everyone signed in needs a player (admins too): until then, "Which
+      // player are you?" stays open; the only other way out is signing out.
+      if (me.signedIn && !me.player) this.openClaim();
+    },
+
+    // First name for the header: the player's, else the Google account's.
+    get signedInFirstName() {
+      return (this.me.player?.name ?? this.me.name ?? '').trim().split(/\s+/)[0];
+    },
+
+    async openClaim() {
+      this.claim = { open: true, players: [], search: '', selectedId: null, error: null, saving: false };
+      try {
+        this.claim.players = await Storage.claimablePlayers();
+      } catch (e) {
+        this.claim.error = e.message;
+      }
+    },
+
+    get claimMatches() {
+      const q = this.claim.search.trim().toLowerCase();
+      return q ? this.claim.players.filter(p => p.name.toLowerCase().includes(q)) : this.claim.players;
+    },
+
+    async confirmClaim() {
+      if (!this.claim.selectedId || this.claim.saving) return;
+      this.claim.saving = true;
+      this.claim.error = null;
+      try {
+        const { player } = await Storage.claimPlayer(this.claim.selectedId);
+        this.me = { ...this.me, player };
+        this.claim.open = false;
+        this.showToast(`Signed in as ${player.name}.`);
+      } catch (e) {
+        this.claim.error = e.message;
+        this.claim.selectedId = null;
+        this.claim.players = await Storage.claimablePlayers().catch(() => this.claim.players);
+      } finally {
+        this.claim.saving = false;
+      }
+    },
+
+
+    async signInWithGoogle() {
+      this.loginError = null;
+      try {
+        sessionStorage.setItem('signingIn', '1');
+        await Storage.signInWithGoogle();
+      } catch (e) {
+        sessionStorage.removeItem('signingIn');
+        this.loginError = e.message;
+      }
+    },
+
+    async logout() {
+      await Storage.logout().catch(() => {});
+      this.isAdmin = false;
+      this.me = { signedIn: false, isAdmin: false, name: null, player: null };
+      this.claim.open = false;
+    },
+
+    // Admin: remove the link between a player and their Google sign-in.
+    async unlinkPlayerLogin() {
+      const login = this.player?.login;
+      if (!login) return;
+      if (!confirm(`Unlink ${this.player.name} from the Google account ${login.email}? They can link again by signing in.`)) return;
+      try {
+        await Storage.unlinkPlayerLogin(this.player.id);
+        this.player.login = null;
+        this.showToast('Sign-in unlinked.');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    // Transforms raw session API response: extracts names for internal state (algorithm.js
+    // and display code work with string arrays), merges player IDs into _playerIds map.
+    _transformSession(raw) {
+      const merge = (arr) => (arr ?? []).forEach(p => { if (p?.id && p?.name) this._playerIds[p.name] = p.id; });
+      const names = (arr) => (arr ?? []).map(p => p.name);
+      merge(raw.leaderboardBefore);
+      merge(raw.leaderboardAfter);
+      merge(raw.attendees);
+      (raw.boxes ?? []).forEach(b => merge(b.players));
+      return {
+        ...raw,
+        leaderboardBefore: names(raw.leaderboardBefore),
+        leaderboardAfter: raw.leaderboardAfter ? names(raw.leaderboardAfter) : null,
+        attendees: names(raw.attendees),
+        boxes: (raw.boxes ?? []).map(b => ({ ...b, players: names(b.players) })),
+      };
+    },
+
+    // ── Home ───────────────────────────────────────────────────────────────
+    async loadHome() {
+      this.loading = true;
+      this.error = null;
+      try {
+        const lb = await Storage.getLeaderboard();
+        if (lb) {
+          this.leaderboard = lb.content.players.map(p => p.name);
+          this._playerIds = Object.fromEntries(lb.content.players.map(p => [p.name, p.id]));
+          this._playerHcIds = Object.fromEntries(lb.content.players.map(p => [p.id, p.hc_member_id ?? null]));
+          this._playerPreferredNames = Object.fromEntries(lb.content.players.filter(p => p.preferred_name).map(p => [p.id, p.preferred_name]));
+        }
+
+        this.sessionList = await Storage.listSessions();
+        if (this.sessionList.length > 0) {
+          this.mostRecentSessionStatus = this.sessionList[0].status;
+        } else {
+          this.mostRecentSessionStatus = null;
+        }
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    get mostRecentSession() { return this.sessionDates[0] || null; },
+    get isStaging() { return location.hostname.includes('staging'); },
+
+    get sessionDateExists() {
+      return !!this.selectedDate && this.sessionDates.includes(this.selectedDate);
+    },
+
+    // ── CSV Import ─────────────────────────────────────────────────────────
+    async importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (this.session && this.session.status !== 'closed') {
+        this.showToast('Finish the current session before importing a new leaderboard.', 'error');
+        event.target.value = '';
+        return;
+      }
+
+      const text = await file.text();
+      const players = parseLeaderboardCSV(text);
+      if (players.length === 0) {
+        this.showToast('No player rows found in CSV.', 'error');
+        return;
+      }
+
+      if (!confirm(`Import ${players.length} players and overwrite the current leaderboard?`)) {
+        event.target.value = '';
+        return;
+      }
+
+      this.loading = true;
+      try {
+        await Storage.saveLeaderboard(players);
+        const lb = await Storage.getLeaderboard();
+        if (lb) {
+          this.leaderboard = lb.content.players.map(p => p.name);
+          this._playerIds = Object.fromEntries(lb.content.players.map(p => [p.name, p.id]));
+          this._playerHcIds = Object.fromEntries(lb.content.players.map(p => [p.id, p.hc_member_id ?? null]));
+          this._playerPreferredNames = Object.fromEntries(lb.content.players.filter(p => p.preferred_name).map(p => [p.id, p.preferred_name]));
+        } else {
+          this.leaderboard = players;
+        }
+        this.showToast(`Imported ${players.length} players.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+        event.target.value = '';
+      }
+    },
+
+    // ── CSV Export ─────────────────────────────────────────────────────────
+    exportCSV() {
+      if (this.leaderboard.length === 0) {
+        this.showToast('No leaderboard data to export.', 'error');
+        return;
+      }
+      const date = nextTuesday();
+      const csv = generateLeaderboardCSV(this.leaderboard, date);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leaderboard-${date}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+
+    // ── Session management ─────────────────────────────────────────────────
+    async startSession(date) {
+      if (!date) return;
+      if (this.sessionDates.includes(date)) {
+        await this.openSession(date);
+        return;
+      }
+
+      this.loading = true;
+      try {
+        const result = await Storage.createSession(date);
+        this.session = this._transformSession(result.content);
+        this.sessionList = [{ date, status: 'attendance', attendee_count: 0 }, ...this.sessionList.filter(s => s.date !== date)];
+        this.sessionTab = 1;
+        this.view = 'session';
+        location.hash = `/${date}/attendance`;
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async openSession(date, { pushHash = true } = {}) {
+      this.loading = true;
+      try {
+        const result = await Storage.getSession(date);
+        if (!result) { this.showToast('Session not found.', 'error'); return; }
+        this.session = this._transformSession(result.content);
+        this.mostRecentSessionStatus = result.content.status;
+        this.sessionTab = 1;
+        this.view = 'session';
+        this.boxExpanded = {};
+        this.sessionSearch = '';
+        if (pushHash) location.hash = `/${date}/attendance`;
+
+        if (this.leaderboard.length === 0) {
+          const lb = await Storage.getLeaderboard();
+          if (lb) {
+            this.leaderboard = lb.content.players.map(p => p.name);
+            lb.content.players.forEach(p => { this._playerIds[p.name] = p.id; this._playerHcIds[p.id] = p.hc_member_id ?? null; if (p.preferred_name) this._playerPreferredNames[p.id] = p.preferred_name; });
+          }
+        }
+
+        this._startPolling();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Attendance ─────────────────────────────────────────────────────────
+    get attendanceLeaderboard() {
+      const base = (this.session && this.session.status !== 'attendance' && this.session.leaderboardBefore)
+        ? this.session.leaderboardBefore
+        : this.leaderboard;
+      return base;
+    },
+
+    get filteredPlayers() {
+      const q = this.sessionSearch.trim().toLowerCase();
+      const ranked = this.attendanceLeaderboard.map((name, i) => ({ name, rank: i + 1 }));
+      return q ? searchRanked(ranked, q) : ranked;
+    },
+
+    get searchHasNoMatch() {
+      const q = this.sessionSearch.trim().toLowerCase();
+      return q.length >= 2 && this.filteredPlayers.length === 0;
+    },
+
+    isAttending(name) { return this.session?.attendees.includes(name) ?? false; },
+
+    async toggleAttendance(name) {
+      if (!this.session || this.session.status === 'games' || this.session.status === 'closed') return;
+
+      const wasAttending = this.session.attendees.includes(name);
+
+      // Optimistic update
+      if (wasAttending) {
+        this.session.attendees = this.session.attendees.filter(n => n !== name);
+      } else {
+        this.session.attendees.push(name);
+      }
+
+      try {
+        await Storage.setAttendance(this.session.date, this._playerIds[name], !wasAttending);
+      } catch (e) {
+        // Roll back optimistic update
+        if (wasAttending) {
+          this.session.attendees.push(name);
+        } else {
+          this.session.attendees = this.session.attendees.filter(n => n !== name);
+        }
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    get attendingCount() { return this.session?.attendees.length ?? 0; },
+
+    // ── Match status helpers ───────────────────────────────────────────────
+    matchStatus(boxIdx, matchIdx) {
+      return getMatchStatus(this.session.boxes[boxIdx].matches[matchIdx]);
+    },
+
+    setIsValid(match, setIdx) {
+      const s = match.sets?.[setIdx];
+      if (!s) return null;
+      const aEmpty = s[0] === '' || s[0] == null;
+      const bEmpty = s[1] === '' || s[1] == null;
+      if (aEmpty || bEmpty) return null;
+      return isValidSet(s[0], s[1]);
+    },
+
+    scoreInputClass(match, setIdx, side) {
+      const s = match.sets?.[setIdx];
+      if (!s) return '';
+      const a = s[0], b = s[1];
+      if (a === '' || a == null || b === '' || b == null) return '';
+      if (!isValidSet(a, b)) return 'border-red-400 bg-red-50';
+      const sideWins = side === 0 ? Number(a) > Number(b) : Number(b) > Number(a);
+      return sideWins ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50';
+    },
+
+    pairResultClass(match, pairSide) {
+      if (getMatchStatus(match) !== 'complete') return 'text-gray-800';
+      let p1Sets = 0, p2Sets = 0;
+      for (const s of (match.sets || [])) {
+        if (!isValidSet(s[0], s[1])) continue;
+        if (Number(s[0]) > Number(s[1])) p1Sets++; else p2Sets++;
+      }
+      const wins = pairSide === 0 ? p1Sets > p2Sets : p2Sets > p1Sets;
+      return wins ? 'text-green-600' : 'text-red-500';
+    },
+
+    showThirdSet(match) {
+      const s0 = match.sets?.[0], s1 = match.sets?.[1];
+      if (!s0 || !s1) return false;
+      if (!isSetComplete(s0[0], s0[1]) || !isSetComplete(s1[0], s1[1])) return false;
+      return (Number(s0[0]) > Number(s0[1])) !== (Number(s1[0]) > Number(s1[1]));
+    },
+
+    // ── Search keyboard navigation ─────────────────────────────────────────
+    onSearchInput() { this.highlightIdx = this.sessionSearch.trim() ? 0 : -1; },
+
+    attendanceKeydown(e) {
+      if (this.showAddPlayer) return;
+      const players = this.filteredPlayers;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!players.length) return;
+        this.highlightIdx = this.highlightIdx < players.length - 1 ? this.highlightIdx + 1 : 0;
+        this._scrollHighlighted();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!players.length) return;
+        this.highlightIdx = this.highlightIdx > 0 ? this.highlightIdx - 1 : players.length - 1;
+        this._scrollHighlighted();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const idx = this.highlightIdx >= 0 ? this.highlightIdx : 0;
+        if (players[idx]) {
+          this.toggleAttendance(players[idx].name);
+          this.sessionSearch = '';
+          this.highlightIdx = -1;
+        }
+      } else if (e.key === 'Escape') {
+        this.sessionSearch = '';
+        this.highlightIdx = -1;
+      }
+    },
+
+    _scrollHighlighted() {
+      this.$nextTick(() => {
+        document.querySelector('.player-row-highlighted')?.scrollIntoView({ block: 'nearest' });
+      });
+    },
+
+    clearSearch() { this.sessionSearch = ''; this.highlightIdx = -1; },
+
+    // ── Add new player ─────────────────────────────────────────────────────
+    prepareAddPlayer() {
+      this.addPlayerName = this.sessionSearch.trim();
+      this.addPlayerPos = this.leaderboard.length + 1;
+      this.showAddPlayer = true;
+    },
+
+    async confirmAddPlayer() {
+      const name = this.addPlayerName.trim();
+      if (!name) return;
+      const pos = parseInt(this.addPlayerPos, 10);
+      const insertIdx = Math.max(0, Math.min(pos - 1, this.leaderboard.length));
+
+      this.loading = true;
+      try {
+        const added = await Storage.addPlayer(name, insertIdx + 1, this.session.date);
+
+        // Update local leaderboard
+        const newLeaderboard = [...this.leaderboard];
+        newLeaderboard.splice(insertIdx, 0, name);
+        this.leaderboard = newLeaderboard;
+        if (added?.id) this._playerIds = { ...this._playerIds, [name]: added.id };
+
+        // Update session's leaderboardBefore (only valid in attendance state)
+        if (this.session?.status === 'attendance') {
+          this.session.leaderboardBefore.splice(insertIdx, 0, name);
+        }
+
+        // Auto-mark as attending (already done server-side)
+        if (!this.session.attendees.includes(name)) {
+          this.session.attendees.push(name);
+        }
+
+        this.showAddPlayer = false;
+        this.sessionSearch = '';
+        this.showToast(`Added ${name} at position ${insertIdx + 1}.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Box assignment ─────────────────────────────────────────────────────
+    // Opens the Assign Boxes modal with every valid way to split the current
+    // attendees into boxes of 4/5/6 (or the single box-of-7 option when
+    // exactly 7 are attending) — see boxSizeOptions() in algorithm.js. When
+    // there's a previous layout for this session (the current boxes on
+    // Reassign, or the boxes cleared by Re-open Attendance — see
+    // _previousBoxLayout), it's offered first, minus anyone no longer
+    // attending, and selected by default. Picking "Custom" copies the selected
+    // option's layout into an editable textbox.
+    assignBoxes() {
+      if (!this.session || this.attendingCount < 4) return;
+
+      if (this.session.status === 'games' && this.session.boxes?.length) {
+        if (!confirm('Reassigning boxes will clear all current scores. Continue?')) return;
+      }
+
+      const lb = this.session.leaderboardBefore;
+      const sorted = [...this.session.attendees].sort((a, b) => {
+        const ai = lb.indexOf(a), bi = lb.indexOf(b);
+        return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi);
+      });
+
+      const options = boxSizeOptions(sorted.length).map(o => ({ ...o, layout: splitBySizes(sorted, o.sizes) }));
+
+      const previous = this.session.boxes?.length
+        ? this.session.boxes.map(b => b.players)
+        : this._previousBoxLayout?.date === this.session.date ? this._previousBoxLayout.layout : null;
+      if (previous) {
+        const layout = previous.map(players => players.filter(name => sorted.includes(name))).filter(p => p.length);
+        options.unshift({ previous: true, sizes: layout.map(p => p.length), boxCount: layout.length, layout });
+      }
+
+      this.boxOptionsModal = {
+        open: true,
+        options,
+        selectedIndex: 0, // previous layout if any, else most boxes, per boxSizeOptions ordering
+        custom: false,
+        customText: '',
+        sortedAttendees: sorted,
+      };
+    },
+
+    closeBoxOptionsModal() {
+      this.boxOptionsModal.open = false;
+    },
+
+    // e.g. "2 boxes of 5, 1 box of 6 — 3 boxes total"
+    boxOptionLabel(option) {
+      const counts = {};
+      option.sizes.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+      const parts = Object.keys(counts)
+        .sort((a, b) => a - b)
+        .map(size => `${counts[size]} box${counts[size] > 1 ? 'es' : ''} of ${size}`);
+      const label = `${parts.join(', ')} — ${option.boxCount} box${option.boxCount > 1 ? 'es' : ''} total`;
+      return option.previous ? `Previous layout: ${label}` : label;
+    },
+
+    selectBoxOption(i) {
+      this.boxOptionsModal.selectedIndex = i;
+      this.boxOptionsModal.custom = false;
+    },
+
+    // Switching to Custom seeds the textbox from whichever option was selected,
+    // so picking an option then Custom again is the way to reset an edit.
+    selectCustomBoxes() {
+      if (this.boxOptionsModal.custom) return;
+      this.boxOptionsModal.customText = this.boxOptionsPreview();
+      this.boxOptionsModal.custom = true;
+    },
+
+    // Display name → full name, for the attendees being boxed. Short display
+    // names as used on the score sheets, deduped within this attendee list.
+    _boxDisplayNames() {
+      const { sortedAttendees } = this.boxOptionsModal;
+      return new Map(sortedAttendees.map(name => [this._dedupedDisplayName(name, sortedAttendees), name]));
+    },
+
+    // The selected option's layout as text: one box's players (csv) per line.
+    boxOptionsPreview() {
+      const { options, selectedIndex, sortedAttendees } = this.boxOptionsModal;
+      const layout = options[selectedIndex]?.layout ?? [];
+      return layout.map(players => players.map(name => this._dedupedDisplayName(name, sortedAttendees)).join(', ')).join('\n');
+    },
+
+    // Every option (previous, computed or custom) goes through the same parse,
+    // so a previous layout that's no longer valid is flagged too.
+    boxOptionsParsed() {
+      const { custom, customText } = this.boxOptionsModal;
+      return parseBoxLayout(custom ? customText : this.boxOptionsPreview(), this._boxDisplayNames());
+    },
+
+    async confirmAssignBoxes() {
+      if (this.loading) return; // guard against a double-click firing two overlapping saves
+      const { layout, errors } = this.boxOptionsParsed();
+      if (errors.length) return;
+
+      const boxes = buildBoxesFromLayout(layout);
+      this.loading = true;
+      try {
+        const boxesForApi = boxes.map(box => ({ ...box, players: box.players.map(name => this._playerIds[name]) }));
+        await Storage.saveBoxes(this.session.date, boxesForApi);
+        this.session.boxes = boxes;
+        this.session.status = 'games';
+        this._syncSessionStatus(this.session.date, 'games');
+        this.allBoxesExpanded = true;
+        this.boxExpanded = {};
+        this.setSessionTab(2);
+        this.boxOptionsModal.open = false;
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Score entry ────────────────────────────────────────────────────────
+    pairLabel(box, pairIndices) {
+      return pairIndices.map(i => this.boxDisplayName(box, i)).join(' & ');
+    },
+
+    // Name(s) of the player(s) sitting out a given match (getSitout is defined
+    // in algorithm.js). Boxes of 4 have no sit-out; 5/6/7 sit out 1/2/3 players.
+    sitoutName(box, matchIndex) {
+      return getSitout(box, matchIndex).map(i => this.boxDisplayName(box, i)).join(', ');
+    },
+
+    // "Sitting out" cards for the box-of-7 cards print layout (see the
+    // template comment by the inline pill it replaces): one "Name: Game N,
+    // Game M, …" line per player who sits out at least once, grouped into
+    // cards of up to 4 lines each.
+    sitoutCards(box) {
+      const byPlayer = box.players.map(() => []);
+      box.matches.forEach((_, mi) => {
+        for (const pi of getSitout(box, mi)) byPlayer[pi].push(mi + 1);
+      });
+      const rows = byPlayer
+        .map((games, pi) => ({ name: this.boxDisplayName(box, pi), games }))
+        .filter(row => row.games.length > 0);
+      const cards = [];
+      for (let i = 0; i < rows.length; i += 4) cards.push(rows.slice(i, i + 4));
+      return cards;
+    },
+
+    // "grid" print layout: is this player one of those sitting out this match?
+    isSitout(boxIndex, matchIndex, playerIndex) {
+      const box = this.session.boxes[boxIndex];
+      return getSitout(box, matchIndex).includes(playerIndex);
+    },
+
+    // Printed scoresheet: each card's own content (header + pair label + 3 set
+    // rows) needs a fixed minimum height to avoid clipping — unlike a single
+    // full-width grid, a card's height can't shrink just because a box has
+    // more matches (more matches means more card-ROWS, stacked vertically,
+    // not shorter cards). This constant is tuned to fit that fixed content.
+    cardHeightMm() {
+      return 42;
+    },
+
+    firstName(name) {
+      const id = this._playerIds[name];
+      if (id && this._playerPreferredNames[id]) return this._playerPreferredNames[id];
+      const clean = cleanName(name);
+      return clean.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]+/)?.[0] ?? clean.trim();
+    },
+
+    // First name, or "First L." if that first name collides with someone
+    // else's in `allPlayers` (e.g. two Johns in the same session).
+    _dedupedDisplayName(name, allPlayers) {
+      const first = this.firstName(name);
+      const hasDuplicate = allPlayers.some((other) => other !== name && this.firstName(other) === first);
+      if (!hasDuplicate) return first;
+      const clean = name.replace(/^\*+\s*|\s*\*+$/g, '').trim();
+      const words = clean.split(/\s+/).filter(w => /[a-zA-ZÀ-ÖØ-öø-ÿ]/.test(w));
+      if (words.length < 2) return first;
+      const initial = words[words.length - 1].match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/)?.[0];
+      return initial ? `${first} ${initial.toUpperCase()}.` : first;
+    },
+
+    boxDisplayName(box, playerIdx) {
+      const name = box.players[playerIdx];
+      const allPlayers = this.session?.boxes?.flatMap(b => b.players) ?? box.players;
+      return this._dedupedDisplayName(name, allPlayers);
+    },
+
+    boxHeaderLabel(box, bi) {
+      const names = box.players.map((_, i) => this.boxDisplayName(box, i)).join(', ');
+      return `Box ${bi + 1} (${box.players.length}p): ${names}`;
+    },
+
+    isBoxVisible(bi) {
+      const q = this.sessionSearch.trim().toLowerCase();
+      if (!q) return true;
+      const box = this.session?.boxes?.[bi];
+      if (!box) return false;
+      return box.players.some(name => name.toLowerCase().includes(q));
+    },
+
+    isBoxExpanded(bi) {
+      if (this.sessionSearch.trim() && this.isBoxVisible(bi)) return true;
+      if (bi in this.boxExpanded) return this.boxExpanded[bi];
+      return this.allBoxesExpanded;
+    },
+
+    toggleBoxExpanded(bi) {
+      this.boxExpanded = { ...this.boxExpanded, [bi]: !this.isBoxExpanded(bi) };
+    },
+
+    get anyBoxCollapsed() {
+      return (this.session?.boxes ?? []).some((_, bi) => !this.isBoxExpanded(bi));
+    },
+
+    toggleAllBoxes() {
+      this.allBoxesExpanded = this.anyBoxCollapsed;
+      this.boxExpanded = {};
+    },
+
+    isBoxComplete(bi) {
+      const box = this.session?.boxes?.[bi];
+      if (!box) return false;
+      return box.matches.every(m => getMatchStatus(m) === 'complete');
+    },
+
+    // Who can type in a box's scores: admins, any box; players (V3), their own
+    // box. The live channel checks the same on the server.
+    canEnterScores(bi) {
+      if (!this.session || this.session.status === 'closed') return false;
+      if (this.isAdmin) return true;
+      const mine = this.me.player?.name;
+      return !!mine && !!this.session.boxes?.[bi]?.players?.includes(mine);
+    },
+
+    setScore(bi, mi, si, side, value) {
+      if (this.session.status === 'closed') return;
+      const match = this.session.boxes[bi].matches[mi];
+
+      while (match.sets.length <= si) match.sets.push(['', '']);
+      match.sets[si][side] = value === '' ? '' : parseInt(value, 10) || 0;
+
+      // Remove trailing empty sets
+      while (match.sets.length > 0) {
+        const last = match.sets[match.sets.length - 1];
+        if (last[0] === '' && last[1] === '') match.sets.pop();
+        else break;
+      }
+
+      // Clear stale third set on sweep
+      const sets = match.sets;
+      if (sets.length > 2 && isSetComplete(sets[0]?.[0], sets[0]?.[1]) && isSetComplete(sets[1]?.[0], sets[1]?.[1])) {
+        const p1Won0 = Number(sets[0][0]) > Number(sets[0][1]);
+        const p1Won1 = Number(sets[1][0]) > Number(sets[1][1]);
+        if (p1Won0 === p1Won1) {
+        match.sets = match.sets.slice(0, 2);
+        this._scheduleScoreSave(bi, mi, 2, match); // delete third set from D1
+      }
+      }
+
+      this._scheduleScoreSave(bi, mi, si, match);
+    },
+
+    // Debounce score saves — one per set cell so rapid typing doesn't flood the API.
+    // With the live channel, a save goes out over it and the cell stays "dirty"
+    // (not overwritten by incoming updates) until the save is confirmed.
+    _scheduleScoreSave(bi, mi, si, match) {
+      const key = `${bi}-${mi}-${si}`;
+      clearTimeout(this._scoreSaveTimers[key]);
+      this._dirtyScoreCells.add(key);
+      this._scoreSaveTimers[key] = setTimeout(async () => {
+        delete this._scoreSaveTimers[key];
+        const [a, b] = match.sets[si] ?? ['', ''];
+        if (this._live) {
+          this._sendLive(key, {
+            op: 'setScore', box: bi, match: mi, set: si,
+            a: a === '' ? null : Number(a),
+            b: b === '' ? null : Number(b),
+          });
+          return;
+        }
+        try {
+          await Storage.updateScore(
+            this.session.date, bi, mi, si,
+            a === '' ? null : Number(a),
+            b === '' ? null : Number(b)
+          );
+        } catch (e) {
+          this.showToast('Score save failed: ' + e.message, 'error');
+        } finally {
+          this._dirtyScoreCells.delete(key);
+        }
+      }, this._live ? 400 : 1500);
+    },
+
+    saveScores() {
+      // Kept for template compatibility — individual saves handled by _scheduleScoreSave.
+    },
+
+    // On a session page: the live channel (no polling). If it drops, it
+    // reconnects and resends unconfirmed scores, refreshes every 15 s meanwhile,
+    // and shows a banner if it doesn't recover.
+    _startPolling() {
+      this._stopPolling();
+      if (this.session) this._startLive(this.session.date);
+    },
+
+    _stopPolling() {
+      clearInterval(this._pollInterval);
+      this._pollInterval = null;
+      this._stopLive();
+    },
+
+    _startLive(date) {
+      // (Alpine wraps this in a proxy once stored, so compare `token`, not the object.)
+      const live = {
+        token: Math.random().toString(36).slice(2), date, ws: null, pending: new Map(),
+        attempt: 0, closed: false, timers: [], heartbeat: null, awaitingPong: false,
+      };
+      this._live = live;
+      const clearTimers = () => { live.timers.forEach(clearTimeout); live.timers = []; };
+      // The connection is gone (closed, or silent): drop it and reconnect.
+      // A dead network can leave a socket "closing" forever without ever
+      // firing onclose, so this doesn't wait for the browser to notice.
+      live.lost = () => {
+        if (live.closed || !live.ws) return;
+        const ws = live.ws;
+        live.ws = null;
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+        try { ws.close(); } catch { /* already closed */ }
+        clearInterval(live.heartbeat);
+        clearTimers();
+        live.timers.push(setTimeout(() => { if (!this.liveProblem) this.liveProblem = 'reconnecting'; }, 2000));
+        live.timers.push(setTimeout(() => { this.liveProblem = 'reload'; }, 15000));
+        if (!this._pollInterval) this._pollInterval = setInterval(() => this._pollSession(), 15000);
+        live.attempt++;
+        live.timers.push(setTimeout(connect, Math.min(1000 * 2 ** (live.attempt - 1), 10000)));
+      };
+      const connect = () => {
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${proto}://${location.host}/api/live/${date}`);
+        live.ws = ws;
+        ws.onopen = () => {
+          live.attempt = 0;
+          clearTimers();
+          // Back: everything unsent is resent, so only a refused write keeps the banner.
+          if (!live.refused) this.liveProblem = null;
+          clearInterval(this._pollInterval);
+          this._pollInterval = null;
+          // Heartbeat: the room answers "ping" with "pong" (without waking up);
+          // no answer by the next beat means the connection is dead.
+          live.awaitingPong = false;
+          clearInterval(live.heartbeat);
+          live.heartbeat = setInterval(() => {
+            if (live.awaitingPong) return live.lost();
+            live.awaitingPong = true;
+            ws.send('ping');
+          }, 15000);
+          for (const p of live.pending.values()) this._transmitLive(live, p);
+          this._pollSession();  // catch up on anything missed
+        };
+        ws.onmessage = (ev) => {
+          if (ev.data === 'pong') { live.awaitingPong = false; return; }
+          this._onLiveMessage(live, JSON.parse(ev.data));
+        };
+        ws.onclose = () => live.lost();
+        ws.onerror = () => live.lost();
+      };
+      connect();
+    },
+
+    _stopLive() {
+      const live = this._live;
+      if (!live) return;
+      live.closed = true;
+      live.timers.forEach(clearTimeout);
+      clearInterval(live.heartbeat);
+      live.ws?.close();
+      this._live = null;
+      this.liveProblem = null;
+    },
+
+    _sendLive(key, op) {
+      const live = this._live;
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      const p = { id, key, op };
+      live.pending.set(id, p);
+      this._transmitLive(live, p);
+    },
+
+    // Send a write if connected; one that isn't acknowledged within 5 s means
+    // the connection is dead (it's resent after reconnecting).
+    _transmitLive(live, p) {
+      const ws = live.ws;
+      if (!ws || ws.readyState === WebSocket.CONNECTING) return;  // sent on open
+      if (ws.readyState !== WebSocket.OPEN) return live.lost();   // closing/closed: dead
+      ws.send(JSON.stringify({ type: 'write', id: p.id, op: p.op }));
+      setTimeout(() => { if (live.pending.has(p.id) && live.ws === ws) live.lost(); }, 5000);
+    },
+
+    _onLiveMessage(live, msg) {
+      if (live.token !== this._live?.token) return;
+      if (msg.type === 'ack') {
+        const p = live.pending.get(msg.id);
+        live.pending.delete(msg.id);
+        // The cell can take updates again once nothing of ours is in flight for it.
+        if (p && !this._scoreSaveTimers[p.key] && ![...live.pending.values()].some(q => q.key === p.key)) {
+          this._dirtyScoreCells.delete(p.key);
+        }
+        if (!msg.ok) { live.refused = true; this.liveProblem = 'reload'; }
+      } else if (msg.type === 'match') {
+        this._mergeMatchSets(msg.box, msg.match, msg.sets);
+      } else if (msg.type === 'changed') {
+        this._pollSession();
+      }
+    },
+
+    async _pollSession() {
+      if (this.view !== 'session' || !this.session) return;
+      try {
+        const result = await Storage.getSession(this.session.date);
+        if (result?.content) this._mergeSessionState(this._transformSession(result.content));
+      } catch (e) {
+        console.warn('Poll error:', e);
+      }
+    },
+
+    _mergeSessionState(remote) {
+      if (!this.session || this.session.date !== remote.date) return;
+
+      if (remote.status !== this.session.status) {
+        this.session.status = remote.status;
+        this._syncSessionStatus(remote.date, remote.status);
+        if (remote.status === 'closed' && remote.leaderboardAfter) {
+          this.session.leaderboardAfter = remote.leaderboardAfter;
+        }
+      }
+
+      if (remote.status === 'attendance') {
+        this.session.attendees = remote.attendees;
+      }
+
+      if (remote.boxes?.length && this.session.boxes?.length) {
+        const boxCount = Math.min(remote.boxes.length, this.session.boxes.length);
+        for (let bi = 0; bi < boxCount; bi++) {
+          const remoteBox = remote.boxes[bi];
+          const localBox = this.session.boxes[bi];
+          const matchCount = Math.min(remoteBox.matches.length, localBox.matches.length);
+          for (let mi = 0; mi < matchCount; mi++) {
+            this._mergeMatchSets(bi, mi, remoteBox.matches[mi].sets ?? []);
+          }
+        }
+      }
+    },
+
+    // Take a match's saved scores, except in cells still being typed in or
+    // whose save isn't confirmed (those keep what was typed).
+    _mergeMatchSets(bi, mi, remoteSets) {
+      const localMatch = this.session?.boxes?.[bi]?.matches?.[mi];
+      if (!localMatch) return;
+      for (let si = 0; si < remoteSets.length; si++) {
+        if (this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) continue;
+        while (localMatch.sets.length <= si) localMatch.sets.push(['', '']);
+        localMatch.sets[si] = [...(remoteSets[si] ?? ['', ''])];
+      }
+      for (let si = localMatch.sets.length - 1; si >= remoteSets.length; si--) {
+        if (!this._dirtyScoreCells.has(`${bi}-${mi}-${si}`)) {
+          localMatch.sets.splice(si, 1);
+        }
+      }
+    },
+
+    handleScoreTab(bi, mi, setIdx, event) {
+      if (setIdx !== 1 || event.shiftKey) return;
+      event.preventDefault();
+      this.setScore(bi, mi, 1, 1, event.target.value);
+      const currentEl = event.target;
+      window.Alpine.nextTick(() => {
+        const all = [...document.querySelectorAll('.score-input:not([disabled])')].filter(
+          el => el.offsetParent !== null
+        );
+        const idx = all.indexOf(currentEl);
+        if (idx !== -1 && idx + 1 < all.length) all[idx + 1].focus();
+      });
+    },
+
+    getBoxStandings(boxIdx) {
+      const box = this.session.boxes[boxIdx];
+      return computeBoxStandings(box, this.session.leaderboardBefore);
+    },
+
+    get allScoresComplete() {
+      if (!this.session?.boxes?.length) return false;
+      return allScoresComplete(this.session.boxes);
+    },
+
+    _syncSessionStatus(date, status) {
+      const entry = this.sessionList.find(s => s.date === date);
+      if (entry) entry.status = status;
+    },
+
+    // ── Close session ──────────────────────────────────────────────────────
+    async closeSession() {
+      if (!this.allScoresComplete) return;
+      const isMostRecent = this.sessionList[0]?.date === this.session.date;
+      const confirmMsg = isMostRecent
+        ? 'Close this session and update the leaderboard?'
+        : 'Close this session?\n\nThis is not the most recent session — the leaderboard will not be affected.';
+      if (!confirm(confirmMsg)) return;
+
+      const newLeaderboard = applyLeaderboardUpdate(this.session.boxes, this.session.leaderboardBefore);
+
+      const newLeaderboardIds = newLeaderboard.map(name => this._playerIds[name]);
+      this.loading = true;
+      try {
+        await Storage.closeSession(this.session.date, newLeaderboardIds);
+        this.session.leaderboardAfter = newLeaderboard;
+        this.session.status = 'closed';
+        this._syncSessionStatus(this.session.date, 'closed');
+        if (isMostRecent) {
+          this.leaderboard = newLeaderboard;
+          this.mostRecentSessionStatus = 'closed';
+        }
+        this.setSessionTab(3);
+        this.showToast(isMostRecent ? 'Session closed. Leaderboard updated.' : 'Session closed.');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Edit last closed session ───────────────────────────────────────────
+    get canEditSession() {
+      return this.session?.status === 'closed';
+    },
+
+    async deleteSession() {
+      const label = formatDate(this.session.date);
+      if (!confirm(`Delete session "${label}"?\n\nThis will permanently remove all attendance, boxes, and scores. This cannot be undone.`)) return;
+      this.loading = true;
+      try {
+        await Storage.deleteSession(this.session.date);
+        this.sessionList = this.sessionList.filter(s => s.date !== this.session.date);
+        if (this.sessionList.length > 0) {
+          this.mostRecentSessionStatus = this.sessionList[0].status;
+        } else {
+          this.mostRecentSessionStatus = null;
+        }
+        this.session = null;
+        location.hash = '/sessions';
+        this.showToast(`Session deleted.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async enableEditing() {
+      const isLatest = this.sessionList[0]?.date === this.session.date;
+      const reopenMsg = isLatest
+        ? 'Re-open this session for editing?\n\nScores can be adjusted and re-closed to update the leaderboard.'
+        : 'Re-open this session for editing?\n\nScores can be adjusted and re-closed. This is not the most recent session — the leaderboard will not be affected.';
+      if (!confirm(reopenMsg)) return;
+      this.loading = true;
+      try {
+        await Storage.reopenSession(this.session.date);
+        this.session.status = 'games';
+        this._syncSessionStatus(this.session.date, 'games');
+        this.setSessionTab(2);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async reopenAttendance() {
+      const boxCount = this.session.boxes?.length ?? 0;
+      const scoreCount = this.session.boxes?.reduce((sum, b) =>
+        sum + b.matches.reduce((s2, m) => s2 + (m.sets?.length ?? 0), 0), 0) ?? 0;
+
+      let warning = 'Re-open attendance for this session?';
+      if (boxCount > 0) {
+        warning = `This will clear ${boxCount} box${boxCount !== 1 ? 'es' : ''}`;
+        if (scoreCount > 0) warning += ` and ${scoreCount} entered score${scoreCount !== 1 ? 's' : ''}`;
+        warning += '. This cannot be undone. Continue?';
+      }
+      if (!confirm(warning)) return;
+
+      this.loading = true;
+      try {
+        await Storage.reopenAttendance(this.session.date);
+        if (boxCount > 0) {
+          this._previousBoxLayout = { date: this.session.date, layout: this.session.boxes.map(b => b.players) };
+        }
+        this.session.boxes = [];
+        this.session.status = 'attendance';
+        this._syncSessionStatus(this.session.date, 'attendance');
+        this.setSessionTab(1);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── WhatsApp share ─────────────────────────────────────────────────────
+    shareOnWhatsApp() {
+      const base  = location.origin;
+      const date  = this.session.date;
+      const d     = new Date(date + 'T00:00:00');
+      const label = d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' });
+
+      const lines = [
+        `🏸 ${label} — Box Night`,
+        '',
+        `Results: ${base}/#/${date}/games`,
+        `Ladder:  ${base}/#/${date}/wrapup`,
+      ];
+
+      window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
+    },
+
+    // ── Player view ────────────────────────────────────────────────────────
+    async openPlayer(id) {
+      this.loading = true;
+      try {
+        this.player = await Storage.getPlayer(id);
+        this.view = 'player';
+        this.playerTab = 1;
+        this._editingPlayer = false;
+        this._stopPolling();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    startEditPlayer() {
+      this._playerDraft = { name: this.player.name ?? '', email: this.player.email ?? '', hc_member_id: this.player.hc_member_id ?? '', preferred_name: this.player.preferred_name ?? '' };
+      this._editingPlayer = true;
+    },
+
+    cancelEditPlayer() { this._editingPlayer = false; },
+
+    async removePlayer() {
+      if (!this.player) return;
+      if (!confirm(`Remove "${this.player.name}" permanently? This cannot be undone.`)) return;
+      try {
+        await Storage.deletePlayer(this.player.id);
+        const name = this.player.name;
+        this.leaderboard = this.leaderboard.filter(n => n !== name);
+        delete this._playerIds[name];
+        delete this._playerHcIds[this.player.id];
+        delete this._playerPreferredNames[this.player.id];
+        window.location.hash = '/';
+        this.showToast(`${name} removed.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    async savePlayerProfile() {
+      if (!this.player) return;
+      try {
+        const name = this._playerDraft.name.trim();
+        const email = this._playerDraft.email.trim() || null;
+        const hc_member_id = this._playerDraft.hc_member_id.trim() || null;
+        const preferred_name = this._playerDraft.preferred_name.trim() || null;
+        if (!name) { this.showToast('Name cannot be empty.', 'error'); return; }
+        await Storage.updatePlayer(this.player.id, { name, email, hc_member_id, preferred_name });
+        if (name !== this.player.name) {
+          const oldName = this.player.name;
+          this._playerIds[name] = this._playerIds[oldName];
+          delete this._playerIds[oldName];
+          const idx = this.leaderboard.indexOf(oldName);
+          if (idx !== -1) this.leaderboard[idx] = name;
+        }
+        this.player.name = name;
+        this.player.email = email;
+        this.player.hc_member_id = hc_member_id;
+        this.player.preferred_name = preferred_name;
+        this._playerHcIds[this.player.id] = hc_member_id;
+        if (preferred_name) this._playerPreferredNames[this.player.id] = preferred_name;
+        else delete this._playerPreferredNames[this.player.id];
+        this._editingPlayer = false;
+        this.showToast('Profile saved.');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    openHCSearch() {
+      this._hcModal = { open: true, query: this.player?.name ?? '', results: [], loading: false };
+      this.$nextTick(() => this.doHCSearch());
+    },
+
+    scheduleHCSearch() {
+      clearTimeout(this._hcSearchTimer);
+      this._hcSearchTimer = setTimeout(() => this.doHCSearch(), 400);
+    },
+
+    async doHCSearch() {
+      const q = this._hcModal.query.trim();
+      if (!q) { this._hcModal.results = []; return; }
+      this._hcModal.loading = true;
+      try {
+        const data = await Storage.searchHCMembers(q);
+        this._hcModal.results = data.members ?? [];
+      } catch (e) {
+        this.showToast('HC search failed: ' + e.message, 'error');
+        this._hcModal.results = [];
+      } finally {
+        this._hcModal.loading = false;
+      }
+    },
+
+    selectHCMember(m) {
+      if (!this.player) return;
+      const nameDiffers = m.name.trim() !== this.player.name.trim();
+      const emailDiffers = !!m.email && m.email.trim() !== (this.player.email ?? '').trim();
+      if (!nameDiffers && !emailDiffers) {
+        this._doLink(m, {});
+        return;
+      }
+      this._hcModal.open = false;
+      this._hcConfirm = { open: true, member: m, nameDiffers, emailDiffers, updateName: nameDiffers, updateEmail: emailDiffers };
+    },
+
+    async confirmHCLink() {
+      const { member, updateName, updateEmail } = this._hcConfirm;
+      this._hcConfirm.open = false;
+      const extra = {};
+      if (updateName) extra.name = member.name;
+      if (updateEmail) extra.email = member.email;
+      await this._doLink(member, extra);
+    },
+
+    async _doLink(m, extra) {
+      if (!this.player) return;
+      try {
+        await Storage.updatePlayer(this.player.id, { hc_member_id: m.id, ...extra });
+        this.player.hc_member_id = m.id;
+        this._playerHcIds[this.player.id] = m.id;
+        if (extra.name) {
+          const oldName = this.player.name;
+          this.player.name = extra.name;
+          this._playerIds[extra.name] = this._playerIds[oldName];
+          delete this._playerIds[oldName];
+          const idx = this.leaderboard.indexOf(oldName);
+          if (idx !== -1) this.leaderboard[idx] = extra.name;
+        }
+        if (extra.email) this.player.email = extra.email;
+        this._hcModal.open = false;
+        this.showToast(`Linked to ${m.name}.`);
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    // ── HelloClub sync ─────────────────────────────────────────────────────
+    async syncHelloClub() {
+      this.hcSync = { open: true, running: true, log: [] };
+      try {
+        const { log } = await Storage.syncHelloClub(this.session.date);
+        this.hcSync.log = log;
+      } catch (e) {
+        this.hcSync.log.push({ text: `Error: ${e.message}`, type: 'error' });
+      }
+      this.hcSync.running = false;
+    },
+
+    // ── Leaderboard delta ──────────────────────────────────────────────────
+    rankDelta(name) {
+      if (!this.session?.leaderboardBefore || !this.session?.leaderboardAfter) return 0;
+      const before = this.session.leaderboardBefore.indexOf(name) + 1;
+      const after  = this.session.leaderboardAfter.indexOf(name) + 1;
+      if (before === 0 || after === 0) return 0;
+      return before - after;
+    },
+
+    deltaLabel(name) {
+      const d = this.rankDelta(name);
+      if (d > 0) return `↑${d}`;
+      if (d < 0) return `↓${Math.abs(d)}`;
+      return '→';
+    },
+
+    deltaClass(name) {
+      const d = this.rankDelta(name);
+      if (d > 0) return 'text-green-600 font-semibold';
+      if (d < 0) return 'text-red-500 font-semibold';
+      return 'text-gray-400';
+    },
+
+    // ── Print ──────────────────────────────────────────────────────────────
+    printBoxes(layout) {
+      this.printLayout = layout;
+      this.$nextTick(() => window.print());
+    },
+
+    printLadder() {
+      const isoDate = this.session?.date ?? this.selectedDate ?? '';
+      const d = isoDate ? new Date(isoDate + 'T00:00:00') : null;
+      const dateStr = d
+        ? `${_DAYS[d.getDay()]}, ${_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+        : '';
+      const players = this.session?.leaderboardBefore ?? this.leaderboard;
+      const n = players.length;
+
+      const stops = [
+        [0.00,  59, 130, 246],
+        [0.25,   8, 145, 178],
+        [0.38, 101, 163,  13],
+        [0.50, 202, 138,   4],
+        [0.63, 249, 115,  22],
+        [0.78, 239,  68,  68],
+        [1.00, 252, 165, 165],
+      ];
+      const lerp = (idx) => {
+        const t = n <= 1 ? 0 : idx / (n - 1);
+        let lo = stops[0], hi = stops[stops.length - 1];
+        for (let k = 0; k < stops.length - 1; k++) {
+          if (t >= stops[k][0] && t <= stops[k + 1][0]) { lo = stops[k]; hi = stops[k + 1]; break; }
+        }
+        const u = hi[0] === lo[0] ? 0 : (t - lo[0]) / (hi[0] - lo[0]);
+        return `rgb(${Math.round(lo[1]+(hi[1]-lo[1])*u)},${Math.round(lo[2]+(hi[2]-lo[2])*u)},${Math.round(lo[3]+(hi[3]-lo[3])*u)})`;
+      };
+
+      const rows = players.map((name, i) => {
+        const esc = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<tr><td class="n" style="background:${lerp(i)}">${i+1}</td><td>${esc}</td><td></td><td></td></tr>`;
+      }).join('\n');
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Box Doubles Draw</title>
+<style>
+@page{size:A4 portrait;margin:1.5cm}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Arial,Helvetica,sans-serif;font-size:14pt}
+table{width:100%;border-collapse:collapse}
+tr{page-break-inside:avoid;break-inside:avoid}
+td{border:1.5pt solid #000;padding:1pt 5pt;vertical-align:middle}
+.n{width:36pt;text-align:center;font-weight:bold}
+.ht{font-weight:bold;text-align:center}
+.hd{font-weight:bold;text-align:center}
+.ha{width:85pt;font-weight:bold;text-align:center}
+.hs{width:85pt;font-weight:bold;text-align:center}
+</style>
+</head>
+<body>
+<table><tbody>
+<tr><td class="n"></td><td class="ht">Box Doubles Draw</td><td class="ha"></td><td class="hs"></td></tr>
+<tr><td class="n"></td><td class="hd">${dateStr}</td><td class="ha">Attend</td><td class="hs">Signature</td></tr>
+<tr><td></td><td>&nbsp;</td><td></td><td></td></tr>
+<tr><td></td><td>&nbsp;</td><td></td><td></td></tr>
+${rows}
+</tbody></table>
+<script>window.print()<\/script>
+</body>
+</html>`;
+
+      const w = window.open('', '_blank');
+      if (!w) { this.showToast('Pop-up blocked — allow pop-ups for this site', 'error'); return; }
+      w.document.write(html);
+      w.document.close();
+    },
+
+    // ── Toast ──────────────────────────────────────────────────────────────
+    showToast(msg, type = 'success') {
+      this.toast = { msg, type };
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.toast = null; }, 3500);
+    },
+  };
+}

@@ -60,6 +60,7 @@ jobs:
           DROP TABLE IF EXISTS player_roles;
           DROP TABLE IF EXISTS player_auth_profiles;
           DROP TABLE IF EXISTS session_ranks;
+          DROP TABLE IF EXISTS session_skill;
           DROP TABLE IF EXISTS session_lb;
           DROP TABLE IF EXISTS sessions;
           DROP TABLE IF EXISTS club_admins;
