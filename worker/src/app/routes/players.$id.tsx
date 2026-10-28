@@ -1,11 +1,13 @@
 // A player's page, admins only (old UI: "Player view"; no lab design, so in
 // the new UI's style): profile, Edit, Find in HelloClub, sign-in link, Remove.
 import {
+  ActionIcon,
   Anchor,
   Badge,
   Button,
   Checkbox,
   Group,
+  Menu,
   Modal,
   Paper,
   ScrollArea,
@@ -25,7 +27,7 @@ import {
   redirect,
   useNavigate,
 } from '@tanstack/react-router'
-import { IconChevronLeft } from '@tabler/icons-react'
+import { IconChevronLeft, IconDots } from '@tabler/icons-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
@@ -192,9 +194,29 @@ function PlayerPage() {
               <Button variant="default" onClick={() => setFindOpen(true)}>
                 Find in HelloClub
               </Button>
-              <Button variant="outline" color="red" onClick={remove}>
-                Remove player
-              </Button>
+              {/* What deletes goes in "…", red and confirmed (as on the
+                  session card). */}
+              <Menu position="bottom-end" width={240}>
+                <Menu.Target>
+                  <ActionIcon
+                    size={36}
+                    variant="default"
+                    aria-label="More player actions"
+                  >
+                    <IconDots size={18} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item color="red" onClick={remove}>
+                    <Text size="sm" fw={600} inherit>
+                      Remove player…
+                    </Text>
+                    <Text size="xs" c={INFO_TEXT}>
+                      Only possible before they’ve played
+                    </Text>
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             </>
           )
         }

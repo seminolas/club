@@ -329,7 +329,8 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
   const isShown = (c: ListColumn<T>) => colChoice[c.accessor] ?? defaultShown(c)
   const choiceOf = (c: ListColumn<T>): ColumnChoice => ({
     key: c.accessor,
-    label: c.title || c.accessor,
+    label: c.menuTitle || c.title || c.accessor,
+    description: c.description,
     shown: isShown(c),
     locked: c.accessor === props.primaryColumn || c.toggleable === false,
   })

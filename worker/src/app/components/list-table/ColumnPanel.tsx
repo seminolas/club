@@ -10,6 +10,8 @@ export interface ColumnChoice {
   shown: boolean
   /** Always shown, e.g. the player name. */
   locked: boolean
+  /** What the column is, under its name. */
+  description?: string
 }
 
 /** A column on its own, or a group with its columns. */
@@ -30,6 +32,8 @@ export function ColumnPanel(props: {
     <Checkbox
       key={c.key}
       label={c.locked ? `${c.label} (always shown)` : c.label}
+      description={c.description}
+      styles={{ description: { color: 'var(--club-info-text)' } }}
       aria-label={ariaLabel}
       checked={c.shown}
       disabled={c.locked}

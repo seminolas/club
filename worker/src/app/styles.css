@@ -18,3 +18,14 @@
     var(--mantine-color-dark-8)
   );
 }
+
+/* The landing page's tabs: as visible as the buttons around them. */
+.club-tabs .mantine-Tabs-tab {
+  font-size: var(--mantine-font-size-md);
+  font-weight: 500;
+  padding-block: 12px;
+}
+.club-tabs .mantine-Tabs-tab[data-active] {
+  font-weight: 700;
+  border-bottom-width: 3px;
+}

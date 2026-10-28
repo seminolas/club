@@ -69,19 +69,18 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
   }
   await s.browser.close()
 }
-// The Ladder's Skill column (hidden by default) and "How rankings work".
+// The Ladder's Skill column (hidden by default), explained in Columns.
 {
   const s = await open()
   await s.go('/players')
   check('Skill column hidden by default', !(await s.page.getByRole('columnheader', { name: /Skill/ }).count()))
   await s.page.getByRole('button', { name: 'Columns' }).click()
-  await s.page.getByText('Skill', { exact: true }).click()
+  check('Columns explains both rankings', (await s.page.getByText('Ladder position', { exact: true }).isVisible()) && (await s.page.getByText(/Decides your box/).isVisible()) && (await s.page.getByText(/Doesn’t decide boxes/).isVisible()))
+  await s.page.getByText('Estimated skill', { exact: true }).click()
   await s.page.keyboard.press('Escape')
   const cells = await s.page.locator('tbody tr td:nth-child(2)').allInnerTexts()
   check('Skill column shows ranks', cells.length > 0 && cells.some((c) => /^#\d+$/.test(c.trim())), cells.slice(0, 5).join(', '))
-  await s.page.getByRole('button', { name: 'How rankings work' }).click()
-  await s.page.getByRole('dialog').getByText('Ladder position (#)').waitFor({ timeout: 5000 }).catch(() => {})
-  check('"How rankings work" explains both', (await s.page.getByRole('dialog').getByText('Ladder position (#)').isVisible()) && (await s.page.getByRole('dialog').getByRole('heading', { name: 'Skill' }).isVisible()))
+  check('no "How rankings work" button', !(await s.page.getByRole('button', { name: 'How rankings work' }).count()))
   const errors = s.errors()
   check('no console errors (Skill)', errors.length === 0, errors.join('\n'))
   await s.browser.close()

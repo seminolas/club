@@ -2,19 +2,10 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import {
-  Alert,
-  Anchor,
-  Box,
-  Button,
-  Group,
-  Menu,
-  Stack,
-  Text,
-} from '@mantine/core'
+import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { IconChevronDown, IconChevronLeft } from '@tabler/icons-react'
+import { IconChevronLeft } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
@@ -50,7 +41,7 @@ import { ResultsStep } from './ResultsStep'
 import type { Person } from './AssignBoxesModal'
 import { CheckInStep } from './CheckInStep'
 import { PINNED_H, useSessionCard } from './SessionCard'
-import type { MenuAction, StepId } from './SessionCard'
+import type { MenuAction, StepAction, StepId } from './SessionCard'
 
 /**
  * The boxes cleared by the last Re-open check-in, per session, offered first
@@ -290,60 +281,40 @@ export function SessionPage(props: { date: string; step: StepId }) {
         },
       ]
 
-  const stepActions: Record<StepId, ReactNode> = {
-    checkin: (
-      <Button
-        variant="default"
-        size="sm"
-        onClick={() => {
+  const stepActions: Record<StepId, StepAction[]> = {
+    checkin: [
+      {
+        label: 'Print sign-in sheet',
+        run: () => {
           const names = session.leaderboardBefore.map((p) => p.name)
           if (!printSignInSheet(date, names))
             toastError(
               new Error('Pop-up blocked — allow pop-ups for this site'),
             )
-        }}
-      >
-        Print sign-in sheet
-      </Button>
-    ),
-    boxes: (
-      <Menu position="bottom-start">
-        <Menu.Target>
-          <Button
-            variant="default"
-            size="sm"
-            rightSection={<IconChevronDown size={14} />}
-          >
-            Print score sheets
-          </Button>
-        </Menu.Target>
-        <Menu.Dropdown>
-          <Menu.Item onClick={() => printSheets('cards')}>Cards</Menu.Item>
-          <Menu.Item onClick={() => printSheets('grid')}>Grid</Menu.Item>
-        </Menu.Dropdown>
-      </Menu>
-    ),
-    results: (
-      <>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => shareOnWhatsApp(date)}
-        >
-          Share on WhatsApp
-        </Button>
-        {admin && (
-          <Button variant="default" size="sm" onClick={() => setSyncing(date)}>
-            Sync to HelloClub
-          </Button>
-        )}
-      </>
-    ),
+        },
+      },
+    ],
+    boxes: [
+      {
+        label: 'Print score sheets',
+        items: [
+          { label: 'Cards', run: () => printSheets('cards') },
+          { label: 'Grid', run: () => printSheets('grid') },
+        ],
+      },
+    ],
+    results: [
+      { label: 'Share on WhatsApp', run: () => shareOnWhatsApp(date) },
+      ...(admin
+        ? [{ label: 'Sync to HelloClub', run: () => setSyncing(date) }]
+        : []),
+    ],
   }
 
   const card = useSessionCard({
     title: 'Tuesday Box',
     dateLabel: sessionDate(date),
+    dateShort: sessionDate(date).replace(/^\S+ /, ''),
     phase,
     step,
     onStep: goStep,
