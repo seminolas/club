@@ -111,7 +111,7 @@ export function ResultsStep(props: {
         <SessionStats session={session} name={(id) => names.get(id) ?? ''} />
       }
       primaryColumn="displayName"
-      initialSort={{ column: 'rankAfter', direction: 'asc' }}
+      initialSort={{ column: 'rankBefore', direction: 'asc' }}
       filters={[
         {
           kind: 'options',
