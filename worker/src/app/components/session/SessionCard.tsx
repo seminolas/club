@@ -82,9 +82,8 @@ export interface StepAction {
 
 export interface SessionCardProps {
   title: string
+  /** e.g. "Tue 20 Oct". */
   dateLabel: string
-  /** The date on phones, e.g. "20 Oct". */
-  dateShort: string
   phase: Phase
   step: StepId
   onStep: (step: StepId) => void
@@ -230,14 +229,14 @@ export function useSessionCard(props: SessionCardProps) {
       )}
     </Badge>
   )
-  // Phones: short pills without labels ("20 Oct", "Closed", "38 players"),
-  // on the title's row if they fit; they wrap under it as a group.
+  // Phones: no title, and pills without labels ("Tue 20 Oct", "Closed",
+  // "38 players"), so they fit on one row with "…"; they wrap if they don't.
   const [countLabel, countValue] = props.count
   const titleLine = (
     <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
-      <Text fw={600}>{props.title}</Text>
+      {!phone && <Text fw={600}>{props.title}</Text>}
       <Group gap={6}>
-        {pill('Date', phone ? props.dateShort : props.dateLabel)}
+        {pill('Date', props.dateLabel)}
         {pill('Status', PHASE_LABEL[props.phase], true)}
         {phone
           ? pill(countLabel, `${countValue} ${countLabel.toLowerCase()}`)

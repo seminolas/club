@@ -95,7 +95,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
               className="ps-sitout-card"
               style={{ height: `${CARD_MM}mm` }}
             >
-              <div className="ps-pill ps-pill-game">SITTING OUT</div>
+              <div className="ps-pill ps-pill-game">SITTING OUT OF MATCHES</div>
               <div className="ps-sitout-rows">
                 {rows.map((row) => (
                   <div key={row.name} className="ps-sitout-row">
@@ -103,7 +103,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
                     <div className="ps-sitout-games">
                       {row.games.map((g) => (
                         <span key={g} className="ps-pill ps-pill-small">
-                          MATCH {g}
+                          {g}
                         </span>
                       ))}
                     </div>

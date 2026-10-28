@@ -190,7 +190,7 @@
   color: #9ca3af;
   font-size: 13px;
 }
-/* Box of 7: who sits out which games, on cards of their own. */
+/* Box of 7: who sits out which matches (numbers only), on cards of their own. */
 .ps-sitout-card {
   position: relative;
   display: flex;

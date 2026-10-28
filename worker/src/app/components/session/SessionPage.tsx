@@ -314,7 +314,6 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const card = useSessionCard({
     title: 'Tuesday Box',
     dateLabel: sessionDate(date),
-    dateShort: sessionDate(date).replace(/^\S+ /, ''),
     phase,
     step,
     onStep: goStep,
