@@ -14,11 +14,11 @@ const sessions = await (await fetch(`${BASE}/api/sessions`)).json()
 const closed = sessions.find((s) => s.status === 'closed')?.date
 const ladder = (await (await fetch(`${BASE}/api/leaderboard`)).json()).players
 const pages = [
-  '/new/players',
-  '/new/sessions',
-  `/new/sessions/${closed}/checkin`,
-  `/new/sessions/${closed}/boxes`,
-  `/new/sessions/${closed}/results`,
+  '/players',
+  '/sessions',
+  `/sessions/${closed}/checkin`,
+  `/sessions/${closed}/boxes`,
+  `/sessions/${closed}/results`,
 ]
 
 for (const as of [undefined, 'test-player', 'test-admin']) {
@@ -26,7 +26,7 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     for (const scheme of ['light', 'dark']) {
       const s = await open({ as, phone })
       await s.page.emulateMedia({ colorScheme: scheme })
-      const list = as === 'test-admin' ? [...pages, `/new/players/${ladder[0].id}`] : pages
+      const list = as === 'test-admin' ? [...pages, `/players/${ladder[0].id}`] : pages
       for (const path of list) {
         await s.go(path)
         await s.page.waitForTimeout(400)
@@ -50,19 +50,37 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     }
   }
 }
-// The Ladder's Skill column (hidden by default) and "How rankings work".
+// Old links (the Alpine UI's #/ routes, e.g. shared on WhatsApp, and /new/
+// while the new UI was built) land on today's pages.
 {
   const s = await open()
-  await s.go('/new/players')
+  for (const [from, to] of [
+    ['/#/players', '/players'],
+    ['/#/sessions', '/sessions'],
+    [`/#/${closed}/games`, `/sessions/${closed}/boxes`],
+    [`/#/${closed}/wrapup`, `/sessions/${closed}/results`],
+    [`/#/session/${closed}/leaderboard`, `/sessions/${closed}/results`],
+    ['/new/sessions', '/sessions'],
+    [`/new/sessions/${closed}/checkin`, `/sessions/${closed}/checkin`],
+  ]) {
+    await s.go(from)
+    await s.page.waitForURL((u) => u.pathname === to, { timeout: 10000 }).catch(() => {})
+    check(`${from} → ${to}`, new URL(s.page.url()).pathname === to, s.page.url())
+  }
+  await s.browser.close()
+}
+// The Ladder's Skill column (hidden by default), explained in Columns.
+{
+  const s = await open()
+  await s.go('/players')
   check('Skill column hidden by default', !(await s.page.getByRole('columnheader', { name: /Skill/ }).count()))
   await s.page.getByRole('button', { name: 'Columns' }).click()
-  await s.page.getByText('Skill', { exact: true }).click()
+  check('Columns explains both rankings', (await s.page.getByText('Ladder position', { exact: true }).isVisible()) && (await s.page.getByText(/Decides your box/).isVisible()) && (await s.page.getByText(/Doesn’t decide boxes/).isVisible()))
+  await s.page.getByText('Estimated skill', { exact: true }).click()
   await s.page.keyboard.press('Escape')
   const cells = await s.page.locator('tbody tr td:nth-child(2)').allInnerTexts()
   check('Skill column shows ranks', cells.length > 0 && cells.some((c) => /^#\d+$/.test(c.trim())), cells.slice(0, 5).join(', '))
-  await s.page.getByRole('button', { name: 'How rankings work' }).click()
-  await s.page.getByRole('dialog').getByText('Ladder position (#)').waitFor({ timeout: 5000 }).catch(() => {})
-  check('"How rankings work" explains both', (await s.page.getByRole('dialog').getByText('Ladder position (#)').isVisible()) && (await s.page.getByRole('dialog').getByRole('heading', { name: 'Skill' }).isVisible()))
+  check('no "How rankings work" button', !(await s.page.getByRole('button', { name: 'How rankings work' }).count()))
   const errors = s.errors()
   check('no console errors (Skill)', errors.length === 0, errors.join('\n'))
   await s.browser.close()

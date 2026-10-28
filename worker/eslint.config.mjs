@@ -37,7 +37,6 @@ export default [
       // Generated, or copied in at build time.
       'worker-configuration.d.ts',
       'src/app/routeTree.gen.ts',
-      '.legacy/**',
       'dist/**',
     ],
   },

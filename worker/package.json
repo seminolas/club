@@ -2,8 +2,7 @@
   "name": "club-api",
   "private": true,
   "scripts": {
-    "dev": "npm run prebuild-assets && vite dev --port 8788",
-    "build:web": "esbuild src/browser/index.ts --bundle --format=iife --target=es2020 --outfile=../js/dist/rules.js",
+    "dev": "vite dev --port 8788",
     "deploy": "npm run build && wrangler deploy",
     "deploy:staging": "npm run build:staging && wrangler deploy",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
@@ -16,9 +15,8 @@
     "migrate-data": "tsx scripts/migrate-data.ts",
     "migrate-data:staging": "tsx scripts/migrate-data.ts --env staging",
     "types": "wrangler types --include-runtime=true worker-configuration.d.ts",
-    "prebuild-assets": "npm run build:web && node scripts/copy-legacy.mjs",
-    "build": "npm run prebuild-assets && vite build",
-    "build:staging": "npm run prebuild-assets && vite build --mode staging"
+    "build": "vite build",
+    "build:staging": "vite build --mode staging"
   },
   "dependencies": {
     "@mantine/core": "9.6.3",

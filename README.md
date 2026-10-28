@@ -9,18 +9,18 @@ and HelloClub attendance sync.
 
 ## Stack
 
-- **Frontend:** Alpine.js + Tailwind CDN, plain HTML/JS (no build step)
-- **Backend:** Cloudflare Workers (Hono), TypeScript
-- **Database:** Cloudflare D1 (SQLite)
-- **Auth:** Google Identity Services (GIS), JWT signed with `JWT_SECRET`
+- **Frontend:** React + TanStack Start (server-rendered) + Mantine, in the same Worker
+- **Backend:** Cloudflare Workers (Hono API, a Durable Object for live session nights), TypeScript, built with Vite
+- **Database:** Cloudflare D1 (SQLite), Drizzle
+- **Auth:** BetterAuth (Google sign-in)
 - **External:** HelloClub API for member sync
 
 ## Deploying
 
 ```bash
 cd worker
-npx wrangler deploy                    # prod
-npx wrangler deploy --env staging      # staging
+npm run deploy            # prod (merging to master does this)
+npm run deploy:staging    # staging
 ```
 
 **Do not deploy to staging with a real HC API key** — the staging HC key is intentionally nonsense to prevent accidental sync.

@@ -18,6 +18,7 @@ import {
 } from '@mantine/core'
 import { useMediaQuery } from '@mantine/hooks'
 import {
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconDots,
@@ -71,9 +72,19 @@ export interface MenuAction {
   run: () => void
 }
 
+/** A plain step button ("Print score sheets"), or one with a choice. */
+export interface StepAction {
+  label: string
+  run?: () => void
+  /** A choice of how (e.g. Cards / Grid), shown as a menu. */
+  items?: { label: string; run: () => void }[]
+}
+
 export interface SessionCardProps {
   title: string
   dateLabel: string
+  /** The date on phones, e.g. "20 Oct". */
+  dateShort: string
   phase: Phase
   step: StepId
   onStep: (step: StepId) => void
@@ -90,8 +101,8 @@ export interface SessionCardProps {
   }
   /** "…": red, confirmed actions that undo work (admins). */
   menu: MenuAction[]
-  /** The step's own word buttons. */
-  stepActions?: ReactNode
+  /** The step's own plain buttons (in "…" on phones). */
+  stepActions?: StepAction[]
   /** A line under the title, e.g. why check-in can't be changed. */
   note?: ReactNode
 }
@@ -125,39 +136,80 @@ export function useSessionCard(props: SessionCardProps) {
       </Button>
     )
   }
-  // Going back undoes work and is rare: in a "…" menu, left of the way
-  // forward. The one icon-only button (developer); named for screen readers.
-  const menu =
-    props.menu.length > 0 ? (
-      <Menu position="bottom-end" width={260}>
+  const steps = props.stepActions ?? []
+  // Plain step buttons, right of the title (desktop).
+  const stepButtons = steps.map((a) =>
+    a.items ? (
+      <Menu key={a.label} position="bottom-end">
         <Menu.Target>
-          <ActionIcon
-            size={36}
+          <Button
             variant="default"
-            aria-label="More session actions"
+            size="sm"
+            rightSection={<IconChevronDown size={14} />}
           >
-            <IconDots size={18} />
-          </ActionIcon>
+            {a.label}
+          </Button>
         </Menu.Target>
         <Menu.Dropdown>
-          {props.menu.map((m) => (
-            <Menu.Item
-              key={m.label}
-              color="red"
-              leftSection={<IconChevronLeft size={16} />}
-              onClick={m.run}
-            >
-              <Text size="sm" fw={600} inherit>
-                {m.label}
-              </Text>
-              <Text size="xs" c={INFO_TEXT}>
-                {m.hint}
-              </Text>
+          {a.items.map((i) => (
+            <Menu.Item key={i.label} onClick={i.run}>
+              {i.label}
             </Menu.Item>
           ))}
         </Menu.Dropdown>
       </Menu>
-    ) : null
+    ) : (
+      <Button key={a.label} variant="default" size="sm" onClick={a.run}>
+        {a.label}
+      </Button>
+    ),
+  )
+  // On phones the same actions as menu items ("Print score sheets: Cards").
+  const stepItems = steps.flatMap((a) =>
+    (a.items ?? [{ label: '', run: a.run ?? (() => {}) }]).map((i) => (
+      <Menu.Item key={`${a.label}:${i.label}`} onClick={i.run}>
+        {i.label ? `${a.label}: ${i.label}` : a.label}
+      </Menu.Item>
+    )),
+  )
+  // "…": what undoes work (red, confirmed) and, on phones, the step's plain
+  // actions above it. The one icon-only button (developer); named for screen
+  // readers.
+  const showMenu = props.menu.length > 0 || (phone && stepItems.length > 0)
+  const menu = showMenu ? (
+    <Menu position="bottom-end" width={260}>
+      <Menu.Target>
+        <ActionIcon
+          size={36}
+          variant="default"
+          aria-label="More session actions"
+        >
+          <IconDots size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {phone && stepItems}
+        {phone && stepItems.length > 0 && props.menu.length > 0 && (
+          <Menu.Divider />
+        )}
+        {props.menu.map((m) => (
+          <Menu.Item
+            key={m.label}
+            color="red"
+            leftSection={<IconChevronLeft size={16} />}
+            onClick={m.run}
+          >
+            <Text size="sm" fw={600} inherit>
+              {m.label}
+            </Text>
+            <Text size="xs" c={INFO_TEXT}>
+              {m.hint}
+            </Text>
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
+  ) : null
 
   const pill = (label: string, value: string, state = false) => (
     <Badge
@@ -169,20 +221,27 @@ export function useSessionCard(props: SessionCardProps) {
       className="app-pill"
       data-info={!state || undefined}
     >
-      <span className="app-pill-label">{label}:</span> {value}
+      {phone ? (
+        value
+      ) : (
+        <>
+          <span className="app-pill-label">{label}:</span> {value}
+        </>
+      )}
     </Badge>
   )
+  // Phones: short pills without labels ("20 Oct", "Closed", "38 players"),
+  // on the title's row if they fit; they wrap under it as a group.
+  const [countLabel, countValue] = props.count
   const titleLine = (
-    // Phones: the pills always get their own row, so the card keeps its
-    // shape from state to state; wider screens: one line.
-    <Group gap="xs" display={phone ? 'block' : undefined}>
-      <Text fw={600} mb={phone ? 6 : 0}>
-        {props.title}
-      </Text>
+    <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
+      <Text fw={600}>{props.title}</Text>
       <Group gap={6}>
-        {pill('Date', props.dateLabel)}
+        {pill('Date', phone ? props.dateShort : props.dateLabel)}
         {pill('Status', PHASE_LABEL[props.phase], true)}
-        {pill(...props.count)}
+        {phone
+          ? pill(countLabel, `${countValue} ${countLabel.toLowerCase()}`)
+          : pill(countLabel, countValue)}
       </Group>
     </Group>
   )
@@ -203,18 +262,21 @@ export function useSessionCard(props: SessionCardProps) {
 
   const content = (id: StepId) => (
     <Stack gap="sm" ref={id === props.step ? setCard : undefined}>
-      {/* The actions wrap under the title on phones when there isn't room. */}
-      <Group justify="space-between" align="flex-start" gap="sm">
+      {/* Title and pills left; actions right: plain buttons, "…", then the
+          way forward (green). Phones: "…" stays on the title's row, the way
+          forward gets a row of its own. */}
+      <Group justify="space-between" align="flex-start" gap="sm" wrap="nowrap">
         {titleLine}
-        {(menu || props.forward) && (
-          <Group gap="xs" wrap="nowrap" ml="auto">
+        {(menu || (!phone && (props.forward || steps.length > 0))) && (
+          <Group gap="xs" wrap="nowrap">
+            {!phone && stepButtons}
             {menu}
-            {forward()}
+            {!phone && forward()}
           </Group>
         )}
       </Group>
+      {phone && props.forward && <Group justify="flex-end">{forward()}</Group>}
       {props.note}
-      {props.stepActions && <Group gap="xs">{props.stepActions}</Group>}
       <Stepper
         // Progress is the furthest step reached, nothing beyond.
         active={props.phase === 'closed' ? 3 : furthest}

@@ -17,6 +17,7 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
+  useNavigate,
 } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -24,6 +25,7 @@ import { AppHeader } from '../components/AppHeader'
 import { ClaimModal } from '../components/ClaimModal'
 import { SignInModal } from '../components/SignInModal'
 import { signOut } from '../lib/auth'
+import { legacyPath } from '../lib/legacy'
 import { viewerQuery } from '../lib/queries'
 import { toastOk } from '../lib/toasts'
 import appCss from '../styles.css?url'
@@ -91,6 +93,12 @@ function RootLayout() {
       history.replaceState(null, '', location.pathname + location.hash)
     }
   }, [])
+  // An old "#/…" link (e.g. shared on WhatsApp): go to where it lives now.
+  const navigate = useNavigate()
+  useEffect(() => {
+    const path = legacyPath(location.hash)
+    if (path) void navigate({ href: path, replace: true })
+  }, [navigate])
   useEffect(() => {
     if (viewer.justLinked && viewer.player)
       toastOk(`Signed in as ${viewer.player.name}.`)

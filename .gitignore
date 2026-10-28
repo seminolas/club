@@ -4,4 +4,5 @@ dist/
 worker/scripts/*.sql
 # local secrets (e.g. the staging test accounts' password)
 .env*
+# the old UI, copied in by builds before the cutover (UI-PORT.md U9)
 .legacy/

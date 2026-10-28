@@ -21,7 +21,21 @@ Status: ⬜ not started · 🟨 in progress · ✅ done (PR open) · 🚀 merged
 | U6 | Results step: ladder movement, Share, HelloClub sync | ✅ | branch `u6-results` (on `u5-boxes`) |
 | U7 | Printing: sign-in sheet, score sheets (cards, grid) | ✅ | branch `u7-printing` (on `u6-results`); sign-in sheet came with U4 |
 | U8 | Legibility pass, polish, phone checks | ✅ | branch `u8-polish` (on `u7-printing`) |
-| U9 | Cutover: new UI at `/`, old links redirect, Alpine removed | ⬜ | developer tries `/new/` on a real session night first |
+| U9 | Cutover: new UI at `/`, old links redirect, Alpine removed | ✅ | branch `u9-cutover` (on `u8-polish`); **merge only after a session night on `/new/`** |
+
+### Hand-over (2026-10-25): merging and trying it
+
+All steps are built, on stacked PRs: #15 (plan) ← #16 (U1) ← #17 (U2) ← #18 (U3) ← #19 (U4) ← #20 (U5) ← #21 (U6) ← #22 (U7) ← #23 (U8) ← #24 (U9). Each was deployed to staging and checked; staging currently runs U9 (the cutover). No database migrations were needed.
+
+1. **Merge #15–#23 in order** (each merge deploys prod). Prod then has the old UI at `/` (unchanged; admins see a "New version" link) and the new UI at `/new/`. After the U1 merge, check the first Workers Builds deploy went through (its build command changed to `npm run deploy`).
+2. **Run a real session night on `/new/`** (check-in, Assign boxes, players entering scores, Close, Results, print, HelloClub sync: the sync can only be tried on prod). The old UI stays available at `/` throughout as a fallback; both use the same data.
+3. **Then merge #24 (U9).** `/` becomes the new UI; old `#/` links (WhatsApp) and `/new/` links redirect. Afterwards: drop `UI=old` from `e2e/ui-mode.mjs`; `compare.mjs`/`compare-api.mjs` compare prod with staging again.
+
+Small follow-ups noticed on the way (not done):
+- Admin REST calls now check the session twice (the `requireAdmin` middleware and the service): one extra auth read per admin call. Could drop the middleware where the service checks.
+- The Sessions "Played" search keeps a renamed player's old name until the next close (cache, see Data).
+- 3 lint warnings (shadowed names) in the lab's copied ListTable code.
+- `e2e/new-pages.mjs` crashed once on a slow page load and passed on rerun.
 
 ---
 
@@ -306,3 +320,4 @@ Answered 2026-10-24: no Stats tab (only the ladder-movement table, as Results); 
 - **2026-10-24 (U6):** done; on staging; `new-session.mjs` checks the Results table and buttons. Results = the players who played: Player, Box, Ranking Before / After / Change, sorted by After; filters Box and Ladder change. **Sync to HelloClub** calls the existing `POST /api/hc/sync` unchanged (HelloClub writes untouched) and shows its log; never clicked on staging. **Share on WhatsApp** sends today's text and old-style links (they keep working via U9's redirects).
 - **2026-10-24 (U7):** done; on staging. Score sheets (`components/print/ScoreSheets.tsx` + `.css`) are the old `#print-area` markup with its Tailwind 2 values written out as plain CSS (and Tailwind's preflight + font, scoped to `#club-print` with `:where()` so the resets stay weaker than the sheet's classes: the first try lost every card border and the bold headers). Rendered into `<body>` through a portal and shown only in print media. `e2e/print-compare.mjs <outDir>` prints the same session (boxes of 4–7) from both UIs, Cards and Grid, and checks page counts (4 = one page per box); its PDFs and screenshots were compared by eye: same layout. In Playwright, `emulateMedia({ media: null })` (not `'screen'`) before `page.pdf()`, or the PDF comes out in screen media.
 - **2026-10-24 (U8):** done; on staging. Informative grey everywhere (ListTable's count, "Played:", hidden-match reasons, sheet hints, "Game N"), count badges and card pills at 12px, step buttons `sm`. **Found:** `light-dark()` inside a custom property kept the light value, so `--club-info-text` was dark grey on dark; now set per scheme with `[data-mantine-color-scheme='dark']` (ListTable's own `light-dark()` uses in properties are fine). New sweep `e2e/new-pages.mjs [outDir]`: every page × signed out / Test Player / Test Admin × phone / desktop × light / dark, no console errors and no sideways scroll on phones.
+- **2026-10-25 (U9):** done; on staging (only). `/` is the new UI; `vite.config.mts` has no basepath, `assetsDir` or `publicDir`; the Alpine UI (`index.html`, `js/`), its rules bundle (`src/browser/index.ts`, `build:web`), `copy-legacy.mjs` and the root `.assetsignore` are gone (`src/browser/algorithm.ts` stays: the rules tests use it). Redirects: old `#/…` links in the browser (`lib/legacy.ts`, tested) and `/new/…` on the server (`routes/new.$.tsx`, 301). Share on WhatsApp now sends the new URLs. **Found:** U1's edit removing `[build]` / `[assets]` from `wrangler.toml` had silently not applied; deploys were fine (the Vite plugin overrides both), but the test harness (`getPlatformProxy`) still read `[assets] directory = ".."` and needed the root `.assetsignore`: removing that file made 95 D1 tests skip with "Asset too large". Fixed by removing the keys. e2e: `auth-ui.mjs` rewritten for the new header/modals; `print-compare.mjs` → `print-sheets.mjs` (new UI only); score checks default to the new UI (`UI=old` for prod until U9 is merged). All checks pass on staging: auth-ui, new-pages (incl. redirects), new-session, new-player-page, player-scores, fast-scores, live-offline, print-sheets, admin-flow, compare-api (24/24 identical with prod).
