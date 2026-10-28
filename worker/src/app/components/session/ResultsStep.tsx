@@ -1,8 +1,8 @@
 // The Results step: one row per player who played, with tonight's ladder
 // movement (old UI: Wrap-up's "Post-game ranking") and the lab's Stats table
-// columns (club-table-lab SessionStatsDemo). Player, Box # / Finish / Players
-// and Ranking show by default; Box Start, Matches, Games and Points are in
-// Columns. The whole ladder stays on the Players tab.
+// columns (club-table-lab SessionStatsDemo). Player, Box (# / Players),
+// Place in box (Finish) and Ranking show by default; Start, Matches, Games
+// and Points are in Columns. The whole ladder stays on the Players tab.
 import type { ReactNode } from 'react'
 import { Count, Delta, NoValue, Percent } from '../list-table/cells'
 import type { ListColumnGroup } from '../list-table/columns'
@@ -171,11 +171,25 @@ export function ResultsStep(props: {
             columns: [
               { accessor: 'box', title: '#', sortable: true, numeric: true },
               {
+                accessor: 'boxSize',
+                title: 'Players',
+                shortTitle: 'P',
+                visibleMediaQuery: WIDE,
+                sortable: true,
+                numeric: true,
+              },
+            ],
+          },
+          {
+            group: 'place',
+            title: 'Place in box',
+            visibleMediaQuery: WIDE,
+            columns: [
+              {
                 accessor: 'boxStart',
                 title: 'Start',
                 shortTitle: 'S',
                 defaultHidden: true,
-                visibleMediaQuery: WIDE,
                 sortable: true,
                 numeric: true,
               },
@@ -183,15 +197,6 @@ export function ResultsStep(props: {
                 accessor: 'boxFinish',
                 title: 'Finish',
                 shortTitle: 'F',
-                visibleMediaQuery: WIDE,
-                sortable: true,
-                numeric: true,
-              },
-              {
-                accessor: 'boxSize',
-                title: 'Players',
-                shortTitle: 'P',
-                visibleMediaQuery: WIDE,
                 sortable: true,
                 numeric: true,
               },
