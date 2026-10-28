@@ -1,23 +1,49 @@
-// The Results step: tonight's ladder movement, one row per player who played
-// (old UI: Wrap-up's "Post-game ranking"; the lab's Stats table, of which only
-// the ladder-movement part is ported, as decided). The whole ladder stays on
-// the Players tab.
+// The Results step: one row per player who played, with tonight's ladder
+// movement (old UI: Wrap-up's "Post-game ranking") and the lab's Stats table
+// columns (club-table-lab SessionStatsDemo). Player, Box (# / Players),
+// Place in box (Finish) and Ranking show by default; Start, Matches, Games
+// and Points are in Columns. The whole ladder stays on the Players tab.
 import type { ReactNode } from 'react'
-import { Delta, NoValue } from '../list-table/cells'
+import { Count, Delta, NoValue, Percent } from '../list-table/cells'
+import type { ListColumnGroup } from '../list-table/columns'
 import { ListTable } from '../list-table/ListTable'
 import { nameLabels } from '../list-helpers'
 import { shortName } from '../../lib/names'
+import { boxStandings } from '../../lib/session'
 import type { Session } from '../../lib/session'
+import { SessionStats } from './SessionStats'
+
+/** Wider than a phone: phones start with Player, Box # and Ranking. */
+const WIDE = '(min-width: 36em)'
 
 interface Row {
   personId: number
   displayName: string
   fullName: string
-  box: number | null
+  box: number
+  /** Position in the box at the start (ladder order), from 1. */
+  boxStart: number
+  /** Final placing in the box. */
+  boxFinish: number
+  boxSize: number
   rankBefore: number | null
   rankAfter: number | null
   /** Places moved up (positive) or down (negative); null if new tonight. */
   rankChange: number | null
+  matches: number
+  matchesWon: number
+  matchesLost: number
+  matchDiff: number
+  matchWinPct: number | null
+  // Games in the UI, sets in the domain.
+  sets: number
+  setsWon: number
+  setsLost: number
+  gameDiff: number
+  setWinPct: number | null
+  pointsFor: number
+  pointsAgainst: number
+  pointsDiff: number
 }
 
 export function ResultsStep(props: {
@@ -32,22 +58,44 @@ export function ResultsStep(props: {
   const after = new Map(
     (session.leaderboardAfter ?? []).map((p, i) => [p.id, i + 1]),
   )
-  const boxOf = new Map(
-    session.boxes.flatMap((b, bi) => b.players.map((p) => [p.id, bi + 1])),
+  const ladderBefore = session.leaderboardBefore.map((p) => p.id)
+  const share = (won: number, total: number) => (total ? won / total : null)
+  const rows: Row[] = session.boxes.flatMap((box, bi) =>
+    boxStandings(box, ladderBefore).map((s) => {
+      const p = box.players[s.position]
+      const b = before.get(p.id) ?? null
+      const a = after.get(p.id) ?? null
+      const sets = s.setsWon + s.setsLost
+      const lost = s.gamesPlayed - s.gamesWon
+      return {
+        personId: p.id,
+        fullName: p.name,
+        displayName: shortName(p.name, props.preferred.get(p.id)),
+        box: bi + 1,
+        boxStart: s.position + 1,
+        boxFinish: s.placing,
+        boxSize: box.players.length,
+        rankBefore: b,
+        rankAfter: a,
+        rankChange: b !== null && a !== null ? b - a : null,
+        matches: s.gamesPlayed,
+        matchesWon: s.gamesWon,
+        matchesLost: lost,
+        matchDiff: s.gamesWon - lost,
+        matchWinPct: share(s.gamesWon, s.gamesPlayed),
+        sets,
+        setsWon: s.setsWon,
+        setsLost: s.setsLost,
+        gameDiff: s.setsWon - s.setsLost,
+        setWinPct: share(s.setsWon, sets),
+        pointsFor: s.pointsFor,
+        pointsAgainst: s.pointsAgainst,
+        pointsDiff: s.pointsFor - s.pointsAgainst,
+      }
+    }),
   )
-  const rows: Row[] = session.attendees.map((p) => {
-    const b = before.get(p.id) ?? null
-    const a = after.get(p.id) ?? null
-    return {
-      personId: p.id,
-      fullName: p.name,
-      displayName: shortName(p.name, props.preferred.get(p.id)),
-      box: boxOf.get(p.id) ?? null,
-      rankBefore: b,
-      rankAfter: a,
-      rankChange: b !== null && a !== null ? b - a : null,
-    }
-  })
+
+  const names = new Map(rows.map((r) => [r.personId, r.displayName]))
 
   return (
     <ListTable<Row>
@@ -58,8 +106,10 @@ export function ResultsStep(props: {
       searchPlaceholder="Find a player…"
       stickyHeader
       stickyTop={props.stickyTop}
-      hideColumnChooser
       header={props.header}
+      intro={
+        <SessionStats session={session} name={(id) => names.get(id) ?? ''} />
+      }
       primaryColumn="displayName"
       initialSort={{ column: 'rankAfter', direction: 'asc' }}
       filters={[
@@ -116,11 +166,41 @@ export function ResultsStep(props: {
             render: (r) => label(r),
           },
           {
-            accessor: 'box',
+            group: 'box',
             title: 'Box',
-            sortable: true,
-            numeric: true,
-            render: (r) => r.box ?? <NoValue />,
+            columns: [
+              { accessor: 'box', title: '#', sortable: true, numeric: true },
+              {
+                accessor: 'boxSize',
+                title: 'Players',
+                shortTitle: 'P',
+                visibleMediaQuery: WIDE,
+                sortable: true,
+                numeric: true,
+              },
+            ],
+          },
+          {
+            group: 'place',
+            title: 'Place in box',
+            visibleMediaQuery: WIDE,
+            columns: [
+              {
+                accessor: 'boxStart',
+                title: 'Start',
+                shortTitle: 'S',
+                defaultHidden: true,
+                sortable: true,
+                numeric: true,
+              },
+              {
+                accessor: 'boxFinish',
+                title: 'Finish',
+                shortTitle: 'F',
+                sortable: true,
+                numeric: true,
+              },
+            ],
           },
           {
             group: 'ranking',
@@ -155,8 +235,102 @@ export function ResultsStep(props: {
               },
             ],
           },
+          wonLostGroup('matches', 'Matches', {
+            total: 'matches',
+            won: 'matchesWon',
+            lost: 'matchesLost',
+            diff: 'matchDiff',
+            pct: 'matchWinPct',
+          }),
+          wonLostGroup('games', 'Games', {
+            total: 'sets',
+            won: 'setsWon',
+            lost: 'setsLost',
+            diff: 'gameDiff',
+            pct: 'setWinPct',
+          }),
+          {
+            group: 'points',
+            title: 'Points',
+            defaultHidden: true,
+            columns: [
+              { accessor: 'pointsFor', title: 'For', shortTitle: 'F', ...NUM },
+              {
+                accessor: 'pointsAgainst',
+                title: 'Against',
+                shortTitle: 'A',
+                ...NUM,
+              },
+              {
+                accessor: 'pointsDiff',
+                title: 'Diff',
+                shortTitle: '+/−',
+                ...NUM,
+                render: (r) => <Delta value={r.pointsDiff} />,
+              },
+            ],
+          },
         ]
       }}
     />
   )
+}
+
+const NUM = { sortable: true, sortDescFirst: true, numeric: true }
+
+type NumberField = {
+  [K in keyof Row]: Row[K] extends number ? K : never
+}[keyof Row]
+type ShareField = {
+  [K in keyof Row]: Row[K] extends number | null ? K : never
+}[keyof Row]
+
+/** Total / Won / Lost / Diff / Win% (the lab's), all in Columns. */
+function wonLostGroup(
+  group: string,
+  title: string,
+  f: {
+    total: NumberField
+    won: NumberField
+    lost: NumberField
+    diff: NumberField
+    pct: ShareField
+  },
+): ListColumnGroup<Row> {
+  return {
+    group,
+    title,
+    defaultHidden: true,
+    columns: [
+      { accessor: f.total, title: 'Total', shortTitle: 'T', ...NUM },
+      {
+        accessor: f.won,
+        title: 'Won',
+        shortTitle: 'W',
+        ...NUM,
+        render: (r) => <Count value={r[f.won]} kind="win" />,
+      },
+      {
+        accessor: f.lost,
+        title: 'Lost',
+        shortTitle: 'L',
+        ...NUM,
+        render: (r) => <Count value={r[f.lost]} kind="loss" />,
+      },
+      {
+        accessor: f.diff,
+        title: 'Diff',
+        shortTitle: '+/−',
+        ...NUM,
+        render: (r) => <Delta value={r[f.diff]} />,
+      },
+      {
+        accessor: f.pct,
+        title: 'Win%',
+        shortTitle: '%',
+        ...NUM,
+        render: (r) => <Percent value={r[f.pct]} />,
+      },
+    ],
+  }
 }

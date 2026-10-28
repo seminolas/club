@@ -2,10 +2,9 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
+import { Alert, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { IconChevronLeft } from '@tabler/icons-react'
+import { useNavigate } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
@@ -32,6 +31,7 @@ import {
 import { ladderAfter, movement, phaseOf, progress } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
+import { PageCrumbs } from '../PageCrumbs'
 import { AssignBoxesModal } from './AssignBoxesModal'
 import { ScoreSheets } from '../print/ScoreSheets'
 import type { SheetLayout } from '../print/ScoreSheets'
@@ -312,21 +312,18 @@ export function SessionPage(props: { date: string; step: StepId }) {
   }
 
   const card = useSessionCard({
-    title: 'Tuesday Box',
-    dateLabel: sessionDate(date),
-    dateShort: sessionDate(date).replace(/^\S+ /, ''),
     phase,
     step,
     onStep: goStep,
     count:
       phase === 'checkin'
-        ? ['Coming', String(session.attendees.length)]
+        ? ['Attending', String(session.attendees.length)]
         : phase === 'playing'
           ? ['Matches', `${prog.matches}/${prog.matchesTotal}`]
           : ['Players', String(session.attendees.length)],
     status:
       phase === 'checkin'
-        ? `${session.attendees.length} coming`
+        ? `${session.attendees.length} attending`
         : phase === 'playing'
           ? `${prog.finishedBoxes} of ${prog.boxes} boxes finished`
           : `${session.attendees.length} players`,
@@ -338,7 +335,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
             run: () => setAssigning(true),
             blocked:
               session.attendees.length < 4
-                ? 'Need at least 4 players coming'
+                ? 'Need at least 4 players attending'
                 : undefined,
           }
         : phase === 'playing'
@@ -353,7 +350,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
     note:
       step === 'checkin' && phase === 'playing' && admin ? (
         <Text size="sm" c={INFO_TEXT}>
-          Check-in is closed once boxes are assigned. To change who’s coming,
+          Check-in is closed once boxes are assigned. To change who’s attending,
           re-open check-in (in “…”).
         </Text>
       ) : undefined,
@@ -368,11 +365,12 @@ export function SessionPage(props: { date: string; step: StepId }) {
   return (
     <Stack gap="sm">
       {card.pinnedBar}
-      <Group justify="space-between">
-        <Anchor component={Link} to="/sessions" size="sm" className="app-back">
-          <IconChevronLeft size={14} /> Sessions
-        </Anchor>
-      </Group>
+      <PageCrumbs
+        parent={{ label: 'Sessions', to: '/sessions' }}
+        // "20 Oct" (the weekday would repeat "Tuesday"); the year as in the
+        // Sessions list.
+        current={`Tuesday Box · ${sessionDate(date).replace(/^\S+ /, '')}`}
+      />
       {live.problem && (
         <Alert color="yellow" p="xs">
           <Group justify="center" gap="sm">
