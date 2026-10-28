@@ -317,13 +317,13 @@ export function SessionPage(props: { date: string; step: StepId }) {
     onStep: goStep,
     count:
       phase === 'checkin'
-        ? ['Coming', String(session.attendees.length)]
+        ? ['Attending', String(session.attendees.length)]
         : phase === 'playing'
           ? ['Matches', `${prog.matches}/${prog.matchesTotal}`]
           : ['Players', String(session.attendees.length)],
     status:
       phase === 'checkin'
-        ? `${session.attendees.length} coming`
+        ? `${session.attendees.length} attending`
         : phase === 'playing'
           ? `${prog.finishedBoxes} of ${prog.boxes} boxes finished`
           : `${session.attendees.length} players`,
@@ -335,7 +335,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
             run: () => setAssigning(true),
             blocked:
               session.attendees.length < 4
-                ? 'Need at least 4 players coming'
+                ? 'Need at least 4 players attending'
                 : undefined,
           }
         : phase === 'playing'
@@ -350,7 +350,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
     note:
       step === 'checkin' && phase === 'playing' && admin ? (
         <Text size="sm" c={INFO_TEXT}>
-          Check-in is closed once boxes are assigned. To change who’s coming,
+          Check-in is closed once boxes are assigned. To change who’s attending,
           re-open check-in (in “…”).
         </Text>
       ) : undefined,

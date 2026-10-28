@@ -100,8 +100,8 @@ export function CheckInStep(props: {
     if (!(await setComing(r, attending))) return
     toastWithUndo(
       attending
-        ? `${r.fullName} marked coming`
-        : `${r.fullName} is no longer coming`,
+        ? `${r.fullName} marked attending`
+        : `${r.fullName} is no longer attending`,
       () => void setComing({ ...r, coming: attending }, !attending),
     )
   }
@@ -118,19 +118,19 @@ export function CheckInStep(props: {
           {
             kind: 'options',
             id: 'coming',
-            label: 'Coming',
+            label: 'Attending',
             column: 'coming',
             options: [
               {
                 value: 'yes',
-                label: 'Coming',
-                pill: 'Coming',
+                label: 'Attending',
+                pill: 'Attending',
                 test: (r) => r.coming,
               },
               {
                 value: 'no',
-                label: 'Not coming',
-                pill: 'Not coming',
+                label: 'Not attending',
+                pill: 'Not attending',
                 test: (r) => !r.coming,
               },
             ],
@@ -145,13 +145,17 @@ export function CheckInStep(props: {
         initialSort={{ column: 'rank', direction: 'asc' }}
         header={props.header}
         // The primary action toggles; Enter and a tap do the same.
-        primaryActionTitle="Coming"
+        primaryActionTitle="Attending"
         primaryAction={
           props.canMark
             ? (r) =>
                 r.coming
-                  ? { label: 'Coming ✓', done: true, run: () => void toggle(r) }
-                  : { label: 'Mark coming', run: () => void toggle(r) }
+                  ? {
+                      label: 'Attending ✓',
+                      done: true,
+                      run: () => void toggle(r),
+                    }
+                  : { label: 'Mark attending', run: () => void toggle(r) }
             : undefined
         }
         addNew={
@@ -190,18 +194,18 @@ export function CheckInStep(props: {
               visibleMediaQuery: '(min-width: 36em)',
               render: (r) => (r.helloClub ? 'Linked' : <Dash />),
             },
-            // Without the Mark coming button, who's coming is a column.
+            // Without the Mark attending button, who's attending is a column.
             ...(props.canMark
               ? []
               : [
                   {
                     accessor: 'coming',
-                    title: 'Coming',
+                    title: 'Attending',
                     toggleable: false,
                     render: (r: Row) =>
                       r.coming ? (
                         <Text size="sm" fw={600} c="teal">
-                          Coming ✓
+                          Attending ✓
                         </Text>
                       ) : null,
                   },
@@ -271,7 +275,7 @@ function AddPlayerForm(props: {
   return (
     <Stack>
       <Text size="sm" c={INFO_TEXT}>
-        They’re added to the ladder and marked as coming.
+        They’re added to the ladder and marked as attending.
       </Text>
       <TextInput
         label="Full name"
@@ -317,7 +321,7 @@ function AddPlayerForm(props: {
             setBusy(false)
           }}
         >
-          Add and mark coming
+          Add and mark attending
         </Button>
       </Group>
     </Stack>
