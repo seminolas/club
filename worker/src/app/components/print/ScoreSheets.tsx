@@ -70,7 +70,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
       >
         {box.matches.map((match, mi) => (
           <div key={mi} className="ps-card" style={{ height: `${CARD_MM}mm` }}>
-            <div className="ps-pill ps-pill-game">GAME {mi + 1}</div>
+            <div className="ps-pill ps-pill-game">MATCH {mi + 1}</div>
             {/* Boxes of 7 list who sits out on cards of their own below. */}
             {n > 4 && n <= 6 && (
               <div className="ps-sitout-pill">✕ {sitOut(mi)}</div>
@@ -103,7 +103,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
                     <div className="ps-sitout-games">
                       {row.games.map((g) => (
                         <span key={g} className="ps-pill ps-pill-small">
-                          GAME {g}
+                          MATCH {g}
                         </span>
                       ))}
                     </div>

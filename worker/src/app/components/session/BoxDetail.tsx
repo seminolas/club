@@ -200,10 +200,10 @@ function Standings(props: {
           <Table.Tr>
             <Table.Th w={32}>#</Table.Th>
             <Table.Th>Player</Table.Th>
-            {/* Matches won, then games and points won minus lost. */}
-            <Table.Th ta="right">Won</Table.Th>
-            <Table.Th ta="right">Games</Table.Th>
-            <Table.Th ta="right">Points</Table.Th>
+            {/* Two-line headings, as on the printed score sheet. */}
+            <Heading top="Matches" bottom="won" />
+            <Heading top="Games" bottom="won − lost" />
+            <Heading top="Points" bottom="for − against" />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -223,5 +223,16 @@ function Standings(props: {
         </Table.Tbody>
       </Table>
     </div>
+  )
+}
+
+function Heading(props: { top: string; bottom: string }) {
+  return (
+    <Table.Th ta="right" style={{ verticalAlign: 'bottom' }}>
+      {props.top}
+      <Text size="xs" c="dimmed" fw={400} style={{ whiteSpace: 'nowrap' }}>
+        {props.bottom}
+      </Text>
+    </Table.Th>
   )
 }
