@@ -137,7 +137,10 @@ await page.getByRole('button', { name: 'Assign boxes' }).first().click()
 check('previous layout offered first', /Previous layout/.test(await dialog.innerText()))
 await page.keyboard.press('Escape')
 
-// Delete from "…".
+// Delete from "…". The toasts from the last few steps stack at the top and
+// can cover the menu: dismiss them first.
+for (const b of await page.getByRole('alert').getByRole('button').all()) await b.click()
+await page.getByRole('alert').first().waitFor({ state: 'detached' }).catch(() => {})
 await page.getByRole('button', { name: 'More session actions' }).first().click()
 await page.getByRole('menuitem', { name: /Delete session/ }).click()
 await page.getByRole('dialog').getByRole('button', { name: 'Delete session' }).click()
