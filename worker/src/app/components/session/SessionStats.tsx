@@ -30,8 +30,8 @@ const Value = (props: { children: ReactNode }) => (
   </Text>
 )
 
-const Detail = (props: { children: ReactNode }) => (
-  <Text size="sm" c="dimmed">
+const Detail = (props: { children: ReactNode; size?: string }) => (
+  <Text size={props.size ?? 'sm'} c="dimmed">
     {props.children}
   </Text>
 )
@@ -63,7 +63,7 @@ export function SessionStats(props: {
         {stats.map(([label, value, detail]) => (
           <Stat key={label} label={label}>
             <Value>{value}</Value>
-            {detail && <Detail>{detail}</Detail>}
+            {detail && <Detail size="xs">{detail}</Detail>}
           </Stat>
         ))}
       </SimpleGrid>
