@@ -1,6 +1,7 @@
 // The night in numbers, above the Results table: stat cards and the night's
 // records (the lab's Sessions-tab cards, club-next temp/stats-experiments,
-// without estimated calories). Mantine's StatsGrid pattern (ui.mantine.dev).
+// without estimated calories). Mantine's StatsGrid pattern (ui.mantine.dev),
+// on the tint of the cards around them (ListTable.css, --lt-toolbar-bg).
 import { Paper, SimpleGrid, Stack, Text } from '@mantine/core'
 import type { ReactNode } from 'react'
 import { sessionStats } from '../../lib/sessionStats'
@@ -9,7 +10,7 @@ import type { Session } from '../../lib/session'
 
 function Stat(props: { label: string; children: ReactNode }) {
   return (
-    <Paper withBorder radius="md" px="sm" py="xs">
+    <Paper withBorder radius="md" px="sm" py="xs" bg="var(--lt-toolbar-bg)">
       <Text size="xs" c="dimmed" fw={700} tt="uppercase">
         {props.label}
       </Text>
@@ -44,24 +45,25 @@ export function SessionStats(props: {
   const vs = ([a, b]: Pairs) =>
     `${a.map(props.name).join(' & ')} vs ${b.map(props.name).join(' & ')}`
   const n = (x: number) => x.toLocaleString('en-NZ')
-  const stats: [string, ReactNode][] = [
+  // One-line labels; six cards fill even rows at every width.
+  const stats: [string, ReactNode, ReactNode?][] = [
     ['Players', n(s.players)],
     ['Boxes', n(s.boxes)],
-    ['Matches', n(s.matches)],
-    ['3-game matches', n(s.threeGameMatches)],
+    ['Matches', n(s.matches), `${n(s.threeGameMatches)} went to 3 games`],
     ['Total games', n(s.games)],
     ['Total points', n(s.points)],
-    ['Avg game margin', s.avgMargin === null ? '–' : s.avgMargin.toFixed(1)],
+    ['Avg margin', s.avgMargin === null ? '–' : s.avgMargin.toFixed(1)],
   ]
   const { closestGame: close, biggestBlowout: blowout } = s
   const high = s.highestScoringMatch
 
   return (
     <Stack gap="xs">
-      <SimpleGrid cols={{ base: 2, xs: 4, lg: 7 }} spacing="xs">
-        {stats.map(([label, value]) => (
+      <SimpleGrid cols={{ base: 2, xs: 3, md: 6 }} spacing="xs">
+        {stats.map(([label, value, detail]) => (
           <Stat key={label} label={label}>
             <Value>{value}</Value>
+            {detail && <Detail>{detail}</Detail>}
           </Stat>
         ))}
       </SimpleGrid>
