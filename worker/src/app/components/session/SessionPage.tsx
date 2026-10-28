@@ -2,10 +2,9 @@
 // forward, "…" and the steps; one view per step, all kept mounted so typed
 // scores survive moving between steps; live reloads from the session's
 // channel. The moves are the old UI's, with the lab's confirms.
-import { Alert, Anchor, Box, Button, Group, Stack, Text } from '@mantine/core'
+import { Alert, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { IconChevronLeft } from '@tabler/icons-react'
+import { useNavigate } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
@@ -32,6 +31,7 @@ import {
 import { ladderAfter, movement, phaseOf, progress } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
+import { PageCrumbs } from '../PageCrumbs'
 import { AssignBoxesModal } from './AssignBoxesModal'
 import { ScoreSheets } from '../print/ScoreSheets'
 import type { SheetLayout } from '../print/ScoreSheets'
@@ -312,8 +312,6 @@ export function SessionPage(props: { date: string; step: StepId }) {
   }
 
   const card = useSessionCard({
-    title: 'Tuesday Box',
-    dateLabel: sessionDate(date),
     phase,
     step,
     onStep: goStep,
@@ -367,11 +365,12 @@ export function SessionPage(props: { date: string; step: StepId }) {
   return (
     <Stack gap="sm">
       {card.pinnedBar}
-      <Group justify="space-between">
-        <Anchor component={Link} to="/sessions" size="sm" className="app-back">
-          <IconChevronLeft size={14} /> Sessions
-        </Anchor>
-      </Group>
+      <PageCrumbs
+        parent={{ label: 'Sessions', to: '/sessions' }}
+        // "20 Oct" (the weekday would repeat "Tuesday"); the year as in the
+        // Sessions list.
+        current={`Tuesday Box · ${sessionDate(date).replace(/^\S+ /, '')}`}
+      />
       {live.problem && (
         <Alert color="yellow" p="xs">
           <Group justify="center" gap="sm">

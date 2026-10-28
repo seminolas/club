@@ -1,6 +1,6 @@
 // The session card (club-table-lab AppDemo, "Session pages" in its
-// DECISIONS.md): on one line the title and labelled pills (Date / Status /
-// a count), the way forward at the top right (Assign boxes ›, Close ›) with
+// DECISIONS.md): on one line labelled pills (Status / a count; the session's
+// name and date are in the breadcrumb above), the way forward at the top right (Assign boxes ›, Close ›) with
 // "…" beside it (re-open, reassign, delete), the step's own word buttons,
 // and a stepper (Check-in → Boxes → Results) that only navigates: steps the
 // session hasn't reached are locked. Scrolled down, a compact copy stays
@@ -81,9 +81,6 @@ export interface StepAction {
 }
 
 export interface SessionCardProps {
-  title: string
-  /** e.g. "Tue 20 Oct". */
-  dateLabel: string
   phase: Phase
   step: StepId
   onStep: (step: StepId) => void
@@ -229,14 +226,11 @@ export function useSessionCard(props: SessionCardProps) {
       )}
     </Badge>
   )
-  // Phones: no title, and pills without labels ("Tue 20 Oct", "Closed",
-  // "38 players"), so they fit on one row with "…"; they wrap if they don't.
+  // Phones: pills without labels ("Closed", "38 players").
   const [countLabel, countValue] = props.count
   const titleLine = (
     <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
-      {!phone && <Text fw={600}>{props.title}</Text>}
       <Group gap={6}>
-        {pill('Date', props.dateLabel)}
         {pill('Status', PHASE_LABEL[props.phase], true)}
         {phone
           ? pill(countLabel, `${countValue} ${countLabel.toLowerCase()}`)

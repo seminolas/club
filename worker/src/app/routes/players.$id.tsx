@@ -2,7 +2,6 @@
 // the new UI's style): profile, Edit, Find in HelloClub, sign-in link, Remove.
 import {
   ActionIcon,
-  Anchor,
   Badge,
   Button,
   Checkbox,
@@ -21,13 +20,8 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import {
-  Link,
-  createFileRoute,
-  redirect,
-  useNavigate,
-} from '@tanstack/react-router'
-import { IconChevronLeft, IconDots } from '@tabler/icons-react'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { IconDots } from '@tabler/icons-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
@@ -36,6 +30,7 @@ import type {
   playerProfile,
 } from '../../services/players'
 import { PageCard } from '../components/PageCard'
+import { PageCrumbs } from '../components/PageCrumbs'
 import {
   removePlayerFn,
   searchHcFn,
@@ -171,11 +166,10 @@ function PlayerPage() {
 
   return (
     <Stack gap="sm">
-      <Anchor component={Link} to="/players" size="sm">
-        <Group gap={2} component="span">
-          <IconChevronLeft size={14} /> Players
-        </Group>
-      </Anchor>
+      <PageCrumbs
+        parent={{ label: 'Players', to: '/players' }}
+        current={player.name}
+      />
       <PageCard
         title={player.name}
         actions={

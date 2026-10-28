@@ -21,13 +21,6 @@
   opacity: 0.6;
 }
 
-.app-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  align-self: flex-start;
-}
-
 /* The compact step bar, pinned once the full card has scrolled away; the
    table's search bar pins right under it. */
 .app-pinned {
