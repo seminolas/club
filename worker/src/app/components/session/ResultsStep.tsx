@@ -8,6 +8,7 @@ import { ListTable } from '../list-table/ListTable'
 import { nameLabels } from '../list-helpers'
 import { shortName } from '../../lib/names'
 import type { Session } from '../../lib/session'
+import { SessionStats } from './SessionStats'
 
 interface Row {
   personId: number
@@ -49,6 +50,8 @@ export function ResultsStep(props: {
     }
   })
 
+  const names = new Map(rows.map((r) => [r.personId, r.displayName]))
+
   return (
     <ListTable<Row>
       records={rows}
@@ -60,6 +63,9 @@ export function ResultsStep(props: {
       stickyTop={props.stickyTop}
       hideColumnChooser
       header={props.header}
+      intro={
+        <SessionStats session={session} name={(id) => names.get(id) ?? ''} />
+      }
       primaryColumn="displayName"
       initialSort={{ column: 'rankAfter', direction: 'asc' }}
       filters={[

@@ -177,6 +177,11 @@ export interface ListTableProps<T> {
    */
   header?: ReactNode
   /**
+   * Shown between the actions card and the table card, e.g. a night's stat
+   * cards. Not part of the sticky header.
+   */
+  intro?: ReactNode
+  /**
    * The row's main action (e.g. "Mark coming"). While searching, the first
    * match is the active row; up/down move it, Enter runs its action, and the
    * search clears for the next name (W3C combobox-with-grid pattern).
@@ -1110,6 +1115,9 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
             </>
           )}
         </Group>
+      )}
+      {props.intro !== undefined && (
+        <Box px={phone ? 'md' : 0}>{props.intro}</Box>
       )}
       <Box
         style={{
