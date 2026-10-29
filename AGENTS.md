@@ -139,7 +139,7 @@ node fast-scores.mjs   # fast score entry on staging: two windows and the databa
 node live-offline.mjs  # live channel dropping mid-entry, and a quiet connection dying (heartbeat)
 node player-scores.mjs # players enter their own box's scores; other boxes refused; viewers read-only
 node new-session.mjs   # a whole session night in the browser as Test Admin (check-in, Assign, scores, Close, re-open, delete)
-node new-pages.mjs [outDir]       # every page × signed out / player / admin × phone / desktop × light / dark; old #/ and /new/ links redirect
+node new-pages.mjs [outDir]       # every page × signed out / player / admin × phone / desktop × light / dark; old #/ links redirect
 node new-player-page.mjs          # the admin player page (edit and restore, HelloClub search)
 node print-sheets.mjs <outDir>    # printed score sheets (cards, grid): one page per box; PDFs + screenshots to look at
 ```
@@ -284,7 +284,7 @@ Flow:
 
 **The UI is `worker/src/app`: TanStack Start (server-rendered React, TanStack Router + Query) with Mantine 9** (teal theme, Light / Dark in the account menu, first visit follows the device). Ported from the `club-table-lab` prototype in S5 (`UI-PORT.md` has the decisions and the log; the lab's `DECISIONS.md` the design reasoning).
 
-- **Routes** (`src/app/routes`): `/` → `/players`; `/players` (ladder) and `/sessions` (tabs); `/players/:id` (admins); `/sessions/:date` → the furthest step reached; `/sessions/:date/checkin|boxes|results`. `/new/…` (where the UI was built) and the old UI's `#/…` links (incl. WhatsApp shares; `lib/legacy.ts`, handled in the browser since the hash never reaches the server) redirect to these.
+- **Routes** (`src/app/routes`): `/` → `/players`; `/players` (ladder) and `/sessions` (tabs); `/players/:id` (admins); `/sessions/:date` → the furthest step reached; `/sessions/:date/checkin|boxes|results`. The old UI's `#/…` links (incl. WhatsApp shares; `lib/legacy.ts`, handled in the browser since the hash never reaches the server) redirect to these. `/new/…`, where the UI was built before the cutover, was never public and is gone (not found).
 - **Data:** route loaders + TanStack Query over **server functions** (`src/app/fns`), which build a `ServiceContext` (`src/app/server/request.ts`: env, the request's D1 session on the primary, headers) and call `src/services` (the same code the `/api/*` routes call). Score writes go over the live channel (`lib/live.ts`, `lib/scores.ts`); the HelloClub sync and BetterAuth calls use the REST endpoints directly.
 - **ListTable** (`components/list-table`, from the lab, TanStack Table 9.3.1 pinned exactly): search with a count, filters (sheet on phones, popover on desktop) with pills, hidden-by-filters matches, columns chooser, Enter runs the first match's primary action, expandable rows. It renders in the browser only (`ClientOnly`: it reads the screen size while rendering).
 - **Session page** (`components/session`): the card (pills, the way forward, "…", step buttons, the stepper; a compact copy pins when scrolled), Check-in, Assign boxes modal, Boxes (match cards + standings), Results; all steps stay mounted. Printouts in `components/print` (score sheets) and `lib/print.ts` (sign-in sheet), visually identical to the old UI's.
