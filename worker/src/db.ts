@@ -257,9 +257,15 @@ export async function getSessionByDate(
   return row ?? null
 }
 
+/**
+ * Sessions, newest first, with attendee counts: all of them, or only the
+ * closed ones (`closed: true`) or the others (`false`). The closed ones read
+ * every attendee row of the club, so the UI caches them (services/sessions.ts).
+ */
 export async function listSessions(
   db: DB,
   clubId: number,
+  closed?: boolean,
 ): Promise<{ date: string; status: SessionStatus; attendee_count: number }[]> {
   return orm(db)
     .select({
@@ -269,7 +275,16 @@ export async function listSessions(
     })
     .from(t.sessions)
     .leftJoin(t.attendees, eq(t.attendees.sessionId, t.sessions.id))
-    .where(eq(t.sessions.clubId, clubId))
+    .where(
+      and(
+        eq(t.sessions.clubId, clubId),
+        closed === undefined
+          ? undefined
+          : closed
+            ? eq(t.sessions.status, 'closed')
+            : ne(t.sessions.status, 'closed'),
+      ),
+    )
     .groupBy(t.sessions.id)
     .orderBy(desc(t.sessions.date))
 }

@@ -5,6 +5,9 @@ import { sessionFn } from '../fns/session'
 import { sessionListFn } from '../fns/sessions'
 import { claimablePlayersFn, getViewerFn } from '../fns/viewer'
 
+/** How long loaded data counts as fresh (the query client's staleTime). */
+export const FRESH_MS = 10_000
+
 export const viewerQuery = queryOptions({
   queryKey: ['viewer'],
   queryFn: () => getViewerFn(),
