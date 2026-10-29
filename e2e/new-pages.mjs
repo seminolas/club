@@ -50,8 +50,8 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     }
   }
 }
-// Old links (the Alpine UI's #/ routes, e.g. shared on WhatsApp, and /new/
-// while the new UI was built) land on today's pages.
+// Old links (the Alpine UI's #/ routes, e.g. shared on WhatsApp) land on
+// today's pages.
 {
   const s = await open()
   for (const [from, to] of [
@@ -60,8 +60,6 @@ for (const as of [undefined, 'test-player', 'test-admin']) {
     [`/#/${closed}/games`, `/sessions/${closed}/boxes`],
     [`/#/${closed}/wrapup`, `/sessions/${closed}/results`],
     [`/#/session/${closed}/leaderboard`, `/sessions/${closed}/results`],
-    ['/new/sessions', '/sessions'],
-    [`/new/sessions/${closed}/checkin`, `/sessions/${closed}/checkin`],
   ]) {
     await s.go(from)
     await s.page.waitForURL((u) => u.pathname === to, { timeout: 10000 }).catch(() => {})
