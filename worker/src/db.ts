@@ -412,7 +412,8 @@ interface SideRow {
 }
 
 export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
-  const boxRows: BoxRow[] = await orm(db)
+  // Four independent reads, run together.
+  const boxesQuery = orm(db)
     .select({
       box_id: t.boxes.id,
       box_number: t.boxes.boxNumber,
@@ -426,7 +427,7 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
     .where(eq(t.boxes.sessionId, sessionId))
     .orderBy(asc(t.boxes.boxNumber), asc(t.boxPlayers.position))
 
-  const matchRows: MatchRow[] = await orm(db)
+  const matchesQuery = orm(db)
     .select({
       match_id: t.matches.id,
       box_id: t.matches.boxId,
@@ -437,7 +438,7 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
     .where(eq(t.boxes.sessionId, sessionId))
     .orderBy(asc(t.matches.boxId), asc(t.matches.matchNumber))
 
-  const setRows: SetRow[] = await orm(db)
+  const setsQuery = orm(db)
     .select({
       match_id: t.matchSets.matchId,
       set_number: t.matchSets.setNumber,
@@ -451,7 +452,7 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
     .orderBy(asc(t.matchSets.matchId), asc(t.matchSets.setNumber))
 
   // Each match's players as stored, in box order within a pair.
-  const sideRows: SideRow[] = await orm(db)
+  const sidesQuery = orm(db)
     .select({
       match_id: t.matchPlayers.matchId,
       player_id: t.matchPlayers.playerId,
@@ -473,6 +474,13 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
       asc(t.matchPlayers.side),
       asc(t.boxPlayers.position),
     )
+
+  const [boxRows, matchRows, setRows, sideRows]: [
+    BoxRow[],
+    MatchRow[],
+    SetRow[],
+    SideRow[],
+  ] = await Promise.all([boxesQuery, matchesQuery, setsQuery, sidesQuery])
 
   const boxMap = new Map<
     number,
