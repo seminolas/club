@@ -334,6 +334,7 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 
 ## Future work
 
+- **Move staging to its own Cloudflare account** so staging tests can't use up prod's free D1 allowance (it happened on 2026-10-29): see [STAGING-ACCOUNT.md](STAGING-ACCOUNT.md), which also has interim guidance on keeping test runs light.
 - need a better handling for user display names. we now have a concept of preferred names and some special handling of players names to make them shorter. I think we should just give everyone a unique display name (following similar rules as we do now for shortening) and just use those (and update user provisioning accordingly).
 - score entry UI is ok for desktop, not great for mobile. in the future I expect players to be entering scores themselves rather than me copying them from paper score sheets
 - should consider better score sheets in the interim; we could just have names instead of numbers, and maybe we don't need the grid as such, just one score entry per game. also clear set 1/2/3 slots. but would probably still need to have some way for players to calculate final placements (even though I ignore it, but some people just enjoy it better on paper).
