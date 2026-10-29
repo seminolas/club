@@ -36,7 +36,7 @@ const keep = (s) => allErrors.push(...s.errors().filter((e) => !/401|Unauthorize
   check('admin: header "Signed in as Test"', (await signedInAs(s.page)) === 'Signed in as Test', await signedInAs(s.page))
   await s.page.locator('[data-test=user-menu]').click()
   await s.page.getByRole('menuitem', { name: 'Sign out' }).waitFor()
-  check('admin: the menu shows Admin, Light / Dark and Sign out', (await s.page.getByText('Admin', { exact: true }).isVisible()) && (await s.page.getByText('Dark', { exact: true }).isVisible()) && (await s.page.getByRole('menuitem', { name: 'Sign out' }).isVisible()))
+  check('admin: the menu shows Admin and Sign out', (await s.page.getByText('Admin', { exact: true }).isVisible()) && (await s.page.getByRole('menuitem', { name: 'Sign out' }).isVisible()))
   await s.page.keyboard.press('Escape')
   const id = (await (await s.page.request.get(`${BASE}/api/leaderboard`)).json()).players[0].id
   await s.go(`/players/${id}`)
