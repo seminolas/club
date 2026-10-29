@@ -340,4 +340,10 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - need to think about multi-tenancy. e.g. teenage kids group runs their box games the same way
 - whatsapp integration isn't really working - for whatever reason when I click "open app" from that whatsapp link it doesn't find my WA on my samsung phone, so I have to manually copy the text in. 
 - might want to store HC sync results somewhere as well
-- maybe improve HC sync to mark everyone who attended as attended in HC as well 
+- maybe improve HC sync to mark everyone who attended as attended in HC as well
+- **Voice score entry (parked 2026-10-29, not planned yet).** A mic button on each match card (Boxes step): say "15 11 15 13" and the match's games fill in, as if typed.
+  - **Recognition:** the browser's Web Speech API (`SpeechRecognition`), which is free with no server. The button only shows where the browser supports it. Cloudflare Workers AI Whisper is a free-tier fallback if accuracy or browser support turns out poor.
+  - **Parsing:** our own pure function with tests. It fixes common mishearings ("to"/"too" → 2, "for" → 4, "won" → 1, "love"/"nil" → 0), splits runs like "1511" into 15 and 11 when that makes a valid score, and pairs the numbers into games (pair 1 first, as on the score sheet). It checks them with `isValidSet` and picks the first valid reading among the recogniser's alternatives.
+  - **Later, if single-match entry works well:** a hands-free mode where the mic moves on to the next match. Skip a per-box mic: it's harder to parse.
+  - **Firefox (as of 2026-10):** no speech recognition in release builds. On-device recognition is in desktop Nightly from Fx158 ([bug 2069803](https://bugzilla.mozilla.org/show_bug.cgi?id=2069803)). Shipping to release ([bug 2072585](https://bugzilla.mozilla.org/show_bug.cgi?id=2072585)) has no target version, and Android (bug 1244242) comes later. Chrome, Edge and Safari support it, though Chrome sends the audio to Google.
+  - **Open questions:** which device and browser scores are entered on; whether a heard score saves straight away like typing (recommended) or waits for a ✓ tap. 
