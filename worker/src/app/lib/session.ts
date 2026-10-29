@@ -50,7 +50,10 @@ export function boxStandings(box: SessionBox, ladderBefore: number[]) {
   return computeStandings(
     {
       players: box.players.map((p) => p.id),
-      matchSets: box.matches.map((m) => toSetScores(m.sets)),
+      matches: box.matches.map((m) => ({
+        pairs: m.pairs,
+        sets: toSetScores(m.sets),
+      })),
     },
     ALL_SET_FORMATS,
     rank,

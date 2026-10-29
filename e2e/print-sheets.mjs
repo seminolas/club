@@ -27,7 +27,7 @@ for (const id of ids) await api('PUT', `/api/sessions/${DATE}/attendance`, { pla
 let at = 0
 const boxes = [4, 5, 6, 7].map((n) => {
   const players = ids.slice(at, (at += n))
-  return { players, matches: PAIRINGS[n].map(([pair1, pair2]) => ({ pair1, pair2, sets: [] })), finalPlacings: null }
+  return { players, matches: PAIRINGS[n].map(([p1, p2]) => ({ pairs: [p1.map((i) => players[i]), p2.map((i) => players[i])], sets: [] })), finalPlacings: null }
 })
 console.log('boxes', (await api('PUT', `/api/sessions/${DATE}/boxes`, { boxes })).status())
 const pdf = async (name) => {

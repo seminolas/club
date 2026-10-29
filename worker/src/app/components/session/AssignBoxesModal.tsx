@@ -18,7 +18,7 @@ import {
   boxSizeOptions,
   parseBoxLayout,
 } from '../../../domain/boxes'
-import { SUPPORTED_BOX_SIZES, getPairings } from '../../../domain/pairings'
+import { SUPPORTED_BOX_SIZES, scheduleBox } from '../../../domain/pairings'
 import type { BoxInput } from '../../../types'
 import { INFO_TEXT } from '../../lib/colors'
 import { boxName } from '../../lib/names'
@@ -51,11 +51,7 @@ function optionLabel(o: Option) {
 export function boxesFromLayout(layout: number[][]): BoxInput[] {
   return layout.map((players) => ({
     players,
-    matches: getPairings(players.length).map((p) => ({
-      pair1: [...p.pair1],
-      pair2: [...p.pair2],
-      sets: [],
-    })),
+    matches: scheduleBox(players).map((pairs) => ({ pairs, sets: [] })),
     finalPlacings: null,
   }))
 }

@@ -3,7 +3,7 @@
 // session night. Written before S2; must pass unchanged after.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import app from './index'
-import { getPairing } from './db'
+import { scheduleBox } from './domain/pairings'
 import { createTestDb, tableRows } from './test/d1'
 import type { TestDb } from './test/d1'
 import { seed, seedTestUsers } from './test/fixtures/seed'
@@ -164,15 +164,20 @@ describe('admin', () => {
       session_date: '2026-01-20',
     })
     await step('get in attendance', 'GET', '/api/sessions/2026-01-20')
-    const matches = (size: number) =>
-      Array.from({ length: size === 4 ? 3 : size }, (_, i) => ({
-        ...getPairing(size, i),
-        sets: [],
-      }))
+    const matches = (players: number[]) =>
+      scheduleBox(players).map((pairs) => ({ pairs, sets: [] }))
     await step('boxes', 'PUT', '/api/sessions/2026-01-20/boxes', {
       boxes: [
-        { players: [2, 1, nina, 14], matches: matches(4), finalPlacings: null },
-        { players: [5, 6, 3, 4], matches: matches(4), finalPlacings: null },
+        {
+          players: [2, 1, nina, 14],
+          matches: matches([2, 1, nina, 14]),
+          finalPlacings: null,
+        },
+        {
+          players: [5, 6, 3, 4],
+          matches: matches([5, 6, 3, 4]),
+          finalPlacings: null,
+        },
       ],
     })
     await step(
@@ -220,7 +225,7 @@ describe('admin', () => {
       boxes: [
         {
           players: [2, 1, nina, 14, 5],
-          matches: matches(5),
+          matches: matches([2, 1, nina, 14, 5]),
           finalPlacings: null,
         },
       ],

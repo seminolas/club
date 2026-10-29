@@ -56,3 +56,16 @@ export function getSitOut(boxSize: number, matchIndex: number): number[] {
     (i) => !playing.has(i),
   )
 }
+
+/**
+ * The box ladder's schedule: a box's players, in box order, to each match's
+ * pairs (pair A, pair B), following the table above.
+ */
+export function scheduleBox<TPlayer>(
+  players: readonly TPlayer[],
+): [TPlayer[], TPlayer[]][] {
+  return getPairings(players.length).map((p) => [
+    p.pair1.map((i) => players[i]),
+    p.pair2.map((i) => players[i]),
+  ])
+}

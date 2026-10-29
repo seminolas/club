@@ -5,7 +5,7 @@
 // matches; a match is best of 3 games (the domain says "sets").
 import { Badge, Table, Text, TextInput } from '@mantine/core'
 import { IconClock } from '@tabler/icons-react'
-import { getSitOut } from '../../../domain/pairings'
+import { sittingOut } from '../../../domain/matches'
 import {
   ALL_SET_FORMATS,
   evaluateMatch,
@@ -62,9 +62,9 @@ export function BoxDetail(props: {
   ) => void
 }) {
   const { box } = props
-  const size = box.players.length
-  const name = (pos: number) => props.label(box.players[pos].id)
-  const pairName = (pair: readonly number[]) => pair.map(name).join(' & ')
+  const ids = box.players.map((p) => p.id)
+  const pairName = (pair: readonly number[]) =>
+    pair.map(props.label).join(' & ')
   const anyScore = box.matches.some((m) => m.sets.length > 0)
 
   return (
@@ -74,7 +74,7 @@ export function BoxDetail(props: {
           const games = toSetScores(match.sets)
           const result = evaluateMatch(games, ALL_SET_FORMATS)
           const status = STATUS[result.status]
-          const sitOut = getSitOut(size, mi)
+          const sitOut = sittingOut(ids, match.pairs)
           const won = (side: 1 | 2) =>
             result.status === 'complete'
               ? result.winner === side
@@ -105,13 +105,13 @@ export function BoxDetail(props: {
               </Text>
               <div className="gs-line">
                 <Text size="sm" fw={600} className="gs-left" data-tone={won(1)}>
-                  {pairName(match.pair1)}
+                  {pairName(match.pairs[0])}
                 </Text>
                 <Text size="xs" c="dimmed" className="gs-mid">
                   vs
                 </Text>
                 <Text size="sm" fw={600} data-tone={won(2)}>
-                  {pairName(match.pair2)}
+                  {pairName(match.pairs[1])}
                 </Text>
               </div>
               {Array.from({ length: lines }, (_, gi) => {
@@ -122,7 +122,7 @@ export function BoxDetail(props: {
                     data-empty={g?.[side] == null || undefined}
                     data-tone={fieldTone(g, side)}
                     className="gs-field"
-                    aria-label={`Match ${mi + 1}, game ${gi + 1}, ${pairName(side === 0 ? match.pair1 : match.pair2)}`}
+                    aria-label={`Match ${mi + 1}, game ${gi + 1}, ${pairName(match.pairs[side])}`}
                     inputMode="numeric"
                     enterKeyHint="next"
                     autoComplete="off"
@@ -166,7 +166,7 @@ export function BoxDetail(props: {
                   fz={12}
                   tt="none"
                 >
-                  Sitting out: {sitOut.map(name).join(', ')}
+                  Sitting out: {sitOut.map(props.label).join(', ')}
                 </Badge>
               )}
             </div>

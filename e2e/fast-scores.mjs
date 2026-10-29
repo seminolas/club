@@ -46,7 +46,7 @@ const nine = ladder.slice(0, 9).map((p) => p.id)
 for (const id of nine) await api(setup, 'PUT', `/api/sessions/${DATE}/attendance`, { player_id: id, attending: true })
 const boxes = [nine.slice(0, 4), nine.slice(4)].map((players) => ({
   players,
-  matches: PAIRINGS[players.length].map(([pair1, pair2]) => ({ pair1, pair2, sets: [] })),
+  matches: PAIRINGS[players.length].map(([p1, p2]) => ({ pairs: [p1.map((i) => players[i]), p2.map((i) => players[i])], sets: [] })),
   finalPlacings: null,
 }))
 const assigned = await api(setup, 'PUT', `/api/sessions/${DATE}/boxes`, { boxes })

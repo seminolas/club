@@ -1,12 +1,13 @@
 import { applyMovement } from './ladder'
 import type { LadderRule } from './ladder'
-import type { SetFormats, SetScore } from './scoring'
+import type { MatchInput } from './matches'
+import type { SetFormats } from './scoring'
 import { computeStandings } from './standings'
 
 export interface ClosableView {
   ladder: number[]
   club: { setFormats: SetFormats; ladderRule: LadderRule }
-  boxes: { players: { personId: number }[]; matches: { sets: SetScore[] }[] }[]
+  boxes: { players: { personId: number }[]; matches: MatchInput<number>[] }[]
 }
 
 /** Ladder-after for a session (used at close, and for the confirm preview). */
@@ -19,7 +20,7 @@ export function computeLadderAfter(
     computeStandings(
       {
         players: b.players.map((p) => p.personId),
-        matchSets: b.matches.map((m) => m.sets),
+        matches: b.matches,
       },
       view.club.setFormats,
       (p) => rank.get(p) ?? Number.MAX_SAFE_INTEGER,

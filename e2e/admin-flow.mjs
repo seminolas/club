@@ -66,7 +66,7 @@ check('9 attending, in ladder order', isDeepStrictEqual(s.attendees.map((p) => p
 
 const boxes = [nine.slice(0, 4), nine.slice(4)].map((players) => ({
   players,
-  matches: PAIRINGS[players.length].map(([pair1, pair2]) => ({ pair1, pair2, sets: [] })),
+  matches: PAIRINGS[players.length].map(([p1, p2]) => ({ pairs: [p1.map((i) => players[i]), p2.map((i) => players[i])], sets: [] })),
   finalPlacings: null,
 }))
 await expectStatus('assign boxes (4 + 5)', 'PUT', `/api/sessions/${DATE}/boxes`, { boxes })

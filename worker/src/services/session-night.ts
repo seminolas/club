@@ -5,6 +5,7 @@
 import * as db from '../db'
 import type { BoxInput, SessionResponse } from '../types'
 import { CLUB_ID, ServiceError, requireAdmin } from './context'
+import { pairsProblem } from '../domain/matches'
 import type { ServiceContext } from './context'
 import { skillChangedFrom } from './skill'
 
@@ -80,6 +81,16 @@ export async function saveBoxes(
   await requireAdmin(ctx)
   const s = await session(ctx, date)
   if (s.status === 'closed') throw new ServiceError('Session is closed', 400)
+  boxes.forEach((box, bi) =>
+    box.matches.forEach((m, mi) => {
+      const problem = pairsProblem(box.players, m.pairs)
+      if (problem)
+        throw new ServiceError(
+          `Box ${bi + 1}, match ${mi + 1}: ${problem}`,
+          400,
+        )
+    }),
+  )
   await db.clearBoxes(ctx.db, s.id)
   await db.saveBoxes(ctx.db, s.id, boxes)
   await db.updateSessionStatus(ctx.db, s.id, 'games')

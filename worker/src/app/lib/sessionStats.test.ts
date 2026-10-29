@@ -18,8 +18,10 @@ function night(...matches: Sets[]): Session {
         players,
         finalPlacings: null,
         matches: matches.map((sets) => ({
-          pair1: [0, 1],
-          pair2: [2, 3],
+          pairs: [
+            [1, 2],
+            [3, 4],
+          ],
           sets,
         })),
       },

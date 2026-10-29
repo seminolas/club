@@ -2,7 +2,8 @@
 // stay behind until those modules are ported).
 import { describe, expect, it } from 'vitest'
 import { boxSizeOptions, buildBoxes } from './boxes'
-import { getPairings, getSitOut } from './pairings'
+import { pairsProblem, sittingOut } from './matches'
+import { getPairings, getSitOut, scheduleBox } from './pairings'
 import { evaluateMatch, isValidSet, walkoverSets } from './scoring'
 import type { SetScore } from './scoring'
 import { computeStandings } from './standings'
@@ -161,8 +162,15 @@ describe('standings', () => {
         [21, 15],
       ], // A,D beat B,C
     ]
+    const players = ['A', 'B', 'C', 'D']
     const st = computeStandings(
-      { players: ['A', 'B', 'C', 'D'], matchSets: sets },
+      {
+        players,
+        matches: scheduleBox(players).map((pairs, i) => ({
+          pairs,
+          sets: sets[i],
+        })),
+      },
       [21],
       (p) => 'ABCD'.indexOf(p),
     )
@@ -173,11 +181,41 @@ describe('standings', () => {
   })
   it('falls back to ladder position on a full tie', () => {
     const st = computeStandings(
-      { players: ['A', 'B', 'C', 'D'], matchSets: [] },
+      { players: ['A', 'B', 'C', 'D'], matches: [] },
       [21],
       (p) => 'DCBA'.indexOf(p),
     )
     expect(st.map((s) => s.player)).toEqual(['D', 'C', 'B', 'A'])
+  })
+  it('counts each match for the players in its own pairs', () => {
+    // Not the box ladder's table: any pairs of the group's players work.
+    const st = computeStandings(
+      {
+        players: ['A', 'B', 'C', 'D', 'E'],
+        matches: [
+          {
+            pairs: [
+              ['E', 'B'],
+              ['A', 'C'],
+            ],
+            sets: [
+              [21, 5],
+              [21, 7],
+            ],
+          },
+        ],
+      },
+      [21],
+      (p) => 'ABCDE'.indexOf(p),
+    )
+    expect(st.map((s) => [s.player, s.gamesPlayed, s.gamesWon])).toEqual([
+      ['B', 1, 1],
+      ['E', 1, 1],
+      // D didn't play: set difference 0 beats A and C's −2.
+      ['D', 0, 0],
+      ['A', 1, 0],
+      ['C', 1, 0],
+    ])
   })
 })
 
@@ -243,5 +281,43 @@ describe('ladder', () => {
       'b',
       'c',
     ])
+  })
+})
+
+describe('matches', () => {
+  it('finds who sits out', () => {
+    expect(
+      sittingOut(
+        [1, 2, 3, 4, 5],
+        [
+          [1, 4],
+          [2, 5],
+        ],
+      ),
+    ).toEqual([3])
+  })
+  it('checks pairs against their group', () => {
+    const box = [1, 2, 3, 4, 5]
+    expect(
+      pairsProblem(box, [
+        [1, 2],
+        [3, 4],
+      ]),
+    ).toBeNull()
+    expect(pairsProblem(box, [[1, 2], [3]])).toMatch(/two pairs of two/)
+    expect(
+      pairsProblem(box, [
+        [1, 2],
+        [2, 3],
+      ]),
+    ).toMatch(/four different/)
+    expect(
+      pairsProblem(box, [
+        [1, 2],
+        [3, 9],
+      ]),
+    ).toMatch(/from its box/)
+    // Data from a request: an old client sending pair1/pair2.
+    expect(pairsProblem(box, undefined as never)).toMatch(/two pairs/)
   })
 })

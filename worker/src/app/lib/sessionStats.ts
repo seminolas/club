@@ -53,10 +53,7 @@ export function sessionStats(session: Session): SessionStats {
 
   session.boxes.forEach((box, bi) => {
     for (const m of box.matches) {
-      const pairs: Pairs = [
-        m.pair1.map((i) => box.players[i]?.id ?? -1),
-        m.pair2.map((i) => box.players[i]?.id ?? -1),
-      ]
+      const pairs: Pairs = m.pairs
       const valid = toSetScores(m.sets).flatMap(([a, b], si) =>
         a !== null && b !== null && isValidSet(a, b, ALL_SET_FORMATS)
           ? [{ game: si + 1, score: [a, b] as [number, number] }]

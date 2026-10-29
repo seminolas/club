@@ -56,7 +56,7 @@ const box2 = others.slice(3, 7)
 await api(admin, 'POST', '/api/sessions', { date: DATE })
 for (const id of [...box1, ...box2]) await api(admin, 'PUT', `/api/sessions/${DATE}/attendance`, { player_id: id, attending: true })
 await api(admin, 'PUT', `/api/sessions/${DATE}/boxes`, {
-  boxes: [box1, box2].map((players) => ({ players, matches: PAIRS4.map(([pair1, pair2]) => ({ pair1, pair2, sets: [] })), finalPlacings: null })),
+  boxes: [box1, box2].map((players) => ({ players, matches: PAIRS4.map(([p1, p2]) => ({ pairs: [p1.map((i) => players[i]), p2.map((i) => players[i])], sets: [] })), finalPlacings: null })),
 })
 
 // In the browser: own box editable, the other not; typing saves.

@@ -18,7 +18,6 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { drizzle } from 'drizzle-orm/d1'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import * as t from './db/schema'
-import { getPairings, SUPPORTED_BOX_SIZES } from './domain/pairings'
 import type { Box, BoxInput, Match, SessionStatus } from './types'
 
 // Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
@@ -406,6 +405,11 @@ interface SetRow {
   score_a: number | null
   score_b: number | null
 }
+interface SideRow {
+  match_id: number
+  player_id: number
+  side: number
+}
 
 export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
   const boxRows: BoxRow[] = await orm(db)
@@ -446,6 +450,30 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
     .where(eq(t.boxes.sessionId, sessionId))
     .orderBy(asc(t.matchSets.matchId), asc(t.matchSets.setNumber))
 
+  // Each match's players as stored, in box order within a pair.
+  const sideRows: SideRow[] = await orm(db)
+    .select({
+      match_id: t.matchPlayers.matchId,
+      player_id: t.matchPlayers.playerId,
+      side: t.matchPlayers.side,
+    })
+    .from(t.matchPlayers)
+    .innerJoin(t.matches, eq(t.matches.id, t.matchPlayers.matchId))
+    .innerJoin(t.boxes, eq(t.boxes.id, t.matches.boxId))
+    .innerJoin(
+      t.boxPlayers,
+      and(
+        eq(t.boxPlayers.boxId, t.matches.boxId),
+        eq(t.boxPlayers.playerId, t.matchPlayers.playerId),
+      ),
+    )
+    .where(eq(t.boxes.sessionId, sessionId))
+    .orderBy(
+      asc(t.matchPlayers.matchId),
+      asc(t.matchPlayers.side),
+      asc(t.boxPlayers.position),
+    )
+
   const boxMap = new Map<
     number,
     { box_number: number; players: { id: number; name: string }[] }
@@ -463,15 +491,18 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
     arr[s.set_number] = [s.score_a ?? '', s.score_b ?? '']
   }
 
+  const pairsByMatch = new Map<number, Match['pairs']>()
+  for (const r of sideRows) {
+    if (!pairsByMatch.has(r.match_id)) pairsByMatch.set(r.match_id, [[], []])
+    pairsByMatch.get(r.match_id)![r.side === 0 ? 0 : 1].push(r.player_id)
+  }
+
   const matchesByBox = new Map<number, Match[]>()
   for (const m of matchRows) {
     if (!matchesByBox.has(m.box_id)) matchesByBox.set(m.box_id, [])
     const sets = setsByMatch.get(m.match_id) ?? []
-    const pairing = getPairing(
-      boxMap.get(m.box_id)!.players.length,
-      m.match_number,
-    )
-    matchesByBox.get(m.box_id)!.push({ ...pairing, sets })
+    const pairs = pairsByMatch.get(m.match_id) ?? [[], []]
+    matchesByBox.get(m.box_id)!.push({ pairs, sets })
   }
 
   return [...boxMap.entries()]
@@ -481,19 +512,6 @@ export async function getBoxes(db: DB, sessionId: number): Promise<Box[]> {
       matches: matchesByBox.get(boxId) ?? [],
       finalPlacings: null,
     }))
-}
-
-// Match pairing is a pure function of (box size, match number), so it's
-// regenerated from the shared rules on read rather than persisted.
-export function getPairing(
-  boxSize: number,
-  matchNumber: number,
-): { pair1: number[]; pair2: number[] } {
-  const known = (SUPPORTED_BOX_SIZES as readonly number[]).includes(boxSize)
-  const pairing = known ? getPairings(boxSize)[matchNumber] : undefined
-  return pairing
-    ? { pair1: [...pairing.pair1], pair2: [...pairing.pair2] }
-    : { pair1: [], pair2: [] }
 }
 
 export async function clearBoxes(db: DB, sessionId: number): Promise<void> {
@@ -601,18 +619,13 @@ export async function saveBoxes(
       const matchId = boxMatches[mi]?.id
       if (matchId === undefined) continue
 
-      for (const [side, pair] of [
-        [0, match.pair1],
-        [1, match.pair2],
-      ] as const) {
-        for (const pos of pair) {
+      match.pairs.forEach((pair, side) => {
+        for (const playerId of pair) {
           sidesAndSets.push(
-            d
-              .insert(t.matchPlayers)
-              .values({ matchId, playerId: box.players[pos], side }),
+            d.insert(t.matchPlayers).values({ matchId, playerId, side }),
           )
         }
-      }
+      })
 
       for (let si = 0; si < match.sets.length; si++) {
         const [a, b] = match.sets[si]
