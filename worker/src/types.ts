@@ -41,8 +41,8 @@ export interface SetScore {
 }
 
 export interface Match {
-  pair1: number[]
-  pair2: number[]
+  /** Pair A and pair B, as player ids (players of the match's box). */
+  pairs: [number[], number[]]
   sets: Array<[number | '', number | '']>
 }
 

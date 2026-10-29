@@ -4,8 +4,8 @@
 // <body> and shown only when printing (ScoreSheets.css).
 import { Fragment, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { getSitOut } from '../../../domain/pairings'
-import type { SessionBox } from '../../lib/session'
+import { sittingOut } from '../../../domain/matches'
+import type { SessionBox, SessionMatch } from '../../lib/session'
 import './ScoreSheets.css'
 
 export type SheetLayout = 'cards' | 'grid'
@@ -51,7 +51,9 @@ interface SheetProps {
 function CardsSheet({ box, index, label }: SheetProps) {
   const n = box.players.length
   const name = (pos: number) => label(box.players[pos].id)
-  const sitOut = (mi: number) => getSitOut(n, mi).map(name).join(', ')
+  const ids = box.players.map((p) => p.id)
+  const sitOut = (match: SessionMatch) =>
+    sittingOut(ids, match.pairs).map(label).join(', ')
   return (
     <div className="ps-sheet">
       <div className="ps-head">
@@ -73,9 +75,9 @@ function CardsSheet({ box, index, label }: SheetProps) {
             <div className="ps-pill ps-pill-game">MATCH {mi + 1}</div>
             {/* Boxes of 7 list who sits out on cards of their own below. */}
             {n > 4 && n <= 6 && (
-              <div className="ps-sitout-pill">✕ {sitOut(mi)}</div>
+              <div className="ps-sitout-pill">✕ {sitOut(match)}</div>
             )}
-            <Pair names={match.pair1.map(name)} />
+            <Pair names={match.pairs[0].map(label)} />
             <div className="ps-sets">
               {[1, 2, 3].map((g) => (
                 <div key={g} className="ps-set">
@@ -85,7 +87,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
                 </div>
               ))}
             </div>
-            <Pair names={match.pair2.map(name)} />
+            <Pair names={match.pairs[1].map(label)} />
           </div>
         ))}
         {n > 6 &&
@@ -153,6 +155,7 @@ function CardsSheet({ box, index, label }: SheetProps) {
 
 function GridSheet({ box, index, label }: SheetProps) {
   const n = box.players.length
+  const ids = box.players.map((p) => p.id)
   const name = (pos: number) => label(box.players[pos].id)
   const totals = [
     ['Matches Won'],
@@ -202,16 +205,19 @@ function GridSheet({ box, index, label }: SheetProps) {
         </thead>
         <tbody>
           {box.matches.map((match, mi) => {
-            const out = getSitOut(n, mi)
+            const out = sittingOut(ids, match.pairs)
+            // The grid numbers players by their place in the box.
+            const nums = (pair: number[]) =>
+              pair.map((id) => ids.indexOf(id) + 1).join(' & ')
             return (
               <tr key={mi}>
                 <td className="ps-b ps-px3 ps-py7 ps-c ps-bold ps-base">
-                  {`${match.pair1.map((i) => i + 1).join(' & ')}  v  ${match.pair2.map((i) => i + 1).join(' & ')}`}
+                  {`${nums(match.pairs[0])}  v  ${nums(match.pairs[1])}`}
                 </td>
-                {box.players.map((_, pi) => (
+                {box.players.map((p, pi) => (
                   <td
                     key={pi}
-                    className={`ps-b ps-c ps-py7${out.includes(pi) ? ' ps-sitout-cell' : ''}`}
+                    className={`ps-b ps-c ps-py7${out.includes(p.id) ? ' ps-sitout-cell' : ''}`}
                   />
                 ))}
               </tr>
@@ -306,10 +312,11 @@ function FinalPlacing(props: { n: number; padding: string }) {
  * least once, up to 4 lines per card (old UI: sitoutCards).
  */
 function sitOutCards(box: SessionBox, name: (pos: number) => string) {
+  const ids = box.players.map((p) => p.id)
   const byPlayer = box.players.map((): number[] => [])
-  box.matches.forEach((_, mi) => {
-    for (const pi of getSitOut(box.players.length, mi))
-      byPlayer[pi].push(mi + 1)
+  box.matches.forEach((m, mi) => {
+    for (const id of sittingOut(ids, m.pairs))
+      byPlayer[ids.indexOf(id)].push(mi + 1)
   })
   const rows = byPlayer
     .map((games, pi) => ({ name: name(pi), games }))

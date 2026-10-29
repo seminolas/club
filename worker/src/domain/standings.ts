@@ -3,15 +3,15 @@
 // `computeBoxStandings`. Tie-breaks: games won → set difference → point
 // difference → ladder-before position (better rank wins).
 
-import { getPairings } from './pairings'
+import type { MatchInput } from './matches'
 import { evaluateMatch } from './scoring'
-import type { SetFormats, SetScore } from './scoring'
+import type { SetFormats } from './scoring'
 
 export interface BoxInput<TPlayer> {
   /** Players in box order (position 0..n-1). */
   players: readonly TPlayer[]
-  /** Set scores per match, indexed like `getPairings(players.length)`. */
-  matchSets: readonly (readonly SetScore[])[]
+  /** The box's matches, each with its own pairs (players of this box). */
+  matches: readonly MatchInput<TPlayer>[]
 }
 
 export interface Standing<TPlayer> {
@@ -31,7 +31,6 @@ export function computeStandings<TPlayer>(
   formats: SetFormats,
   ladderRank: (player: TPlayer) => number,
 ): Standing<TPlayer>[] {
-  const pairings = getPairings(box.players.length)
   const stats: Standing<TPlayer>[] = box.players.map((player, position) => ({
     player,
     position,
@@ -44,14 +43,15 @@ export function computeStandings<TPlayer>(
     pointsAgainst: 0,
   }))
 
-  pairings.forEach((pairing, i) => {
-    const r = evaluateMatch(box.matchSets[i] ?? [], formats)
-    if (r.status === 'not_started' || r.status === 'invalid') return
-    const sides = [pairing.pair1, pairing.pair2] as const
-    sides.forEach((pair, side) => {
+  const byPlayer = new Map(stats.map((s) => [s.player, s]))
+  for (const m of box.matches) {
+    const r = evaluateMatch(m.sets, formats)
+    if (r.status === 'not_started' || r.status === 'invalid') continue
+    m.pairs.forEach((pair, side) => {
       const other = side === 0 ? 1 : 0
-      for (const pos of pair) {
-        const s = stats[pos]
+      for (const player of pair) {
+        const s = byPlayer.get(player)
+        if (!s) continue
         s.setsWon += r.setsWon[side]
         s.setsLost += r.setsWon[other]
         s.pointsFor += r.points[side]
@@ -62,7 +62,7 @@ export function computeStandings<TPlayer>(
         }
       }
     })
-  })
+  }
 
   const sorted = stats.slice().sort((a, b) => {
     if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon
@@ -82,8 +82,7 @@ export function isBoxComplete(
   box: BoxInput<unknown>,
   formats: SetFormats,
 ): boolean {
-  return getPairings(box.players.length).every(
-    (_, i) =>
-      evaluateMatch(box.matchSets[i] ?? [], formats).status === 'complete',
+  return box.matches.every(
+    (m) => evaluateMatch(m.sets, formats).status === 'complete',
   )
 }

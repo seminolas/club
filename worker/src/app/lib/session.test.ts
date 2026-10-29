@@ -37,7 +37,12 @@ function night(seed: number): Session {
         const g2 = game()
         const sets: [number, number][] =
           g1[0] > g1[1] === g2[0] > g2[1] ? [g1, g2] : [g1, g2, game()]
-        return { ...m, sets }
+        // The old rules' pairs are box positions; the session's are ids.
+        const id = (i: number) => layout[bi][i].id
+        return {
+          pairs: [m.pair1.map(id), m.pair2.map(id)] as [number[], number[]],
+          sets,
+        }
       }),
     })),
   }
@@ -49,11 +54,18 @@ describe('ladderAfter', () => {
       const n = night(seed)
       const name = (id: number) => `P${id}`
       const old = applyLeaderboardUpdate(
-        n.boxes.map((b) => ({
-          players: b.players.map((p) => p.name),
-          matches: b.matches,
-          finalPlacings: null,
-        })),
+        n.boxes.map((b) => {
+          const pos = (id: number) => b.players.findIndex((p) => p.id === id)
+          return {
+            players: b.players.map((p) => p.name),
+            matches: b.matches.map((m) => ({
+              pair1: m.pairs[0].map(pos),
+              pair2: m.pairs[1].map(pos),
+              sets: m.sets,
+            })),
+            finalPlacings: null,
+          }
+        }),
         n.leaderboardBefore.map((p) => p.name),
       )
       expect(ladderAfter(n).map(name)).toEqual(old)

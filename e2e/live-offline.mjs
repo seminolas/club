@@ -40,7 +40,7 @@ const four = (await api(setup, 'GET', '/api/leaderboard')).body.players.slice(0,
 await api(setup, 'POST', '/api/sessions', { date: DATE })
 for (const id of four) await api(setup, 'PUT', `/api/sessions/${DATE}/attendance`, { player_id: id, attending: true })
 await api(setup, 'PUT', `/api/sessions/${DATE}/boxes`, {
-  boxes: [{ players: four, matches: PAIRS4.map(([pair1, pair2]) => ({ pair1, pair2, sets: [] })), finalPlacings: null }],
+  boxes: [{ players: four, matches: PAIRS4.map(([p1, p2]) => ({ pairs: [p1.map((i) => four[i]), p2.map((i) => four[i])], sets: [] })), finalPlacings: null }],
 })
 
 const A = await signedIn()

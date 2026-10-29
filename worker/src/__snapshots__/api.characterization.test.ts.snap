@@ -358,13 +358,15 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "finalPlacings": null,
           "matches": [
             {
-              "pair1": [
-                0,
-                1,
-              ],
-              "pair2": [
-                2,
-                3,
+              "pairs": [
+                [
+                  2,
+                  1,
+                ],
+                [
+                  20,
+                  14,
+                ],
               ],
               "sets": [
                 [
@@ -374,24 +376,28 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
               ],
             },
             {
-              "pair1": [
-                0,
-                2,
-              ],
-              "pair2": [
-                1,
-                3,
+              "pairs": [
+                [
+                  2,
+                  20,
+                ],
+                [
+                  1,
+                  14,
+                ],
               ],
               "sets": [],
             },
             {
-              "pair1": [
-                0,
-                3,
-              ],
-              "pair2": [
-                1,
-                2,
+              "pairs": [
+                [
+                  2,
+                  14,
+                ],
+                [
+                  1,
+                  20,
+                ],
               ],
               "sets": [],
             },
@@ -419,35 +425,41 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "finalPlacings": null,
           "matches": [
             {
-              "pair1": [
-                0,
-                1,
-              ],
-              "pair2": [
-                2,
-                3,
-              ],
-              "sets": [],
-            },
-            {
-              "pair1": [
-                0,
-                2,
-              ],
-              "pair2": [
-                1,
-                3,
+              "pairs": [
+                [
+                  5,
+                  6,
+                ],
+                [
+                  3,
+                  4,
+                ],
               ],
               "sets": [],
             },
             {
-              "pair1": [
-                0,
-                3,
+              "pairs": [
+                [
+                  5,
+                  3,
+                ],
+                [
+                  6,
+                  4,
+                ],
               ],
-              "pair2": [
-                1,
-                2,
+              "sets": [],
+            },
+            {
+              "pairs": [
+                [
+                  5,
+                  4,
+                ],
+                [
+                  6,
+                  3,
+                ],
               ],
               "sets": [],
             },
@@ -708,57 +720,67 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "finalPlacings": null,
           "matches": [
             {
-              "pair1": [
-                0,
-                1,
-              ],
-              "pair2": [
-                2,
-                4,
-              ],
-              "sets": [],
-            },
-            {
-              "pair1": [
-                2,
-                3,
-              ],
-              "pair2": [
-                1,
-                4,
+              "pairs": [
+                [
+                  2,
+                  1,
+                ],
+                [
+                  20,
+                  5,
+                ],
               ],
               "sets": [],
             },
             {
-              "pair1": [
-                0,
-                2,
-              ],
-              "pair2": [
-                3,
-                4,
-              ],
-              "sets": [],
-            },
-            {
-              "pair1": [
-                0,
-                3,
-              ],
-              "pair2": [
-                1,
-                2,
+              "pairs": [
+                [
+                  20,
+                  14,
+                ],
+                [
+                  1,
+                  5,
+                ],
               ],
               "sets": [],
             },
             {
-              "pair1": [
-                0,
-                4,
+              "pairs": [
+                [
+                  2,
+                  20,
+                ],
+                [
+                  14,
+                  5,
+                ],
               ],
-              "pair2": [
-                1,
-                3,
+              "sets": [],
+            },
+            {
+              "pairs": [
+                [
+                  2,
+                  14,
+                ],
+                [
+                  1,
+                  20,
+                ],
+              ],
+              "sets": [],
+            },
+            {
+              "pairs": [
+                [
+                  2,
+                  5,
+                ],
+                [
+                  1,
+                  14,
+                ],
               ],
               "sets": [],
             },
@@ -1340,13 +1362,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
         "finalPlacings": null,
         "matches": [
           {
-            "pair1": [
-              0,
-              1,
-            ],
-            "pair2": [
-              2,
-              3,
+            "pairs": [
+              [
+                1,
+                2,
+              ],
+              [
+                3,
+                4,
+              ],
             ],
             "sets": [
               [
@@ -1360,13 +1384,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              2,
-            ],
-            "pair2": [
-              1,
-              3,
+            "pairs": [
+              [
+                1,
+                3,
+              ],
+              [
+                2,
+                4,
+              ],
             ],
             "sets": [
               [
@@ -1384,13 +1410,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              3,
-            ],
-            "pair2": [
-              1,
-              2,
+            "pairs": [
+              [
+                1,
+                4,
+              ],
+              [
+                2,
+                3,
+              ],
             ],
             "sets": [
               [
@@ -1431,13 +1459,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
         "finalPlacings": null,
         "matches": [
           {
-            "pair1": [
-              0,
-              1,
-            ],
-            "pair2": [
-              2,
-              4,
+            "pairs": [
+              [
+                5,
+                6,
+              ],
+              [
+                7,
+                9,
+              ],
             ],
             "sets": [
               [
@@ -1451,13 +1481,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              2,
-              3,
-            ],
-            "pair2": [
-              1,
-              4,
+            "pairs": [
+              [
+                7,
+                8,
+              ],
+              [
+                6,
+                9,
+              ],
             ],
             "sets": [
               [
@@ -1471,13 +1503,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              2,
-            ],
-            "pair2": [
-              3,
-              4,
+            "pairs": [
+              [
+                5,
+                7,
+              ],
+              [
+                8,
+                9,
+              ],
             ],
             "sets": [
               [
@@ -1491,13 +1525,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              3,
-            ],
-            "pair2": [
-              1,
-              2,
+            "pairs": [
+              [
+                5,
+                8,
+              ],
+              [
+                6,
+                7,
+              ],
             ],
             "sets": [
               [
@@ -1515,13 +1551,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              4,
-            ],
-            "pair2": [
-              1,
-              3,
+            "pairs": [
+              [
+                5,
+                9,
+              ],
+              [
+                6,
+                8,
+              ],
             ],
             "sets": [
               [
@@ -1712,13 +1750,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
         "finalPlacings": null,
         "matches": [
           {
-            "pair1": [
-              0,
-              1,
-            ],
-            "pair2": [
-              2,
-              3,
+            "pairs": [
+              [
+                1,
+                2,
+              ],
+              [
+                14,
+                5,
+              ],
             ],
             "sets": [
               [
@@ -1732,13 +1772,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              2,
-            ],
-            "pair2": [
-              1,
-              3,
+            "pairs": [
+              [
+                1,
+                14,
+              ],
+              [
+                2,
+                5,
+              ],
             ],
             "sets": [
               [
@@ -1748,13 +1790,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              3,
-            ],
-            "pair2": [
-              1,
-              2,
+            "pairs": [
+              [
+                1,
+                5,
+              ],
+              [
+                2,
+                14,
+              ],
             ],
             "sets": [],
           },
@@ -1782,13 +1826,15 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
         "finalPlacings": null,
         "matches": [
           {
-            "pair1": [
-              0,
-              1,
-            ],
-            "pair2": [
-              2,
-              4,
+            "pairs": [
+              [
+                6,
+                3,
+              ],
+              [
+                4,
+                10,
+              ],
             ],
             "sets": [
               [
@@ -1802,24 +1848,28 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
             ],
           },
           {
-            "pair1": [
-              2,
-              3,
-            ],
-            "pair2": [
-              1,
-              4,
+            "pairs": [
+              [
+                4,
+                7,
+              ],
+              [
+                3,
+                10,
+              ],
             ],
             "sets": [],
           },
           {
-            "pair1": [
-              0,
-              2,
-            ],
-            "pair2": [
-              3,
-              4,
+            "pairs": [
+              [
+                6,
+                4,
+              ],
+              [
+                7,
+                10,
+              ],
             ],
             "sets": [
               [
@@ -1829,24 +1879,28 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
             ],
           },
           {
-            "pair1": [
-              0,
-              3,
-            ],
-            "pair2": [
-              1,
-              2,
+            "pairs": [
+              [
+                6,
+                7,
+              ],
+              [
+                3,
+                4,
+              ],
             ],
             "sets": [],
           },
           {
-            "pair1": [
-              0,
-              4,
-            ],
-            "pair2": [
-              1,
-              3,
+            "pairs": [
+              [
+                6,
+                10,
+              ],
+              [
+                3,
+                7,
+              ],
             ],
             "sets": [],
           },

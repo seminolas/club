@@ -166,7 +166,7 @@ boxes           -- id, session_id, box_number
 box_players     -- box_id, player_id, position (0-indexed)
 matches         -- id, box_id, match_number
 match_sets      -- match_id, set_number, score_a, score_b
-match_players   -- match_id, player_id, side (0 = pair A, 1 = pair B)
+match_players   -- match_id, player_id, side (0 = pair A, 1 = pair B); a match's pairs as read back
 user            -- BetterAuth: id (text), name, email, role ('admin'|'user'), ...
 session, account, verification  -- BetterAuth (account: provider_id 'google'|'credential', account_id = Google sub)
 ```
@@ -222,7 +222,7 @@ All under `/api/*`. Routes marked admin need a BetterAuth session whose user is 
 | POST | `/api/sessions` | admin | Create session for a date |
 | GET | `/api/sessions/:date` | — | Full session (attendees, boxes, scores, lb before/after) |
 | PUT | `/api/sessions/:date/attendance` | admin | Toggle player attendance |
-| PUT | `/api/sessions/:date/boxes` | admin | Save box assignment (transitions to `games`) |
+| PUT | `/api/sessions/:date/boxes` | admin | Save box assignment (transitions to `games`): per box, `players` (ids, box order) and `matches` with `pairs: [[id, id], [id, id]]`, checked as 2 v 2 players of that box |
 | PUT | `/api/sessions/:date/score` | admin | Update a single set score |
 | POST | `/api/sessions/:date/close` | admin | Close session + write final leaderboard |
 | POST | `/api/sessions/:date/reopen` | admin | Reopen closed → games |
@@ -319,7 +319,8 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - **`club_id = 1` hard-coded** — multi-club support is future work. Do not add per-request club resolution without a plan for the routing/auth model.
 - **Session ranks vs leaderboard:** `session_ranks` (formerly `session_lb`) stores the leaderboard snapshot for each session. `getLeaderboardPlayers` derives the current live ranking from the most recent session's ranks. (There is no `players.current_rank` column any more; 0002 dropped it.)
 - **Box assignment algorithm:** each player plays every other player within their box; sizes 5/6/7 sit out 1/2/3 players per match — derived generically by `getSitout()` from each match's pairing (nobody hardcodes sit-out indices per size). Pairing schedules for all four sizes (`worker/src/domain/pairings.ts`) come from the club's printed score-sheet PDFs (`box6.pdf`, `box7.pdf` — the 4/5 originals aren't kept in-repo). Clicking "Assign Boxes" opens a modal (always, even when there's only one option — see future-work note below) offering every way to split attendees into boxes of 4/5/6, computed by `boxSizeOptions(n)` and ordered most-boxes-first (default selection); exactly 7 attendees instead get the single box-of-7 option, since a 7-box is only ever used as a last resort. Each option's layout (player names per box) comes from `splitBySizes(sortedAttendees, sizes)`, which slices attendees (sorted by leaderboard rank, boxes ascending in size) into the chosen boxes. If there's a previous layout for the session — the current boxes on Reassign, or the boxes cleared by Re-open Attendance (kept in memory only, as `_previousBoxLayout`, so lost on reload) — it's offered first, minus anyone no longer attending, and selected by default. A "Custom" option copies the selected option's layout into an editable textbox (one box per line, comma-separated display names exactly as printed — full names are rejected); re-selecting an option then Custom resets it. Every option is validated through `parseBoxLayout` (every attendee placed exactly once, boxes of 4–7) before `buildBoxesFromLayout` turns it into boxes with fresh pairings. Typical mid-session use: someone leaves → Re-open Attendance → untick them → Assign Boxes (previous layout is preselected, minus them). `boxSizeOptions` also fixed a latent gap: 11 attendees used to be Frobenius-non-representable by 4s/5s alone and hit a dead-end fallback — now resolved as 1 box of 5 + 1 box of 6.
-- **Pairing tables live in one place** (`worker/src/domain/pairings.ts`). They used to be duplicated in `js/algorithm.js` and `worker/src/db.ts`, and adding sizes 6/7 to only the client copy shipped a bug: those boxes came back from the API with empty pairings. Since S1 both the UI and `db.ts` (`getPairing`, used when reading boxes back from D1) import the shared tables.
+- **Pairing tables live in one place** (`worker/src/domain/pairings.ts`). They used to be duplicated in `js/algorithm.js` and `worker/src/db.ts`, and adding sizes 6/7 to only the client copy shipped a bug: those boxes came back from the API with empty pairings. Since S1 there is one copy.
+- **A match is its own pairs, as player ids** (`worker/src/domain/matches.ts`). The pairing tables are the box ladder's scheduler only (`scheduleBox`, used by Assign boxes). The API sends and accepts `pairs: [[id, id], [id, id]]`. `db.ts` stores them in `match_players` and reads them back from there (until 2026-10 it regenerated box positions from the tables on read). Standings, sitting out, stats and the score sheets all use each match's own pairs, so a future format with other pairings only needs a new scheduler. Matches still belong to a box, and scores are still addressed as (box, match number, game).
 
 ## Considerations for future work
 

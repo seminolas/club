@@ -92,7 +92,14 @@ export function computeBoxStandings(
   const standings = computeStandings(
     {
       players: box.players,
-      matchSets: box.matches.map((m) => (m.sets ?? []).map(toSetScore)),
+      // This API's pairs are box positions; the rules take players.
+      matches: box.matches.map((m) => ({
+        pairs: [
+          m.pair1.map((i) => box.players[i]),
+          m.pair2.map((i) => box.players[i]),
+        ] as const,
+        sets: (m.sets ?? []).map(toSetScore),
+      })),
     },
     ALL_SET_FORMATS,
     rank,

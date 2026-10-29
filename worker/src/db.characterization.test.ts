@@ -3,6 +3,7 @@
 // S2 moved the queries to Drizzle; the Drizzle versions must pass unchanged.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import * as db from './db'
+import { scheduleBox } from './domain/pairings'
 import { createTestDb, tableRows } from './test/d1'
 import type { TestDb } from './test/d1'
 import { seed } from './test/fixtures/seed'
@@ -225,7 +226,7 @@ describe('writes', () => {
     await db.saveBoxes(t.db, 2, [
       {
         players: [1, 2, 14, 5, 6],
-        matches: getPairingsWithSets(5, {
+        matches: getPairingsWithSets([1, 2, 14, 5, 6], {
           0: [
             [21, 10],
             ['', 21],
@@ -236,7 +237,7 @@ describe('writes', () => {
       },
       {
         players: [3, 4, 7, 10],
-        matches: getPairingsWithSets(4, {}),
+        matches: getPairingsWithSets([3, 4, 7, 10], {}),
         finalPlacings: null,
       },
     ])
@@ -369,7 +370,7 @@ describe('writes at real scale', () => {
       return {
         players: ids,
         matches: getPairingsWithSets(
-          5,
+          ids,
           Object.fromEntries(
             Array.from({ length: 5 }, (_, m) => [
               m,
@@ -406,13 +407,14 @@ describe('writes at real scale', () => {
   }, 60_000)
 })
 
-// Matches for a box as the client sends them: pairings plus sets.
+// Matches for a box as the client sends them: the box ladder's pairs (player
+// ids) plus sets.
 function getPairingsWithSets(
-  size: number,
+  players: number[],
   sets: Record<number, (number | '')[][]>,
 ) {
-  return Array.from({ length: size === 4 ? 3 : size }, (_, i) => ({
-    ...db.getPairing(size, i),
+  return scheduleBox(players).map((pairs, i) => ({
+    pairs,
     sets: (sets[i] ?? []) as [number | '', number | ''][],
   }))
 }
