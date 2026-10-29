@@ -17,14 +17,25 @@ export interface SessionListRow {
 export async function sessionList(
   ctx: ServiceContext,
 ): Promise<SessionListRow[]> {
-  const [sessions, version, open] = await Promise.all([
-    db.listSessions(ctx.db, CLUB_ID),
+  const [version, openSessions, open] = await Promise.all([
     db.closedSessionsVersion(ctx.db, CLUB_ID),
     // Sessions still open change all the time; they're few and small.
+    db.listSessions(ctx.db, CLUB_ID, false),
     db.sessionAttendeeNames(ctx.db, CLUB_ID, false),
   ])
-  const closed = await cachedByVersion(`attendees:${CLUB_ID}`, version, () =>
-    db.sessionAttendeeNames(ctx.db, CLUB_ID, true),
+  // Closed sessions read every attendee row: cached until one closes,
+  // re-opens or is deleted.
+  const [closedSessions, closed] = await cachedByVersion(
+    `sessions:${CLUB_ID}`,
+    version,
+    () =>
+      Promise.all([
+        db.listSessions(ctx.db, CLUB_ID, true),
+        db.sessionAttendeeNames(ctx.db, CLUB_ID, true),
+      ]),
+  )
+  const sessions = [...openSessions, ...closedSessions].sort((a, b) =>
+    b.date.localeCompare(a.date),
   )
   const names = new Map<string, string[]>()
   for (const { date, name } of [...closed, ...open])

@@ -97,6 +97,31 @@ describe('sessionList', () => {
     await sessionList(ctx)
     await db.setAttendance(t.db, 4, 1, true, null)
     const rows = await sessionList(ctx)
-    expect(rows.find((r) => r.date === '2025-12-30')?.players).toHaveLength(1)
+    expect(rows.find((r) => r.date === '2025-12-30')).toMatchObject({
+      playerCount: 1,
+      players: [expect.any(String)],
+    })
+  })
+
+  it('counts attendees of closed sessions once until one closes or re-opens', async () => {
+    const { ctx, statements } = context()
+    // The closed sessions' counts: every attendee row of the club.
+    const closedCounts = () =>
+      statements.filter(
+        (s) =>
+          s.includes('count("attendees"."player_id")') &&
+          s.includes('"sessions"."status" = ?'),
+      ).length
+    await sessionList(ctx)
+    await sessionList(ctx)
+    expect(closedCounts()).toBe(1)
+    await db.updateSessionStatus(t.db, 2, 'closed', '2026-01-13T09:00:00.000Z')
+    const rows = await sessionList(ctx)
+    expect(closedCounts()).toBe(2)
+    expect(rows.map((r) => [r.date, r.status, r.playerCount])).toEqual([
+      ['2026-01-13', 'closed', 9],
+      ['2026-01-06', 'closed', 9],
+      ['2025-12-30', 'attendance', 0],
+    ])
   })
 })

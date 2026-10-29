@@ -26,8 +26,12 @@ export type LiveSets = Array<[number | '', number | '']>
 export interface LiveHandlers {
   /** A match's saved scores (from anyone, ourselves included). */
   onMatch: (box: number, match: number, sets: LiveSets) => void
-  /** Reload the session: something else changed, or we may have missed it. */
-  onChanged: () => void
+  /**
+   * Reload the session: something else changed, or we may have missed it.
+   * `firstConnect`: the page's first connection, made right after it loaded
+   * its data (the page may skip the reload if that data is fresh).
+   */
+  onChanged: (firstConnect?: boolean) => void
   onProblem: (problem: LiveProblem) => void
   /** Nothing of ours is in flight any more for this cell key. */
   onSettled?: (key: string) => void
@@ -50,6 +54,7 @@ export class LiveChannel {
   private awaitingPong = false
   private refused = false
   private problem: LiveProblem = null
+  private everOpen = false
 
   constructor(
     private readonly date: string,
@@ -120,7 +125,9 @@ export class LiveChannel {
         ws.send('ping')
       }, 15000)
       for (const p of this.pending.values()) this.transmit(p)
-      this.handlers.onChanged() // catch up on anything missed
+      const first = !this.everOpen
+      this.everOpen = true
+      this.handlers.onChanged(first) // catch up on anything missed
     }
     ws.onmessage = (ev: MessageEvent<string>) => {
       if (ev.data === 'pong') {
@@ -209,7 +216,7 @@ export function useSessionLive(
   useEffect(() => {
     const live = new LiveChannel(date, {
       onMatch: (...a) => latest.current.onMatch(...a),
-      onChanged: () => latest.current.onChanged(),
+      onChanged: (first) => latest.current.onChanged(first),
       onSettled: (key) => latest.current.onSettled?.(key),
       onProblem: setProblem,
     })

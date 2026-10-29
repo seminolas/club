@@ -25,6 +25,7 @@ import { shareOnWhatsApp } from '../../lib/share'
 import {
   ladderQuery,
   sessionListQuery,
+  FRESH_MS,
   sessionQuery,
   viewerQuery,
 } from '../../lib/queries'
@@ -77,7 +78,17 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const channel = useRef<LiveChannel | null>(null)
   const scores = useScoreEntry(date, channel)
   const live = useSessionLive(date, {
-    onChanged: () => {
+    onChanged: (firstConnect) => {
+      // The first connection comes a moment after the page loaded its data:
+      // skip the catch-up while that data is fresh (the query client's
+      // staleTime), so a page view doesn't read everything twice.
+      const loaded = queryClient.getQueryState(sessionQuery(date).queryKey)
+      if (
+        firstConnect &&
+        loaded &&
+        Date.now() - loaded.dataUpdatedAt < FRESH_MS
+      )
+        return
       void scores.refresh().catch(() => {})
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
       void queryClient.invalidateQueries({ queryKey: ['ladder'] })
