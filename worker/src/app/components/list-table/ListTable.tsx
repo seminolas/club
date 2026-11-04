@@ -113,6 +113,12 @@ export interface PrimaryAction {
    * wraps to the button's width rather than widening the column.
    */
   note?: ReactNode
+  /**
+   * The longest label this button ever shows (e.g. "Mark attending" for an
+   * "Attending ✓" / "Mark attending" toggle): the button keeps that width
+   * whatever it says, so every row's button is the same width.
+   */
+  widestLabel?: string
 }
 
 /** What a row's action or detail panel can do with its own row. */
@@ -586,7 +592,20 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
             runAction(r)
           }}
         >
-          {action.label}
+          {action.widestLabel ? (
+            // Both labels in one grid cell; the widest, unseen, sets the width.
+            <span style={{ display: 'inline-grid', justifyItems: 'center' }}>
+              <span style={{ gridArea: '1 / 1' }}>{action.label}</span>
+              <span
+                aria-hidden
+                style={{ gridArea: '1 / 1', visibility: 'hidden' }}
+              >
+                {action.widestLabel}
+              </span>
+            </span>
+          ) : (
+            action.label
+          )}
         </Button>
       )
       if (action.note === undefined) return button

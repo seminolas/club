@@ -17,7 +17,8 @@ import {
   UnstyledButton,
 } from '@mantine/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { IconHistory } from '@tabler/icons-react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
 import type { CheckIn, Player } from '../../../types'
@@ -39,6 +40,20 @@ import {
 import type { PersonRow } from '../list-helpers'
 
 const WIDE = '(min-width: 36em)'
+
+// TRIAL (remove before merging): how a note with history shows it, picked
+// with ?cue=underline|icon|count|none on the page's URL.
+type Cue = 'underline' | 'icon' | 'count' | 'none'
+const CUES: Cue[] = ['underline', 'icon', 'count', 'none']
+function useCue(): Cue {
+  const [cue, setCue] = useState<Cue>('underline')
+  // After mounting, so the server's and the browser's first render match.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('cue') as Cue | null
+    if (q && CUES.includes(q)) setCue(q)
+  }, [])
+  return cue
+}
 
 interface Row extends PersonRow {
   rank: number
@@ -149,9 +164,10 @@ export function CheckInStep(props: {
     )
   }
 
+  const cue = useCue()
   const note = (r: Row) =>
     r.history.length > 0 ? (
-      <CheckInNote history={r.history} name={markerName} />
+      <CheckInNote history={r.history} name={markerName} cue={cue} />
     ) : undefined
 
   return (
@@ -205,12 +221,14 @@ export function CheckInStep(props: {
                 r.coming
                   ? {
                       label: 'Attending ✓',
+                      widestLabel: 'Mark attending',
                       done: true,
                       run: () => void toggle(r),
                       note: note(r),
                     }
                   : {
                       label: 'Mark attending',
+                      widestLabel: 'Mark attending',
                       run: () => void toggle(r),
                       note: note(r),
                     }
@@ -300,8 +318,9 @@ export function CheckInStep(props: {
 function CheckInNote(props: {
   history: CheckIn[]
   name: (by: CheckIn['by']) => string
+  cue: Cue
 }) {
-  const { history, name } = props
+  const { history, name, cue } = props
   const line = (c: CheckIn, first: boolean) =>
     `${c.attending ? (first ? 'Marked by' : 'by') : first ? 'Unmarked by' : 'unmarked by'} ${name(c.by)} · ${markedTime(c.at)}`
   const latest = history[history.length - 1]
@@ -311,6 +330,23 @@ function CheckInNote(props: {
     </Text>
   )
   if (history.length < 2) return text
+  const target =
+    cue === 'icon' ? (
+      <>
+        {text}{' '}
+        <IconHistory
+          size={12}
+          color="var(--mantine-color-dimmed)"
+          style={{ verticalAlign: '-2px' }}
+        />
+      </>
+    ) : cue === 'count' ? (
+      <Text size="xs" c="dimmed" span>
+        {line(latest, false)} ({history.length})
+      </Text>
+    ) : (
+      text
+    )
   return (
     <Popover position="bottom-end" withArrow shadow="md">
       <Popover.Target>
@@ -318,12 +354,13 @@ function CheckInNote(props: {
           // Not the row's own tap (that marks or unmarks).
           onClick={(e) => e.stopPropagation()}
           aria-label={`Check-in history: ${history.length} changes`}
-          style={{
-            textDecoration: 'underline dotted',
-            textUnderlineOffset: 3,
-          }}
+          style={
+            cue === 'underline'
+              ? { textDecoration: 'underline dotted', textUnderlineOffset: 3 }
+              : undefined
+          }
         >
-          {text}
+          {target}
         </UnstyledButton>
       </Popover.Target>
       <Popover.Dropdown>
