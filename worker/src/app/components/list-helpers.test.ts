@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { playedDate, sessionDate } from './list-helpers'
+import { markedTime, playedDate, sessionDate } from './list-helpers'
 
 describe('dates on the server', () => {
   it('stay on the NZ day when the code runs on UTC (SSR)', () => {
@@ -13,5 +13,15 @@ describe('dates on the server', () => {
     } finally {
       process.env.TZ = tz
     }
+  })
+})
+
+describe('markedTime', () => {
+  // 2026-11-03 08:00 UTC = Tue 3 Nov, 9:00pm NZDT.
+  const now = new Date('2026-11-03T08:00:00Z').getTime()
+  it('shows the time today, the weekday within the week, else the date', () => {
+    expect(markedTime('2026-11-03 06:42:00', now)).toBe('7:42pm')
+    expect(markedTime('2026-11-01 02:05:00', now)).toBe('Sun 3:05pm')
+    expect(markedTime('2026-10-20 06:00:00', now)).toBe('20 Oct')
   })
 })

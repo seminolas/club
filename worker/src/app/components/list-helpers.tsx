@@ -43,6 +43,28 @@ export function sessionDate(date: string, now = Date.now()): string {
     .join(' ')
 }
 
+/**
+ * When a check-in was marked (UTC, "YYYY-MM-DD HH:MM:SS"), in NZ time:
+ * "7:42pm" today, "Sun 7:42pm" within the week, else "20 Oct".
+ */
+export function markedTime(at: string, now = Date.now()): string {
+  const d = new Date(`${at.replace(' ', 'T')}Z`)
+  const day = (t: Date) => t.toLocaleDateString('en-NZ', { timeZone: TZ })
+  const time = d
+    .toLocaleTimeString('en-NZ', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: TZ,
+    })
+    .replace(/\s/g, '')
+    .toLowerCase()
+  if (day(d) === day(new Date(now))) return time
+  if (now - d.getTime() < 6 * 864e5)
+    return `${d.toLocaleDateString('en-NZ', { weekday: 'short', timeZone: TZ })} ${time}`
+  return playedDate(d.toISOString(), now)
+}
+
 export function Dash(): ReactNode {
   return (
     <Text size="sm" c="dimmed" span>

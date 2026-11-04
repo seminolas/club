@@ -1,13 +1,14 @@
 // The session's live channel (S6a), ported from the old UI's _startLive and
 // friends (js/app.js), with the same protocol and timings: a WebSocket to the
 // session's Durable Object; score writes go out over it and are acknowledged;
-// every screen gets each match's saved scores, and "changed" (after any other
-// change) means reload the session. If the connection drops: reconnect with
+// every screen gets each match's saved scores and each check-in change (V2),
+// and "changed" (after any other change) means reload the session. If the connection drops: reconnect with
 // backoff, resend unacknowledged writes, refresh every 15 s meanwhile, and say
 // so after 2 s ("reconnecting") and 15 s ("reload"). A missing pong, a write
 // not acknowledged within 5 s, or a write on a closing socket all count as the
 // connection being lost (a dead network can leave a socket "closing" forever).
 import { useEffect, useRef, useState } from 'react'
+import type { AttendanceMark, Player } from '../../types'
 
 export type LiveProblem = null | 'reconnecting' | 'reload'
 
@@ -23,9 +24,18 @@ export interface SetScoreOp {
 /** One match's saved scores, as the room broadcasts them. */
 export type LiveSets = Array<[number | '', number | '']>
 
+/** One player's check-in, as the room broadcasts it. */
+export interface AttendanceChange {
+  player: Player
+  attending: boolean
+  mark: AttendanceMark | null
+}
+
 export interface LiveHandlers {
   /** A match's saved scores (from anyone, ourselves included). */
   onMatch: (box: number, match: number, sets: LiveSets) => void
+  /** Someone's check-in changed (from anyone, ourselves included). */
+  onAttendance: (change: AttendanceChange) => void
   /**
    * Reload the session: something else changed, or we may have missed it.
    * `firstConnect`: the page's first connection, made right after it loaded
@@ -182,6 +192,7 @@ export class LiveChannel {
     msg:
       | { type: 'ack'; id: string; ok: boolean }
       | { type: 'match'; box: number; match: number; sets: LiveSets }
+      | ({ type: 'attendance' } & AttendanceChange)
       | { type: 'changed' },
   ) {
     if (msg.type === 'ack') {
@@ -194,6 +205,8 @@ export class LiveChannel {
       }
     } else if (msg.type === 'match') {
       this.handlers.onMatch(msg.box, msg.match, msg.sets)
+    } else if (msg.type === 'attendance') {
+      this.handlers.onAttendance(msg)
     } else {
       this.handlers.onChanged()
     }
@@ -216,6 +229,7 @@ export function useSessionLive(
   useEffect(() => {
     const live = new LiveChannel(date, {
       onMatch: (...a) => latest.current.onMatch(...a),
+      onAttendance: (c) => latest.current.onAttendance(c),
       onChanged: (first) => latest.current.onChanged(first),
       onSettled: (key) => latest.current.onSettled?.(key),
       onProblem: setProblem,

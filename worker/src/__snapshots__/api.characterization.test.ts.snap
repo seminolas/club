@@ -270,6 +270,72 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Kiri Tane",
         },
       ],
+      "marks": [
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 20,
+        },
+      ],
       "status": "attendance",
     },
     "label": "get in attendance",
@@ -544,6 +610,72 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           "name": "Kiri Tane",
         },
       ],
+      "marks": [
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 20,
+        },
+      ],
       "status": "games",
     },
     "label": "get in games",
@@ -651,6 +783,72 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
         {
           "id": 12,
           "name": "Kiri Tane",
+        },
+      ],
+      "marks": [
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 20,
         },
       ],
       "status": "attendance",
@@ -924,6 +1122,72 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
         {
           "id": 12,
           "name": "Kiri Tane",
+        },
+      ],
+      "marks": [
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "playerId": 20,
         },
       ],
       "status": "closed",
@@ -1698,6 +1962,7 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
         "name": "Kiri Tane",
       },
     ],
+    "marks": [],
     "status": "closed",
   },
   "status": 200,
@@ -1985,6 +2250,7 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
         "name": "Kiri Tane",
       },
     ],
+    "marks": [],
     "status": "games",
   },
   "status": 200,

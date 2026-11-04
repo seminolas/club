@@ -4,7 +4,7 @@ import {
   applyLeaderboardUpdate,
   buildBoxesFromLayout,
 } from '../../browser/algorithm'
-import { ladderAfter, movement, progress } from './session'
+import { ladderAfter, movement, progress, withAttendance } from './session'
 import type { Session } from './session'
 
 // A night: 9 players in a box of 4 and a box of 5, random finished scores.
@@ -29,6 +29,7 @@ function night(seed: number): Session {
     attendees: attending,
     leaderboardBefore: players,
     leaderboardAfter: null,
+    marks: [],
     boxes: boxes.map((b, bi) => ({
       players: layout[bi],
       finalPlacings: null,
@@ -80,5 +81,38 @@ describe('ladderAfter', () => {
       matches: 8,
       matchesTotal: 8,
     })
+  })
+})
+
+describe('withAttendance', () => {
+  const base = {
+    date: '2026-11-03',
+    status: 'attendance',
+    attendees: [{ id: 1, name: 'Aroha Ngata' }],
+    marks: [{ playerId: 1, by: null, at: '2026-11-03 06:00:00' }],
+    boxes: [],
+    leaderboardBefore: [],
+    leaderboardAfter: null,
+  } as Session
+  const chloe = { id: 3, name: 'Chloe Wu' }
+  const mark = { playerId: 3, by: chloe, at: '2026-11-03 06:42:00' }
+
+  it('adds and removes one attendee with their mark, leaving the rest', () => {
+    const on = withAttendance(base, { player: chloe, attending: true, mark })
+    expect(on.attendees.map((a) => a.id)).toEqual([1, 3])
+    expect(on.marks).toEqual([...base.marks, mark])
+    const off = withAttendance(on, {
+      player: chloe,
+      attending: false,
+      mark: null,
+    })
+    expect(off.attendees).toEqual(base.attendees)
+    expect(off.marks).toEqual(base.marks)
+  })
+
+  it('applying the same change twice (ours, then its broadcast) is one change', () => {
+    const change = { player: chloe, attending: true, mark }
+    const once = withAttendance(base, change)
+    expect(withAttendance(once, change)).toEqual(once)
   })
 })

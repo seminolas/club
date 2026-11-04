@@ -248,7 +248,9 @@ describe('admin', () => {
     const masked = JSON.parse(
       JSON.stringify(steps)
         .replace(/"closed_at":"[^"]*"/g, '"closed_at":"<now>"')
-        .replace(/"updatedAt":"[^"]*"/g, '"updatedAt":"<today>"'),
+        .replace(/"updatedAt":"[^"]*"/g, '"updatedAt":"<today>"')
+        // When each check-in was marked (V2's "marked by").
+        .replace(/"at":"[^"]*"/g, '"at":"<now>"'),
     )
     expect(masked).toMatchSnapshot()
     const sessions = (await tableRows(t.db, 'sessions')).map((s) => ({

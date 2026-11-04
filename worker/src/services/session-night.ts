@@ -1,10 +1,12 @@
 // A session night: reading it, and the admin moves through it (check-in,
-// boxes, close, re-open, delete, adding a player). Shared by the API routes
-// and the new UI. Every change tells the session's screens to reload (live
+// boxes, close, re-open, delete, adding a player) and anyone's check-in
+// (V2). Shared by the API routes and the new UI. Every change tells the
+// session's screens: a check-in as itself, anything else as "reload" (live
 // channel, S6a).
 import * as db from '../db'
 import type { BoxInput, SessionResponse } from '../types'
-import { CLUB_ID, ServiceError, requireAdmin } from './context'
+import type { ServerMessage } from '../live-core'
+import { CLUB_ID, ServiceError, requireAdmin, signedIn } from './context'
 import { pairsProblem } from '../domain/matches'
 import type { ServiceContext } from './context'
 import { skillChangedFrom } from './skill'
@@ -15,10 +17,20 @@ export const sessionRoom = (ctx: ServiceContext, date: string) =>
     ctx.env.SESSION_ROOM.idFromName(`${CLUB_ID}:${date}`),
   )
 
-/** Tell the session's screens to reload; never fails the change itself. */
-export async function notifyLive(ctx: ServiceContext, date: string) {
+/**
+ * Tell the session's screens: `message`, or by default "reload the session".
+ * Never fails the change itself.
+ */
+export async function notifyLive(
+  ctx: ServiceContext,
+  date: string,
+  message?: ServerMessage,
+) {
   await sessionRoom(ctx, date)
-    ?.fetch('https://live/notify', { method: 'POST' })
+    ?.fetch('https://live/notify', {
+      method: 'POST',
+      body: message ? JSON.stringify(message) : undefined,
+    })
     .catch((err: unknown) => console.error('live notify failed', err))
 }
 
@@ -34,24 +46,39 @@ async function actingAdmin(ctx: ServiceContext) {
   return (await db.getPlayerByUserId(ctx.db, CLUB_ID, userId))?.id ?? null
 }
 
+/**
+ * Anyone signed in with a player (V2: players mark themselves and others);
+ * admins also without one. Their player, for the check-in audit.
+ */
+async function actingPlayer(ctx: ServiceContext) {
+  const auth = await signedIn(ctx)
+  if (!auth) throw new ServiceError('Sign in to mark who’s coming', 401)
+  const player = await db.getPlayerByUserId(ctx.db, CLUB_ID, auth.user.id)
+  const isAdmin = auth.user.role === 'admin'
+  if (!isAdmin && !player) throw new ServiceError('Pick your player first', 403)
+  return { id: player?.id ?? null, isAdmin }
+}
+
 /** Everything about one session (public). */
 export async function getSession(
   ctx: ServiceContext,
   date: string,
 ): Promise<SessionResponse> {
   const s = await session(ctx, date)
-  const [lbBefore, lbAfter, attendees, boxes] = await Promise.all([
+  const [lbBefore, lbAfter, attendees, marks, boxes] = await Promise.all([
     db.getSessionRanks(ctx.db, s.id, 'before'),
     s.status === 'closed'
       ? db.getSessionRanks(ctx.db, s.id, 'after')
       : Promise.resolve(null),
     db.getAttendees(ctx.db, s.id),
+    db.getAttendanceMarks(ctx.db, s.id),
     db.getBoxes(ctx.db, s.id),
   ])
   return {
     date: s.date,
     status: s.status,
     attendees,
+    marks,
     boxes,
     leaderboardBefore: lbBefore,
     leaderboardAfter: lbAfter,
@@ -64,12 +91,26 @@ export async function setAttendance(
   playerId: number,
   attending: boolean,
 ) {
-  const by = await actingAdmin(ctx)
+  const by = await actingPlayer(ctx)
   const s = await session(ctx, date)
   if (s.status === 'games' || s.status === 'closed')
     throw new ServiceError('Cannot change attendance in this state', 400)
-  await db.setAttendance(ctx.db, s.id, playerId, attending, by)
-  await notifyLive(ctx, date)
+  const player = await db.getPlayerById(ctx.db, CLUB_ID, playerId)
+  if (!player) throw new ServiceError('Player not found', 404)
+  // Players mark from the ladder; someone new is added by an admin.
+  if (!by.isAdmin && !(await db.isOnSessionLadder(ctx.db, s.id, playerId)))
+    throw new ServiceError('Not on this session’s ladder: ask an admin', 400)
+  await db.setAttendance(ctx.db, s.id, playerId, attending, by.id)
+  // Just this player's row on every screen, not a reload of the session.
+  const [mark] = attending
+    ? await db.getAttendanceMarks(ctx.db, s.id, playerId)
+    : []
+  await notifyLive(ctx, date, {
+    type: 'attendance',
+    player: { id: player.id, name: player.name },
+    attending,
+    mark: mark ?? null,
+  })
 }
 
 /** Save the boxes (player ids) and start play. */

@@ -1,12 +1,15 @@
-// Check-in (club-table-lab AttendanceDemo; old UI: the Attendance tab). Admins
-// mark people coming while check-in is open: type a few letters, Enter marks
-// the first match, with Undo. Everyone else, and every later state, sees who's
-// coming. "Add “…”" adds someone new (admins, check-in open).
+// Check-in (club-table-lab AttendanceDemo; old UI: the Attendance tab). While
+// check-in is open, any signed-in player marks themselves or anyone else as
+// attending (V2), with Undo; a card at the top does it for yourself. Admins
+// also add someone new ("Add “…”"). Typing a few letters and Enter marks the
+// first match. Each attendee shows who marked them, unless they did it
+// themselves. Everyone else, and every later state, sees who's attending.
 import {
   Button,
   Group,
   Modal,
   NumberInput,
+  Paper,
   Stack,
   Text,
   TextInput,
@@ -15,9 +18,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
+import type { Player } from '../../../types'
 import { addPlayerFn, setAttendanceFn } from '../../fns/session'
 import { INFO_TEXT } from '../../lib/colors'
 import { cleanName, shortName } from '../../lib/names'
+import { withAttendance } from '../../lib/session'
 import type { Session } from '../../lib/session'
 import { toastError, toastOk, toastWithUndo } from '../../lib/toasts'
 import { ListTable } from '../list-table/ListTable'
@@ -26,24 +31,38 @@ import {
   SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
+  markedTime,
   playedDate,
 } from '../list-helpers'
 import type { PersonRow } from '../list-helpers'
 
+/** Wider than a phone: "Marked by" is a column; on phones, a line. */
+const WIDE = '(min-width: 36em)'
+
 interface Row extends PersonRow {
   rank: number
   coming: boolean
+  /** Who marked them attending, if someone else did. */
+  markedBy: string | null
+  markedAt: string | null
 }
+
+/** Now, as the check-in audit writes times (UTC, "YYYY-MM-DD HH:MM:SS"). */
+const auditNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ')
 
 export function CheckInStep(props: {
   session: Session
   ladder: LadderRow[]
-  /** Admins while check-in is open. */
+  /** Signed-in players and admins, while check-in is open. */
   canMark: boolean
+  /** Admins, while check-in is open: adding someone new. */
+  canAdd: boolean
+  /** The viewer's own player, if signed in. */
+  me: Player | null
   header: ReactNode
   stickyTop: number
 }) {
-  const { session } = props
+  const { session, me } = props
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState<string | null>(null)
   const key = ['session', session.date]
@@ -56,8 +75,11 @@ export function CheckInStep(props: {
       ? props.ladder.map((p) => ({ id: p.id, name: p.name }))
       : session.leaderboardBefore
   const coming = new Set(session.attendees.map((p) => p.id))
+  const marks = new Map(session.marks.map((m) => [m.playerId, m]))
   const rows: Row[] = base.map((p, i) => {
     const d = details.get(p.id)
+    const mark = coming.has(p.id) ? marks.get(p.id) : undefined
+    const byOther = mark?.by && mark.by.id !== p.id ? mark.by : null
     return {
       personId: p.id,
       fullName: cleanName(p.name),
@@ -66,29 +88,31 @@ export function CheckInStep(props: {
       helloClub: Boolean(d?.hcMemberId),
       rank: i + 1,
       coming: coming.has(p.id),
+      markedBy: byOther ? cleanName(byOther.name) : null,
+      markedAt: byOther ? (mark?.at ?? null) : null,
     }
   })
+  const myRow = me ? rows.find((r) => r.personId === me.id) : undefined
 
   // Marks straight away; puts it back if the server refuses.
   const setComing = async (r: Row, attending: boolean) => {
-    const patch = (on: boolean) =>
+    const was =
+      queryClient
+        .getQueryData<Session>(key)
+        ?.marks.find((m) => m.playerId === r.personId) ?? null
+    const player = { id: r.personId, name: r.fullName }
+    const apply = (on: boolean, mark: Session['marks'][number] | null) =>
       queryClient.setQueryData<Session>(
         key,
-        (s) =>
-          s && {
-            ...s,
-            attendees: on
-              ? [...s.attendees, { id: r.personId, name: r.fullName }]
-              : s.attendees.filter((a) => a.id !== r.personId),
-          },
+        (s) => s && withAttendance(s, { player, attending: on, mark }),
       )
-    patch(attending)
+    apply(attending, { playerId: r.personId, by: me, at: auditNow() })
     try {
       await setAttendanceFn({
         data: { date: session.date, playerId: r.personId, attending },
       })
     } catch (e) {
-      patch(!attending)
+      apply(!attending, was)
       toastError(e)
       return false
     }
@@ -97,10 +121,16 @@ export function CheckInStep(props: {
   const toggle = async (r: Row) => {
     const attending = !r.coming
     if (!(await setComing(r, attending))) return
+    const you = r.personId === me?.id
+    const message = attending
+      ? you
+        ? 'You’re marked attending'
+        : `${r.fullName} marked attending`
+      : you
+        ? 'You’re no longer attending'
+        : `${r.fullName} is no longer attending`
     toastWithUndo(
-      attending
-        ? `${r.fullName} marked attending`
-        : `${r.fullName} is no longer attending`,
+      message,
       () => void setComing({ ...r, coming: attending }, !attending),
     )
   }
@@ -113,6 +143,11 @@ export function CheckInStep(props: {
         noun={{ one: 'player', many: 'players' }}
         searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
         searchPlaceholder="Find a player…"
+        intro={
+          props.canMark && myRow ? (
+            <YouCard row={myRow} onToggle={() => void toggle(myRow)} />
+          ) : undefined
+        }
         filters={[
           {
             kind: 'options',
@@ -158,7 +193,7 @@ export function CheckInStep(props: {
             : undefined
         }
         addNew={
-          props.canMark
+          props.canAdd
             ? {
                 label: (q) => `Add “${q}” as a new player`,
                 onAdd: (q) => setAdding(q),
@@ -176,19 +211,41 @@ export function CheckInStep(props: {
             {
               accessor: 'fullName',
               title: 'Player',
+              // Phones: who marked them, on a line under the name.
+              render: (r) => (
+                <>
+                  {r.fullName}
+                  {r.markedBy && (
+                    <Text size="xs" c="dimmed" hiddenFrom="xs">
+                      <MarkedBy row={r} />
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            {
+              accessor: 'markedBy',
+              title: 'Marked by',
+              visibleMediaQuery: WIDE,
+              render: (r) =>
+                r.markedBy ? (
+                  <Text size="sm" c="dimmed" span>
+                    <MarkedBy row={r} />
+                  </Text>
+                ) : null,
             },
             {
               accessor: 'lastPlayed',
               title: 'Last played',
               sortable: true,
               sortDescFirst: true,
-              visibleMediaQuery: '(min-width: 36em)',
+              visibleMediaQuery: WIDE,
               render: (r) => playedDate(r.lastPlayed),
             },
             {
               accessor: 'helloClub',
               title: 'HelloClub',
-              visibleMediaQuery: '(min-width: 36em)',
+              visibleMediaQuery: WIDE,
               render: (r) => (r.helloClub ? 'Linked' : <Dash />),
             },
             // Without the Mark attending button, who's attending is a column.
@@ -226,6 +283,45 @@ export function CheckInStep(props: {
         }}
       />
     </>
+  )
+}
+
+/** "by Ray Lugsanay · 7:42pm" */
+function MarkedBy(props: { row: Row }) {
+  const { markedBy, markedAt } = props.row
+  return (
+    <>
+      by {markedBy}
+      {markedAt && ` · ${markedTime(markedAt)}`}
+    </>
+  )
+}
+
+/** "Are you playing tonight?" for the signed-in player (V2). */
+function YouCard(props: { row: Row; onToggle: () => void }) {
+  const { row } = props
+  return (
+    <Paper withBorder p="md" radius="md" mb="sm">
+      <Group justify="space-between" wrap="nowrap">
+        <div>
+          <Text fw={600}>
+            {row.coming ? 'You’re attending ✓' : 'Are you playing tonight?'}
+          </Text>
+          {row.markedBy && (
+            <Text size="xs" c="dimmed">
+              Marked by {row.markedBy}
+            </Text>
+          )}
+        </div>
+        {row.coming ? (
+          <Button variant="default" onClick={props.onToggle}>
+            Undo
+          </Button>
+        ) : (
+          <Button onClick={props.onToggle}>I’m playing</Button>
+        )}
+      </Group>
+    </Paper>
   )
 }
 

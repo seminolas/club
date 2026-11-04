@@ -29,7 +29,13 @@ import {
   sessionQuery,
   viewerQuery,
 } from '../../lib/queries'
-import { ladderAfter, movement, phaseOf, progress } from '../../lib/session'
+import {
+  ladderAfter,
+  movement,
+  phaseOf,
+  progress,
+  withAttendance,
+} from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
 import { PageCrumbs } from '../PageCrumbs'
@@ -94,6 +100,12 @@ export function SessionPage(props: { date: string; step: StepId }) {
       void queryClient.invalidateQueries({ queryKey: ['ladder'] })
     },
     onMatch: scores.mergeMatch,
+    // One row changes on every screen; nothing is reloaded (V2).
+    onAttendance: (change) =>
+      queryClient.setQueryData(
+        sessionQuery(date).queryKey,
+        (s) => s && withAttendance(s, change),
+      ),
     onSettled: scores.settled,
   })
   channel.current = live.channel
@@ -407,7 +419,9 @@ export function SessionPage(props: { date: string; step: StepId }) {
         <CheckInStep
           session={session}
           ladder={ladder}
-          canMark={admin && phase === 'checkin'}
+          canMark={(admin || !!viewer.player) && phase === 'checkin'}
+          canAdd={admin && phase === 'checkin'}
+          me={viewer.player ?? null}
           header={card.content('checkin')}
           stickyTop={PINNED_H}
         />,

@@ -81,3 +81,26 @@ export function movement(before: number[], after: number[]) {
   })
   return { up, down }
 }
+
+/**
+ * The session with one player's check-in changed (V2): who's coming, and who
+ * marked them. The same change applied twice (our own mark, then its
+ * broadcast) gives the same session.
+ */
+export function withAttendance(
+  s: Session,
+  change: {
+    player: { id: number; name: string }
+    attending: boolean
+    mark: Session['marks'][number] | null
+  },
+): Session {
+  const { player, attending, mark } = change
+  const others = s.attendees.filter((a) => a.id !== player.id)
+  const otherMarks = s.marks.filter((m) => m.playerId !== player.id)
+  return {
+    ...s,
+    attendees: attending ? [...others, player] : others,
+    marks: attending && mark ? [...otherMarks, mark] : otherMarks,
+  }
+}
