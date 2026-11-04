@@ -560,7 +560,11 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
           variant={isActiveRow ? 'filled' : action.done ? 'light' : 'default'}
           leftSection={action.icon}
           // Expand ↔ Collapse keeps one width, so the columns don't jump.
-          miw={action.expanded !== undefined ? '7.5em' : undefined}
+          // Just wide enough for "Collapse" and its chevron at each size
+          // (any wider pushes 375px phones sideways).
+          miw={
+            action.expanded === undefined ? undefined : phone ? '8em' : '8.25em'
+          }
           aria-expanded={action.expanded}
           aria-controls={
             action.expanded !== undefined ? detailId(r) : undefined

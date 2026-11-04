@@ -230,7 +230,8 @@ function Heading(props: { top: string; bottom: string }) {
   return (
     <Table.Th ta="right" style={{ verticalAlign: 'bottom' }}>
       {props.top}
-      <Text size="xs" c="dimmed" fw={400} style={{ whiteSpace: 'nowrap' }}>
+      {/* One line when there's room; wraps on narrow phones. */}
+      <Text size="xs" c="dimmed" fw={400}>
         {props.bottom}
       </Text>
     </Table.Th>

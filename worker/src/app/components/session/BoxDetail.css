@@ -115,6 +115,16 @@
 .gs-standings thead th {
   background: var(--lt-header-bg);
 }
+/* Phones: tighter, so the table fits a 360px screen without the boxes list
+   scrolling sideways (its headings' second lines wrap if they must). */
+@media (max-width: 36em) {
+  .gs-standings-card {
+    padding-inline: 8px;
+  }
+  .gs-standings {
+    --table-horizontal-spacing: 6px;
+  }
+}
 
 /* "Game N" and pair 1's field, right-aligned against the "–". */
 .gs-game {
