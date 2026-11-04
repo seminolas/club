@@ -7,8 +7,7 @@ import type { ReactNode } from 'react'
 import { Count, Delta, NoValue, Percent } from '../list-table/cells'
 import type { ListColumnGroup } from '../list-table/columns'
 import { ListTable } from '../list-table/ListTable'
-import { nameLabels } from '../list-helpers'
-import { shortName } from '../../lib/names'
+import { cleanName, shortName } from '../../lib/names'
 import { boxStandings } from '../../lib/session'
 import type { Session } from '../../lib/session'
 import { SessionStats } from './SessionStats'
@@ -18,8 +17,10 @@ const WIDE = '(min-width: 36em)'
 
 interface Row {
   personId: number
-  displayName: string
   fullName: string
+  /** Short name, for the game lines in the stats above. */
+  shortName: string
+  preferredName: string | null
   box: number
   /** Position in the box at the start (ladder order), from 1. */
   boxStart: number
@@ -69,8 +70,9 @@ export function ResultsStep(props: {
       const lost = s.gamesPlayed - s.gamesWon
       return {
         personId: p.id,
-        fullName: p.name,
-        displayName: shortName(p.name, props.preferred.get(p.id)),
+        fullName: cleanName(p.name),
+        shortName: shortName(p.name, props.preferred.get(p.id)),
+        preferredName: props.preferred.get(p.id) ?? null,
         box: bi + 1,
         boxStart: s.position + 1,
         boxFinish: s.placing,
@@ -95,14 +97,14 @@ export function ResultsStep(props: {
     }),
   )
 
-  const names = new Map(rows.map((r) => [r.personId, r.displayName]))
+  const names = new Map(rows.map((r) => [r.personId, r.shortName]))
 
   return (
     <ListTable<Row>
       records={rows}
       getKey={(r) => r.personId}
       noun={{ one: 'player', many: 'players' }}
-      searchText={(r) => `${r.fullName} ${r.displayName}`}
+      searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
       searchPlaceholder="Find a player…"
       stickyHeader
       stickyTop={props.stickyTop}
@@ -110,7 +112,7 @@ export function ResultsStep(props: {
       intro={
         <SessionStats session={session} name={(id) => names.get(id) ?? ''} />
       }
-      primaryColumn="displayName"
+      primaryColumn="fullName"
       initialSort={{ column: 'rankBefore', direction: 'asc' }}
       filters={[
         {
@@ -156,14 +158,12 @@ export function ResultsStep(props: {
           ],
         },
       ]}
-      columns={(inView, query) => {
-        const label = nameLabels(inView, query)
+      columns={() => {
         return [
           {
-            accessor: 'displayName',
+            accessor: 'fullName',
             title: 'Player',
             sortable: true,
-            render: (r) => label(r),
           },
           {
             group: 'box',

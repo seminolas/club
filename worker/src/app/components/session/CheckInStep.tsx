@@ -17,7 +17,7 @@ import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
 import { addPlayerFn, setAttendanceFn } from '../../fns/session'
 import { INFO_TEXT } from '../../lib/colors'
-import { shortName } from '../../lib/names'
+import { cleanName, shortName } from '../../lib/names'
 import type { Session } from '../../lib/session'
 import { toastError, toastOk, toastWithUndo } from '../../lib/toasts'
 import { ListTable } from '../list-table/ListTable'
@@ -26,7 +26,6 @@ import {
   SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
-  nameLabels,
   playedDate,
 } from '../list-helpers'
 import type { PersonRow } from '../list-helpers'
@@ -61,8 +60,8 @@ export function CheckInStep(props: {
     const d = details.get(p.id)
     return {
       personId: p.id,
-      fullName: p.name,
-      displayName: shortName(p.name, d?.preferredName),
+      fullName: cleanName(p.name),
+      preferredName: d?.preferredName ?? null,
       lastPlayed: d?.lastPlayed ?? null,
       helloClub: Boolean(d?.hcMemberId),
       rank: i + 1,
@@ -112,7 +111,7 @@ export function CheckInStep(props: {
         records={rows}
         getKey={(r) => r.personId}
         noun={{ one: 'player', many: 'players' }}
-        searchText={(r) => `${r.fullName} ${r.displayName}`}
+        searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
         searchPlaceholder="Find a player…"
         filters={[
           {
@@ -141,7 +140,7 @@ export function CheckInStep(props: {
         defaultFilters={{ played: SIX_MONTHS }}
         stickyHeader
         stickyTop={props.stickyTop}
-        primaryColumn="displayName"
+        primaryColumn="fullName"
         initialSort={{ column: 'rank', direction: 'asc' }}
         header={props.header}
         // The primary action toggles; Enter and a tap do the same.
@@ -166,8 +165,7 @@ export function CheckInStep(props: {
               }
             : undefined
         }
-        columns={(inView, query) => {
-          const label = nameLabels(inView, query)
+        columns={() => {
           return [
             {
               accessor: 'rank',
@@ -176,9 +174,8 @@ export function CheckInStep(props: {
               sortable: true,
             },
             {
-              accessor: 'displayName',
+              accessor: 'fullName',
               title: 'Player',
-              render: (r) => label(r),
             },
             {
               accessor: 'lastPlayed',

@@ -9,14 +9,13 @@ import {
   SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
-  nameLabels,
   playedDate,
 } from '../../components/list-helpers'
 import type { PersonRow } from '../../components/list-helpers'
 import { importLadderFn } from '../../fns/ladder'
 import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../lib/csv'
 import { nextTuesday } from '../../lib/dates'
-import { shortName } from '../../lib/names'
+import { cleanName } from '../../lib/names'
 import { ladderQuery, sessionListQuery, viewerQuery } from '../../lib/queries'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 
@@ -41,8 +40,8 @@ function PlayersPage() {
 
   const rows: Row[] = ladder.map((p) => ({
     personId: p.id,
-    displayName: shortName(p.name, p.preferredName),
-    fullName: p.name,
+    fullName: cleanName(p.name),
+    preferredName: p.preferredName,
     lastPlayed: p.lastPlayed,
     helloClub: p.hcMemberId !== null,
     rank: p.rank,
@@ -101,12 +100,12 @@ function PlayersPage() {
       records={rows}
       getKey={(r) => r.personId}
       noun={{ one: 'player', many: 'players' }}
-      searchText={(r) => `${r.fullName} ${r.displayName}`}
+      searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
       searchPlaceholder="Find a player…"
       filters={[lastPlayedFilter, helloClubFilter]}
       defaultFilters={{ played: SIX_MONTHS }}
       stickyHeader
-      primaryColumn="displayName"
+      primaryColumn="fullName"
       initialSort={{ column: 'rank', direction: 'asc' }}
       primaryAction={
         viewer.isAdmin
@@ -141,8 +140,7 @@ function PlayersPage() {
           )}
         </>
       }
-      columns={(inView, query) => {
-        const label = nameLabels(inView, query)
+      columns={() => {
         return [
           {
             accessor: 'rank',
@@ -167,14 +165,15 @@ function PlayersPage() {
               r.skillRank === null ? <Dash /> : `#${r.skillRank}`,
           },
           {
-            accessor: 'displayName',
+            accessor: 'fullName',
             title: 'Player',
             sortable: true,
-            render: (r) => label(r),
           },
           {
             accessor: 'nights',
             title: 'Nights',
+            // Phones: Last played says enough.
+            visibleMediaQuery: '(min-width: 36em)',
             sortable: true,
             sortDescFirst: true,
             numeric: true,

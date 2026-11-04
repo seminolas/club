@@ -1,9 +1,7 @@
 // Shared pieces of the list pages (club-table-lab src/demos/shared.tsx).
 import { Text } from '@mantine/core'
 import type { ReactNode } from 'react'
-import { matchesSearch } from './list-table/filters'
 import type { FilterDef } from './list-table/filters'
-import { viewLabels } from '../lib/names'
 
 const TZ = 'Pacific/Auckland'
 
@@ -58,9 +56,10 @@ export const SIX_MONTHS = { n: 6, unit: 'month' } as const
 /** A row of a list of people. */
 export interface PersonRow {
   personId: number
-  /** Short name (preferred, else first). */
-  displayName: string
+  /** Full name, as shown in tables (boxes and score sheets use short names). */
   fullName: string
+  /** Searchable too, so "Bob" finds Robert. */
+  preferredName: string | null
   lastPlayed: string | null
   helloClub: boolean
 }
@@ -91,21 +90,4 @@ export const helloClubFilter: FilterDef<PersonRow> = {
       test: (p) => !p.helloClub,
     },
   ],
-}
-
-/**
- * Display-name labels for a view, plus: while searching, a row whose short
- * label doesn't contain the search shows its full name, so it's clear why it
- * matched ("wright" → "Oscar Wright", not "Oscar").
- */
-export function nameLabels<
-  TPerson extends { personId: number; displayName: string; fullName: string },
->(inView: TPerson[], query: string) {
-  const labels = viewLabels(
-    inView.map((r) => ({ ...r, id: String(r.personId) })),
-  )
-  return (r: TPerson) => {
-    const label = labels.get(String(r.personId)) ?? r.displayName
-    return query.trim() && !matchesSearch(label, query) ? r.fullName : label
-  }
 }
