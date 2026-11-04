@@ -5,6 +5,7 @@
 // first match. Under each player's button (or "Attending ✓"), their latest
 // check-in change ("by Ray · 6:30pm"); tap it for the night's history.
 import {
+  Anchor,
   Button,
   Group,
   Modal,
@@ -12,6 +13,7 @@ import {
   Paper,
   Popover,
   Stack,
+  Switch,
   Text,
   TextInput,
   UnstyledButton,
@@ -41,18 +43,27 @@ import type { PersonRow } from '../list-helpers'
 
 const WIDE = '(min-width: 36em)'
 
-// TRIAL (remove before merging): how a note with history shows it, picked
-// with ?cue=underline|icon|count|none on the page's URL.
+// TRIAL (remove before merging), picked on the page's URL:
+// ?cue=underline|icon|count|none: how a note with history shows it;
+// ?layout=switch: an Attending switch and a "Marked by" column instead of
+// the button and its note.
 type Cue = 'underline' | 'icon' | 'count' | 'none'
 const CUES: Cue[] = ['underline', 'icon', 'count', 'none']
-function useCue(): Cue {
-  const [cue, setCue] = useState<Cue>('underline')
+function useTrial(): { cue: Cue; layout: 'button' | 'switch' } {
+  const [trial, setTrial] = useState<{
+    cue: Cue
+    layout: 'button' | 'switch'
+  }>({ cue: 'underline', layout: 'button' })
   // After mounting, so the server's and the browser's first render match.
   useEffect(() => {
-    const q = new URLSearchParams(location.search).get('cue') as Cue | null
-    if (q && CUES.includes(q)) setCue(q)
+    const q = new URLSearchParams(location.search)
+    const cue = q.get('cue') as Cue | null
+    setTrial({
+      cue: cue && CUES.includes(cue) ? cue : 'underline',
+      layout: q.get('layout') === 'switch' ? 'switch' : 'button',
+    })
   }, [])
-  return cue
+  return trial
 }
 
 interface Row extends PersonRow {
@@ -164,7 +175,8 @@ export function CheckInStep(props: {
     )
   }
 
-  const cue = useCue()
+  const { cue, layout } = useTrial()
+  const switches = layout === 'switch'
   const note = (r: Row) =>
     r.history.length > 0 ? (
       <CheckInNote history={r.history} name={markerName} cue={cue} />
@@ -216,23 +228,38 @@ export function CheckInStep(props: {
         // The primary action toggles; Enter and a tap do the same.
         primaryActionTitle="Attending"
         primaryAction={
-          props.canMark
-            ? (r) =>
-                r.coming
-                  ? {
-                      label: 'Attending ✓',
-                      widestLabel: 'Mark attending',
-                      done: true,
-                      run: () => void toggle(r),
-                      note: note(r),
-                    }
-                  : {
-                      label: 'Mark attending',
-                      widestLabel: 'Mark attending',
-                      run: () => void toggle(r),
-                      note: note(r),
-                    }
-            : undefined
+          props.canMark && switches
+            ? (r) => ({
+                label: r.coming ? 'Attending' : 'Mark attending',
+                run: () => void toggle(r),
+                control: (
+                  <Switch
+                    checked={r.coming}
+                    onChange={() => void toggle(r)}
+                    onClick={(e) => e.stopPropagation()}
+                    size="md"
+                    aria-label={`${r.fullName} attending`}
+                    styles={{ body: { justifyContent: 'center' } }}
+                  />
+                ),
+              })
+            : props.canMark
+              ? (r) =>
+                  r.coming
+                    ? {
+                        label: 'Attending ✓',
+                        widestLabel: 'Mark attending',
+                        done: true,
+                        run: () => void toggle(r),
+                        note: note(r),
+                      }
+                    : {
+                        label: 'Mark attending',
+                        widestLabel: 'Mark attending',
+                        run: () => void toggle(r),
+                        note: note(r),
+                      }
+              : undefined
         }
         addNew={
           props.canAdd
@@ -254,6 +281,19 @@ export function CheckInStep(props: {
               accessor: 'fullName',
               title: 'Player',
             },
+            ...(switches
+              ? [
+                  {
+                    accessor: 'history' as const,
+                    title: 'Marked by',
+                    toggleable: false,
+                    render: (r: Row) =>
+                      r.history.length > 0 ? (
+                        <MarkedBy history={r.history} name={markerName} />
+                      ) : null,
+                  },
+                ]
+              : []),
             {
               accessor: 'lastPlayed',
               title: 'Last played',
@@ -283,7 +323,7 @@ export function CheckInStep(props: {
                             Attending ✓
                           </Text>
                         )}
-                        {note(r)}
+                        {!switches && note(r)}
                       </Stack>
                     ),
                   },
@@ -368,6 +408,40 @@ function CheckInNote(props: {
           {[...history].reverse().map((c) => (
             <Text key={c.id} size="xs">
               {line(c, true)}
+            </Text>
+          ))}
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
+  )
+}
+
+/** TRIAL (layout=switch): who made the latest change; a tap shows them all. */
+function MarkedBy(props: {
+  history: CheckIn[]
+  name: (by: CheckIn['by']) => string
+}) {
+  const { history, name } = props
+  const latest = history[history.length - 1]
+  return (
+    <Popover position="bottom" withArrow shadow="md">
+      <Popover.Target>
+        <Anchor
+          component="button"
+          size="sm"
+          // Not the row's own tap.
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Check-in history: ${history.length} changes`}
+        >
+          {name(latest.by)}
+        </Anchor>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <Stack gap={4}>
+          {[...history].reverse().map((c) => (
+            <Text key={c.id} size="xs">
+              {c.attending ? 'Marked' : 'Unmarked'} by {name(c.by)} ·{' '}
+              {markedTime(c.at)}
             </Text>
           ))}
         </Stack>

@@ -119,6 +119,11 @@ export interface PrimaryAction {
    * whatever it says, so every row's button is the same width.
    */
   widestLabel?: string
+  /**
+   * Shown instead of the button (e.g. a switch). Enter still runs `run` on
+   * the active row; the control handles its own clicks.
+   */
+  control?: ReactNode
 }
 
 /** What a row's action or detail panel can do with its own row. */
@@ -564,6 +569,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
       const action = actionOf(r)
       if (!action) return null
       const isActiveRow = i === active
+      if (action.control !== undefined) return action.control
       const button = (
         <Button
           size={phone ? 'sm' : 'xs'}
