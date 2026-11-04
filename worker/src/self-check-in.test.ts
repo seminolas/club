@@ -9,9 +9,6 @@ import {
   it,
   vi,
 } from 'vitest'
-
-// Signing in hashes a password: each test signs in once or twice.
-vi.setConfig({ testTimeout: 60_000 })
 import * as db from './db'
 import app from './index'
 import type { ServerMessage } from './live-core'
@@ -21,6 +18,9 @@ import { createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
 import { seed, seedTestUsers } from './test/fixtures/seed'
 import type { Env } from './types'
+
+// Signing in hashes a password: each test signs in once or twice.
+vi.setConfig({ testTimeout: 60_000 })
 
 const PASSWORD = 'test-password-0123456789'
 const BASE = 'http://localhost'
