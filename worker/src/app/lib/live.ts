@@ -8,7 +8,7 @@
 // not acknowledged within 5 s, or a write on a closing socket all count as the
 // connection being lost (a dead network can leave a socket "closing" forever).
 import { useEffect, useRef, useState } from 'react'
-import type { AttendanceMark, Player } from '../../types'
+import type { CheckIn, Player } from '../../types'
 
 export type LiveProblem = null | 'reconnecting' | 'reload'
 
@@ -28,7 +28,7 @@ export type LiveSets = Array<[number | '', number | '']>
 export interface AttendanceChange {
   player: Player
   attending: boolean
-  mark: AttendanceMark | null
+  checkIn: CheckIn | null
 }
 
 export interface LiveHandlers {

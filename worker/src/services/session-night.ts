@@ -65,20 +65,20 @@ export async function getSession(
   date: string,
 ): Promise<SessionResponse> {
   const s = await session(ctx, date)
-  const [lbBefore, lbAfter, attendees, marks, boxes] = await Promise.all([
+  const [lbBefore, lbAfter, attendees, checkIns, boxes] = await Promise.all([
     db.getSessionRanks(ctx.db, s.id, 'before'),
     s.status === 'closed'
       ? db.getSessionRanks(ctx.db, s.id, 'after')
       : Promise.resolve(null),
     db.getAttendees(ctx.db, s.id),
-    db.getAttendanceMarks(ctx.db, s.id),
+    db.getCheckIns(ctx.db, s.id),
     db.getBoxes(ctx.db, s.id),
   ])
   return {
     date: s.date,
     status: s.status,
     attendees,
-    marks,
+    checkIns,
     boxes,
     leaderboardBefore: lbBefore,
     leaderboardAfter: lbAfter,
@@ -101,16 +101,16 @@ export async function setAttendance(
   if (!by.isAdmin && !(await db.isOnSessionLadder(ctx.db, s.id, playerId)))
     throw new ServiceError('Not on this session’s ladder: ask an admin', 400)
   await db.setAttendance(ctx.db, s.id, playerId, attending, by.id)
+  // The player's latest change (an older one if this changed nothing).
+  const checkIn = (await db.getCheckIns(ctx.db, s.id, playerId)).at(-1) ?? null
   // Just this player's row on every screen, not a reload of the session.
-  const [mark] = attending
-    ? await db.getAttendanceMarks(ctx.db, s.id, playerId)
-    : []
-  await notifyLive(ctx, date, {
-    type: 'attendance',
+  const change = {
     player: { id: player.id, name: player.name },
     attending,
-    mark: mark ?? null,
-  })
+    checkIn,
+  }
+  await notifyLive(ctx, date, { type: 'attendance', ...change })
+  return change
 }
 
 /** Save the boxes (player ids) and start play. */

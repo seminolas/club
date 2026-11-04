@@ -108,6 +108,11 @@ export interface PrimaryAction {
   icon?: ReactNode
   /** For an Expand / Collapse button: whether its panel is open. */
   expanded?: boolean
+  /**
+   * A small note under the button (e.g. who marked someone attending). It
+   * wraps to the button's width rather than widening the column.
+   */
+  note?: ReactNode
 }
 
 /** What a row's action or detail panel can do with its own row. */
@@ -553,7 +558,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
       const action = actionOf(r)
       if (!action) return null
       const isActiveRow = i === active
-      return (
+      const button = (
         <Button
           size={phone ? 'sm' : 'xs'}
           // Filled on the active row: that's what Enter will run.
@@ -583,6 +588,15 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
         >
           {action.label}
         </Button>
+      )
+      if (action.note === undefined) return button
+      return (
+        // As wide as the button (min-content: the button doesn't wrap, so
+        // the note wraps to it).
+        <Stack gap={2} w="min-content" ml="auto">
+          {button}
+          <Box ta="center">{action.note}</Box>
+        </Stack>
       )
     }
     const cell = c.render

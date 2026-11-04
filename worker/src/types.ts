@@ -60,9 +60,12 @@ export interface BoxInput {
   finalPlacings: null
 }
 
-/** Who marked a player as coming, and when (V2's "marked by"). */
-export interface AttendanceMark {
+/** One check-in change: a player marked or unmarked, by whom, when (V2). */
+export interface CheckIn {
+  /** The audit row's id: changes in order, and the same change seen twice. */
+  id: number
   playerId: number
+  attending: boolean
   /** The marker's player; null if unknown (an admin with no player). */
   by: { id: number; name: string } | null
   /** UTC, YYYY-MM-DD HH:MM:SS */
@@ -73,8 +76,8 @@ export interface SessionResponse {
   date: string
   status: SessionStatus
   attendees: Player[]
-  /** Who marked each attendee coming (V2), where the audit knows. */
-  marks: AttendanceMark[]
+  /** Every check-in change of the session, oldest first (V2). */
+  checkIns: CheckIn[]
   boxes: Box[]
   leaderboardBefore: Player[]
   leaderboardAfter: Player[] | null

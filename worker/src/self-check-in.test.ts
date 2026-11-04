@@ -176,52 +176,59 @@ describe('players marking attendance', () => {
 })
 
 describe('who marked whom', () => {
-  it('the session shows the latest mark of each attendee', async () => {
+  it('the session carries every check-in change, oldest first, with who', async () => {
     const me = await as('test-player')
     const admin = await as('test-admin')
     await setAttendance(admin, DATE, 1, true)
     await setAttendance(me, DATE, 2, true)
     await setAttendance(me, DATE, 1, false)
-    await setAttendance(me, DATE, 1, true) // re-marked: now by me
-    const marks = (await getSession(await as(), DATE)).marks.sort(
-      (a, b) => a.playerId - b.playerId,
-    )
+    await setAttendance(me, DATE, 1, false) // no change: not recorded
+    const { checkIns } = await getSession(await as(), DATE)
+    const adminPlayer = checkIns[0].by?.id
+    expect(adminPlayer).not.toBe(ME)
     expect(
-      marks.map((m) => ({ player: m.playerId, by: m.by?.id ?? null })),
+      checkIns.map((c) => [c.playerId, c.attending, c.by?.id ?? null]),
     ).toEqual([
-      { player: 1, by: ME },
-      { player: 2, by: ME },
+      [1, true, adminPlayer],
+      [2, true, ME],
+      [1, false, ME],
     ])
-    expect(marks[0].by?.name).toBe('Chloe Wu')
-    expect(marks[0].at).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
-  })
-
-  it('an unmarked player has no mark', async () => {
-    const me = await as('test-player')
-    await setAttendance(me, DATE, 1, true)
-    await setAttendance(me, DATE, 1, false)
-    expect((await getSession(await as(), DATE)).marks).toEqual([])
+    expect(checkIns[1].by?.name).toBe('Chloe Wu')
+    expect(checkIns[1].at).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/)
+    expect(checkIns.map((c) => c.id)).toEqual(
+      [...checkIns.map((c) => c.id)].sort((a, b) => a - b),
+    )
   })
 })
 
 describe('screens are told the one change', () => {
-  it('marking sends the player and who marked them; unmarking, no mark', async () => {
+  it('each change goes to every screen and back to its sender', async () => {
     const me = await as('test-player')
-    await setAttendance(me, DATE, 1, true)
-    await setAttendance(me, DATE, 1, false)
-    expect(told).toHaveLength(2)
-    const [on, off] = told
+    const on = await setAttendance(me, DATE, 1, true)
+    const off = await setAttendance(me, DATE, 1, false)
+    expect(told).toEqual([
+      { type: 'attendance', ...on },
+      { type: 'attendance', ...off },
+    ])
     expect(on).toMatchObject({
-      type: 'attendance',
       player: { id: 1, name: 'Aroha Ngata' },
       attending: true,
-      mark: { playerId: 1, by: { id: ME, name: 'Chloe Wu' } },
+      checkIn: {
+        playerId: 1,
+        attending: true,
+        by: { id: ME, name: 'Chloe Wu' },
+      },
     })
-    expect(off).toEqual({
-      type: 'attendance',
-      player: { id: 1, name: 'Aroha Ngata' },
+    expect(off).toMatchObject({
       attending: false,
-      mark: null,
+      checkIn: { playerId: 1, attending: false, by: { id: ME } },
     })
+  })
+
+  it('a repeated mark sends the latest change again (screens skip it)', async () => {
+    const me = await as('test-player')
+    const first = await setAttendance(me, DATE, 1, true)
+    const again = await setAttendance(me, DATE, 1, true)
+    expect(again.checkIn?.id).toBe(first.checkIn?.id)
   })
 })

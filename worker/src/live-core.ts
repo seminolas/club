@@ -4,7 +4,7 @@
 // every screen on the session.
 import * as db from './db'
 import type { DB } from './db'
-import type { AttendanceMark, Player } from './types'
+import type { CheckIn, Player } from './types'
 
 export type Score = number | null
 
@@ -30,14 +30,15 @@ export type ServerMessage =
   /** A match's scores after a write, as GET /api/sessions/:date shows them. */
   | { type: 'match'; box: number; match: number; sets: db.SetScores }
   /**
-   * A player's check-in changed (V2): who's coming, and who marked them.
+   * A player's check-in changed (V2): whether they're coming, and the change
+   * (who, when) for the session's check-in history.
    * Screens update that one row instead of reloading the session.
    */
   | {
       type: 'attendance'
       player: Player
       attending: boolean
-      mark: AttendanceMark | null
+      checkIn: CheckIn | null
     }
   /** Something else changed (boxes, status, a new player): reload the session. */
   | { type: 'changed' }

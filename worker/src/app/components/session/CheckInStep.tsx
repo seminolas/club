@@ -2,26 +2,28 @@
 // check-in is open, any signed-in player marks themselves or anyone else as
 // attending (V2), with Undo; a card at the top does it for yourself. Admins
 // also add someone new ("Add “…”"). Typing a few letters and Enter marks the
-// first match. Each attendee shows who marked them, unless they did it
-// themselves. Everyone else, and every later state, sees who's attending.
+// first match. Under each player's button (or "Attending ✓"), their latest
+// check-in change ("by Ray · 6:30pm"); tap it for the night's history.
 import {
   Button,
   Group,
   Modal,
   NumberInput,
   Paper,
+  Popover,
   Stack,
   Text,
   TextInput,
+  UnstyledButton,
 } from '@mantine/core'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
-import type { Player } from '../../../types'
+import type { CheckIn, Player } from '../../../types'
 import { addPlayerFn, setAttendanceFn } from '../../fns/session'
 import { INFO_TEXT } from '../../lib/colors'
-import { cleanName, shortName } from '../../lib/names'
+import { boxName, cleanName, shortName } from '../../lib/names'
 import { withAttendance } from '../../lib/session'
 import type { Session } from '../../lib/session'
 import { toastError, toastOk, toastWithUndo } from '../../lib/toasts'
@@ -36,19 +38,14 @@ import {
 } from '../list-helpers'
 import type { PersonRow } from '../list-helpers'
 
-/** Wider than a phone: "Marked by" is a column; on phones, a line. */
 const WIDE = '(min-width: 36em)'
 
 interface Row extends PersonRow {
   rank: number
   coming: boolean
-  /** Who marked them attending, if someone else did. */
-  markedBy: string | null
-  markedAt: string | null
+  /** This player's check-in changes tonight, oldest first. */
+  history: CheckIn[]
 }
-
-/** Now, as the check-in audit writes times (UTC, "YYYY-MM-DD HH:MM:SS"). */
-const auditNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ')
 
 export function CheckInStep(props: {
   session: Session
@@ -75,11 +72,11 @@ export function CheckInStep(props: {
       ? props.ladder.map((p) => ({ id: p.id, name: p.name }))
       : session.leaderboardBefore
   const coming = new Set(session.attendees.map((p) => p.id))
-  const marks = new Map(session.marks.map((m) => [m.playerId, m]))
+  const history = new Map<number, CheckIn[]>()
+  for (const c of session.checkIns)
+    history.set(c.playerId, [...(history.get(c.playerId) ?? []), c])
   const rows: Row[] = base.map((p, i) => {
     const d = details.get(p.id)
-    const mark = coming.has(p.id) ? marks.get(p.id) : undefined
-    const byOther = mark?.by && mark.by.id !== p.id ? mark.by : null
     return {
       personId: p.id,
       fullName: cleanName(p.name),
@@ -88,31 +85,48 @@ export function CheckInStep(props: {
       helloClub: Boolean(d?.hcMemberId),
       rank: i + 1,
       coming: coming.has(p.id),
-      markedBy: byOther ? cleanName(byOther.name) : null,
-      markedAt: byOther ? (mark?.at ?? null) : null,
+      history: history.get(p.id) ?? [],
     }
   })
   const myRow = me ? rows.find((r) => r.personId === me.id) : undefined
+  // Who made a change, by their short name (as in boxes: "Sam N." on a clash).
+  const markerName = (by: CheckIn['by']) => {
+    if (!by) return 'an admin'
+    const p = details.get(by.id)
+    return boxName(
+      { name: by.name, preferredName: p?.preferredName },
+      props.ladder,
+    )
+  }
 
-  // Marks straight away; puts it back if the server refuses.
+  // Marks straight away, with a provisional "by me" note; the server's reply
+  // replaces it with the saved change, or puts everything back if refused.
   const setComing = async (r: Row, attending: boolean) => {
-    const was =
-      queryClient
-        .getQueryData<Session>(key)
-        ?.marks.find((m) => m.playerId === r.personId) ?? null
     const player = { id: r.personId, name: r.fullName }
-    const apply = (on: boolean, mark: Session['marks'][number] | null) =>
+    const apply = (change: Parameters<typeof withAttendance>[1]) =>
       queryClient.setQueryData<Session>(
         key,
-        (s) => s && withAttendance(s, { player, attending: on, mark }),
+        (s) => s && withAttendance(s, change),
       )
-    apply(attending, { playerId: r.personId, by: me, at: auditNow() })
+    apply({
+      player,
+      attending,
+      checkIn: {
+        id: -Date.now(),
+        playerId: r.personId,
+        attending,
+        by: me,
+        at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      },
+    })
     try {
-      await setAttendanceFn({
-        data: { date: session.date, playerId: r.personId, attending },
-      })
+      apply(
+        await setAttendanceFn({
+          data: { date: session.date, playerId: r.personId, attending },
+        }),
+      )
     } catch (e) {
-      apply(!attending, was)
+      apply({ player, attending: !attending, checkIn: null })
       toastError(e)
       return false
     }
@@ -134,6 +148,11 @@ export function CheckInStep(props: {
       () => void setComing({ ...r, coming: attending }, !attending),
     )
   }
+
+  const note = (r: Row) =>
+    r.history.length > 0 ? (
+      <CheckInNote history={r.history} name={markerName} />
+    ) : undefined
 
   return (
     <>
@@ -188,8 +207,13 @@ export function CheckInStep(props: {
                       label: 'Attending ✓',
                       done: true,
                       run: () => void toggle(r),
+                      note: note(r),
                     }
-                  : { label: 'Mark attending', run: () => void toggle(r) }
+                  : {
+                      label: 'Mark attending',
+                      run: () => void toggle(r),
+                      note: note(r),
+                    }
             : undefined
         }
         addNew={
@@ -211,28 +235,6 @@ export function CheckInStep(props: {
             {
               accessor: 'fullName',
               title: 'Player',
-              // Phones: who marked them, on a line under the name.
-              render: (r) => (
-                <>
-                  {r.fullName}
-                  {r.markedBy && (
-                    <Text size="xs" c="dimmed" hiddenFrom="xs">
-                      <MarkedBy row={r} />
-                    </Text>
-                  )}
-                </>
-              ),
-            },
-            {
-              accessor: 'markedBy',
-              title: 'Marked by',
-              visibleMediaQuery: WIDE,
-              render: (r) =>
-                r.markedBy ? (
-                  <Text size="sm" c="dimmed" span>
-                    <MarkedBy row={r} />
-                  </Text>
-                ) : null,
             },
             {
               accessor: 'lastPlayed',
@@ -256,12 +258,16 @@ export function CheckInStep(props: {
                     accessor: 'coming',
                     title: 'Attending',
                     toggleable: false,
-                    render: (r: Row) =>
-                      r.coming ? (
-                        <Text size="sm" fw={600} c="teal">
-                          Attending ✓
-                        </Text>
-                      ) : null,
+                    render: (r: Row) => (
+                      <Stack gap={2} align="flex-end">
+                        {r.coming && (
+                          <Text size="sm" fw={600} c="teal">
+                            Attending ✓
+                          </Text>
+                        )}
+                        {note(r)}
+                      </Stack>
+                    ),
                   },
                 ]),
           ]
@@ -286,14 +292,50 @@ export function CheckInStep(props: {
   )
 }
 
-/** "by Ray Lugsanay · 7:42pm" */
-function MarkedBy(props: { row: Row }) {
-  const { markedBy, markedAt } = props.row
+/**
+ * A player's latest check-in change: "by Ray · 6:30pm", or "unmarked by Ray
+ * · 6:45pm". With more than one change tonight it's underlined, and a tap
+ * shows them all, newest first.
+ */
+function CheckInNote(props: {
+  history: CheckIn[]
+  name: (by: CheckIn['by']) => string
+}) {
+  const { history, name } = props
+  const line = (c: CheckIn, first: boolean) =>
+    `${c.attending ? (first ? 'Marked by' : 'by') : first ? 'Unmarked by' : 'unmarked by'} ${name(c.by)} · ${markedTime(c.at)}`
+  const latest = history[history.length - 1]
+  const text = (
+    <Text size="xs" c="dimmed" span>
+      {line(latest, false)}
+    </Text>
+  )
+  if (history.length < 2) return text
   return (
-    <>
-      by {markedBy}
-      {markedAt && ` · ${markedTime(markedAt)}`}
-    </>
+    <Popover position="bottom-end" withArrow shadow="md">
+      <Popover.Target>
+        <UnstyledButton
+          // Not the row's own tap (that marks or unmarks).
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Check-in history: ${history.length} changes`}
+          style={{
+            textDecoration: 'underline dotted',
+            textUnderlineOffset: 3,
+          }}
+        >
+          {text}
+        </UnstyledButton>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <Stack gap={4}>
+          {[...history].reverse().map((c) => (
+            <Text key={c.id} size="xs">
+              {line(c, true)}
+            </Text>
+          ))}
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   )
 }
 
@@ -303,16 +345,9 @@ function YouCard(props: { row: Row; onToggle: () => void }) {
   return (
     <Paper withBorder p="md" radius="md" mb="sm">
       <Group justify="space-between" wrap="nowrap">
-        <div>
-          <Text fw={600}>
-            {row.coming ? 'You’re attending ✓' : 'Are you playing tonight?'}
-          </Text>
-          {row.markedBy && (
-            <Text size="xs" c="dimmed">
-              Marked by {row.markedBy}
-            </Text>
-          )}
-        </div>
+        <Text fw={600}>
+          {row.coming ? 'You’re attending ✓' : 'Are you playing tonight?'}
+        </Text>
         {row.coming ? (
           <Button variant="default" onClick={props.onToggle}>
             Undo

@@ -29,7 +29,7 @@ function night(seed: number): Session {
     attendees: attending,
     leaderboardBefore: players,
     leaderboardAfter: null,
-    marks: [],
+    checkIns: [],
     boxes: boxes.map((b, bi) => ({
       players: layout[bi],
       finalPlacings: null,
@@ -85,34 +85,105 @@ describe('ladderAfter', () => {
 })
 
 describe('withAttendance', () => {
+  const first = {
+    id: 1,
+    playerId: 1,
+    attending: true,
+    by: null,
+    at: '2026-11-03 06:00:00',
+  }
   const base = {
     date: '2026-11-03',
     status: 'attendance',
     attendees: [{ id: 1, name: 'Aroha Ngata' }],
-    marks: [{ playerId: 1, by: null, at: '2026-11-03 06:00:00' }],
+    checkIns: [first],
     boxes: [],
     leaderboardBefore: [],
     leaderboardAfter: null,
   } as Session
   const chloe = { id: 3, name: 'Chloe Wu' }
-  const mark = { playerId: 3, by: chloe, at: '2026-11-03 06:42:00' }
+  const marked = {
+    id: 2,
+    playerId: 3,
+    attending: true,
+    by: chloe,
+    at: '2026-11-03 06:42:00',
+  }
+  const unmarked = { ...marked, id: 3, attending: false }
 
-  it('adds and removes one attendee with their mark, leaving the rest', () => {
-    const on = withAttendance(base, { player: chloe, attending: true, mark })
+  it('adds or removes one attendee and adds the change to the history', () => {
+    const on = withAttendance(base, {
+      player: chloe,
+      attending: true,
+      checkIn: marked,
+    })
     expect(on.attendees.map((a) => a.id)).toEqual([1, 3])
-    expect(on.marks).toEqual([...base.marks, mark])
+    expect(on.checkIns).toEqual([first, marked])
     const off = withAttendance(on, {
       player: chloe,
       attending: false,
-      mark: null,
+      checkIn: unmarked,
     })
     expect(off.attendees).toEqual(base.attendees)
-    expect(off.marks).toEqual(base.marks)
+    expect(off.checkIns).toEqual([first, marked, unmarked])
   })
 
-  it('applying the same change twice (ours, then its broadcast) is one change', () => {
-    const change = { player: chloe, attending: true, mark }
+  it('the same change twice (our reply, then its broadcast) is one change', () => {
+    const change = { player: chloe, attending: true, checkIn: marked }
     const once = withAttendance(base, change)
     expect(withAttendance(once, change)).toEqual(once)
+  })
+
+  it('without a change (marking straight away) only who’s attending changes', () => {
+    const on = withAttendance(base, {
+      player: chloe,
+      attending: true,
+      checkIn: null,
+    })
+    expect(on.attendees.map((a) => a.id)).toEqual([1, 3])
+    expect(on.checkIns).toEqual(base.checkIns)
+  })
+})
+
+describe('withAttendance, provisional changes', () => {
+  const chloe = { id: 3, name: 'Chloe Wu' }
+  const base = {
+    date: '2026-11-03',
+    status: 'attendance',
+    attendees: [],
+    checkIns: [],
+    boxes: [],
+    leaderboardBefore: [],
+    leaderboardAfter: null,
+  } as unknown as Session
+  const provisional = {
+    id: -1,
+    playerId: 3,
+    attending: true,
+    by: chloe,
+    at: '2026-11-03 06:42:00',
+  }
+  const saved = { ...provisional, id: 7 }
+
+  it('the saved change replaces ours; a refusal removes it', () => {
+    const mine = withAttendance(base, {
+      player: chloe,
+      attending: true,
+      checkIn: provisional,
+    })
+    expect(mine.checkIns).toEqual([provisional])
+    const after = withAttendance(mine, {
+      player: chloe,
+      attending: true,
+      checkIn: saved,
+    })
+    expect(after.checkIns).toEqual([saved])
+    const refused = withAttendance(mine, {
+      player: chloe,
+      attending: false,
+      checkIn: null,
+    })
+    expect(refused.checkIns).toEqual([])
+    expect(refused.attendees).toEqual([])
   })
 })

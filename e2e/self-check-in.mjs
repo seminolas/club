@@ -1,7 +1,7 @@
-// V2 check: a player marks themselves ("I'm playing") and someone else; a
-// second screen (an admin's) shows both, with who marked them, without
-// reloading the session (no data requests at all: the live channel carries
-// the change). Then everything is put back.
+// V2 check: a player marks themselves ("I'm playing") and someone else, then
+// unmarks them; a second screen (an admin's) shows each change and who made it
+// ("by …" under the button, history on a tap), without reloading the session
+// (no data requests at all: the live channel carries the change).
 // Defaults to the local dev server (no Cloudflare usage); BASE=<staging> to
 // run it there once. Needs the date of a session with check-in open, whose
 // ladder includes Test Player's player, and that player's name.
@@ -123,6 +123,20 @@ for (const name of [myName, otherName]) {
 await find(player.page, "");
 adminRequests.length = 0;
 
+// Notes say who by their short name: preferred, else first name (a clash
+// adds an initial, so match the start).
+const ladder = (await (await fetch(`${BASE}/api/leaderboard`)).json()).players;
+const mine = ladder.find((p) => p.name === myName);
+const myShort = mine?.preferred_name ?? myName.split(" ")[0];
+/** The visible note under a row's button. */
+const note = (page, name) =>
+  row(page, name)
+    .getByText(/^(unmarked )?by /)
+    .locator("visible=true")
+    .first();
+const noteSays = async (page, name, text) =>
+  ((await note(page, name).textContent()) ?? "").startsWith(text);
+
 // 1. "I'm playing" on the You card.
 const card = player.page.getByText("Are you playing tonight?");
 check("player sees the You card", await card.isVisible());
@@ -137,14 +151,11 @@ await row(player.page, otherName)
 await row(player.page, otherName)
   .getByRole("button", { name: "Attending ✓" })
   .waitFor({ timeout: 10_000 });
-const myFirst = myName.split(" ")[0];
+await note(player.page, otherName).waitFor({ timeout: 10_000 });
 check(
-  "the player’s phone shows who marked the other player",
-  await row(player.page, otherName)
-    .getByText(`by ${myName}`)
-    .locator("visible=true")
-    .first()
-    .isVisible(),
+  "under the button on the player’s phone: who marked them",
+  await noteSays(player.page, otherName, `by ${myShort} · `),
+  await note(player.page, otherName).textContent(),
 );
 if (outDir)
   await player.page.screenshot({
@@ -152,49 +163,33 @@ if (outDir)
     fullPage: true,
   });
 
-// 3. The admin's screen: both changes, the marker shown, nothing reloaded.
+// 3. The admin's screen: both changes, who marked them, nothing reloaded.
 await find(admin.page, otherName);
 await row(admin.page, otherName)
   .getByRole("button", { name: "Attending ✓" })
   .waitFor({ timeout: 10_000 });
 check("admin sees the other player attending, live", true);
 check(
-  "admin sees “Marked by” the player",
-  await row(admin.page, otherName)
-    .getByText(`by ${myName}`)
-    .locator("visible=true")
-    .first()
-    .isVisible(),
+  "admin sees who marked them",
+  await noteSays(admin.page, otherName, `by ${myShort} · `),
 );
-await find(admin.page, myFirst);
+await find(admin.page, myShort);
 await row(admin.page, myName)
   .getByRole("button", { name: "Attending ✓" })
   .waitFor({ timeout: 10_000 });
 check("admin sees the player attending, live", true);
 check(
-  "a self-mark shows no “by”",
-  !(await row(admin.page, myName)
-    .getByText(/^by /)
-    .locator("visible=true")
-    .first()
-    .isVisible()),
+  "a self-mark shows the same label",
+  await noteSays(admin.page, myName, `by ${myShort} · `),
 );
 if (outDir)
   await admin.page.screenshot({
     path: `${outDir}/admin-desktop.png`,
     fullPage: true,
   });
-check(
-  "the admin’s screen made no data requests (no reload)",
-  adminRequests.length === 0,
-  adminRequests.join(", "),
-);
 
-// 4. Put it back: Undo on the card, unmark the other player.
-await player.page.getByRole("button", { name: "Undo" }).first().click();
-await player.page
-  .getByText("Are you playing tonight?")
-  .waitFor({ timeout: 10_000 });
+// 4. The player unmarks the other player: the admin sees "unmarked by", and
+// with two changes, tapping it shows the history.
 await find(player.page, otherName);
 await row(player.page, otherName)
   .getByRole("button", { name: "Attending ✓" })
@@ -207,6 +202,38 @@ await row(admin.page, otherName)
   .getByRole("button", { name: "Mark attending" })
   .waitFor({ timeout: 10_000 });
 check("unmarking reaches the admin too", true);
+check(
+  "an unmarked player keeps a label: unmarked by",
+  await noteSays(admin.page, otherName, `unmarked by ${myShort} · `),
+);
+await row(admin.page, otherName)
+  .getByRole("button", { name: /^Check-in history/ })
+  .click();
+const dropdown = admin.page.locator(".mantine-Popover-dropdown");
+await dropdown.waitFor({ timeout: 5_000 });
+const lines = await dropdown.locator("p").allTextContents();
+check(
+  "tapping it shows the history, newest first",
+  lines[0]?.startsWith(`Unmarked by ${myShort}`) &&
+    lines[1]?.startsWith(`Marked by ${myShort}`),
+  lines.join(" / "),
+);
+if (outDir)
+  await admin.page.screenshot({
+    path: `${outDir}/admin-history.png`,
+    fullPage: true,
+  });
+check(
+  "the admin’s screen made no data requests (no reload)",
+  adminRequests.length === 0,
+  adminRequests.join(", "),
+);
+
+// 5. Put the player back: Undo on the card.
+await player.page.getByRole("button", { name: "Undo" }).first().click();
+await player.page
+  .getByText("Are you playing tonight?")
+  .waitFor({ timeout: 10_000 });
 
 for (const [who, s] of [
   ["player", player],

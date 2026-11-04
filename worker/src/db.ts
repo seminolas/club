@@ -18,13 +18,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { drizzle } from 'drizzle-orm/d1'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import * as t from './db/schema'
-import type {
-  AttendanceMark,
-  Box,
-  BoxInput,
-  Match,
-  SessionStatus,
-} from './types'
+import type { CheckIn, Box, BoxInput, Match, SessionStatus } from './types'
 
 // Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
 // withSession('first-primary') wrapper) — both expose prepare()/batch().
@@ -427,17 +421,18 @@ export async function isOnSessionLadder(
 }
 
 /**
- * For each player whose latest check-in change in the session marked them
- * coming: that change. One indexed read of the session's audit (a few dozen
- * rows a night); players marked before the audit existed have none.
+ * The session's check-in changes (or one player's), oldest first, with who
+ * made them. One indexed read of the session's audit (a few dozen rows a
+ * night); players marked before the audit existed have none.
  */
-export async function getAttendanceMarks(
+export async function getCheckIns(
   db: DB,
   sessionId: number,
   playerId?: number,
-): Promise<AttendanceMark[]> {
+): Promise<CheckIn[]> {
   const rows = await orm(db)
     .select({
+      id: t.attendanceEvents.id,
       playerId: t.attendanceEvents.playerId,
       attending: t.attendanceEvents.attending,
       byId: t.attendanceEvents.byPlayerId,
@@ -455,18 +450,16 @@ export async function getAttendanceMarks(
       ),
     )
     .orderBy(t.attendanceEvents.id)
-  const latest = new Map<number, (typeof rows)[number]>()
-  for (const r of rows) latest.set(r.playerId, r)
-  return [...latest.values()]
-    .filter((r) => r.attending)
-    .map((r) => ({
-      playerId: r.playerId,
-      by:
-        r.byId !== null && r.byName !== null
-          ? { id: r.byId, name: r.byName }
-          : null,
-      at: r.at,
-    }))
+  return rows.map((r) => ({
+    id: r.id,
+    playerId: r.playerId,
+    attending: r.attending,
+    by:
+      r.byId !== null && r.byName !== null
+        ? { id: r.byId, name: r.byName }
+        : null,
+    at: r.at,
+  }))
 }
 
 // ── Boxes ─────────────────────────────────────────────────────────────────────
