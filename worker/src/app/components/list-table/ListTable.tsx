@@ -563,11 +563,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
           // Just wide enough for "Collapse" and its chevron at each size
           // (any wider pushes 375px phones sideways).
           miw={
-            action.expanded === undefined
-              ? undefined
-              : phone
-                ? '8em'
-                : '8.25em'
+            action.expanded === undefined ? undefined : phone ? '8em' : '8.25em'
           }
           aria-expanded={action.expanded}
           aria-controls={
