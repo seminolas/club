@@ -336,6 +336,9 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const card = useSessionCard({
     phase,
     step,
+    // "5 Nov": the weekday would repeat "Tuesday"; the year as in the list.
+    date: sessionDate(date).replace(/^\S+ /, ''),
+    problem: live.problem,
     onStep: goStep,
     count:
       phase === 'checkin'

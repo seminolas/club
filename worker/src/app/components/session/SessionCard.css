@@ -37,6 +37,17 @@
   );
   border-bottom: 1px solid var(--mantine-color-default-border);
 }
+/* A live-connection problem: yellow (opaque, as rows scroll under it). */
+.app-pinned[data-problem] {
+  background: light-dark(
+    var(--mantine-color-yellow-1),
+    color-mix(
+      in srgb,
+      var(--mantine-color-yellow-9) 35%,
+      var(--mantine-color-dark-8)
+    )
+  );
+}
 @media (min-width: 36em) {
   .app-pinned {
     left: 50%;
