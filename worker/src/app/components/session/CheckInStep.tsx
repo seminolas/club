@@ -46,21 +46,28 @@ const WIDE = '(min-width: 36em)'
 // TRIAL (remove before merging), picked on the page's URL:
 // ?cue=underline|icon|count|none: how a note with history shows it;
 // ?layout=switch: an Attending switch and a "Marked by" column instead of
-// the button and its note.
+// the button and its note; ?layout=switch2: the same, Marked by after
+// Attending.
 type Cue = 'underline' | 'icon' | 'count' | 'none'
 const CUES: Cue[] = ['underline', 'icon', 'count', 'none']
-function useTrial(): { cue: Cue; layout: 'button' | 'switch' } {
-  const [trial, setTrial] = useState<{
-    cue: Cue
-    layout: 'button' | 'switch'
-  }>({ cue: 'underline', layout: 'button' })
+type Layout = 'button' | 'switch' | 'switch2'
+function useTrial(): { cue: Cue; layout: Layout } {
+  const [trial, setTrial] = useState<{ cue: Cue; layout: Layout }>({
+    cue: 'underline',
+    layout: 'button',
+  })
   // After mounting, so the server's and the browser's first render match.
   useEffect(() => {
     const q = new URLSearchParams(location.search)
     const cue = q.get('cue') as Cue | null
     setTrial({
       cue: cue && CUES.includes(cue) ? cue : 'underline',
-      layout: q.get('layout') === 'switch' ? 'switch' : 'button',
+      layout:
+        q.get('layout') === 'switch'
+          ? 'switch'
+          : q.get('layout') === 'switch2'
+            ? 'switch2'
+            : 'button',
     })
   }, [])
   return trial
@@ -176,7 +183,20 @@ export function CheckInStep(props: {
   }
 
   const { cue, layout } = useTrial()
-  const switches = layout === 'switch'
+  const switches = layout !== 'button'
+  // switch2: the switch is a column of its own, so Marked by can follow it.
+  const ownColumn = layout === 'switch2'
+  const attendingSwitch = (r: Row) => (
+    <Switch
+      checked={r.coming}
+      onChange={() => void toggle(r)}
+      onClick={(e) => e.stopPropagation()}
+      size="md"
+      disabled={!props.canMark}
+      aria-label={`${r.fullName} attending`}
+      styles={{ body: { justifyContent: 'center' } }}
+    />
+  )
   const note = (r: Row) =>
     r.history.length > 0 ? (
       <CheckInNote history={r.history} name={markerName} cue={cue} />
@@ -223,6 +243,7 @@ export function CheckInStep(props: {
         stickyHeader
         stickyTop={props.stickyTop}
         primaryColumn="fullName"
+        primaryActionHidden={ownColumn}
         initialSort={{ column: 'rank', direction: 'asc' }}
         header={props.header}
         // The primary action toggles; Enter and a tap do the same.
@@ -232,16 +253,7 @@ export function CheckInStep(props: {
             ? (r) => ({
                 label: r.coming ? 'Attending' : 'Mark attending',
                 run: () => void toggle(r),
-                control: (
-                  <Switch
-                    checked={r.coming}
-                    onChange={() => void toggle(r)}
-                    onClick={(e) => e.stopPropagation()}
-                    size="md"
-                    aria-label={`${r.fullName} attending`}
-                    styles={{ body: { justifyContent: 'center' } }}
-                  />
-                ),
+                control: attendingSwitch(r),
               })
             : props.canMark
               ? (r) =>
@@ -281,19 +293,6 @@ export function CheckInStep(props: {
               accessor: 'fullName',
               title: 'Player',
             },
-            ...(switches
-              ? [
-                  {
-                    accessor: 'history' as const,
-                    title: 'Marked by',
-                    toggleable: false,
-                    render: (r: Row) =>
-                      r.history.length > 0 ? (
-                        <MarkedBy history={r.history} name={markerName} />
-                      ) : null,
-                  },
-                ]
-              : []),
             {
               accessor: 'lastPlayed',
               title: 'Last played',
@@ -308,8 +307,39 @@ export function CheckInStep(props: {
               visibleMediaQuery: WIDE,
               render: (r) => (r.helloClub ? 'Linked' : <Dash />),
             },
+            ...(ownColumn
+              ? [
+                  {
+                    accessor: 'coming' as const,
+                    title: 'Attending',
+                    toggleable: false,
+                    textAlign: 'center' as const,
+                    render: (r: Row) =>
+                      props.canMark ? (
+                        attendingSwitch(r)
+                      ) : r.coming ? (
+                        <Text size="sm" fw={600} c="teal">
+                          Attending ✓
+                        </Text>
+                      ) : null,
+                  },
+                ]
+              : []),
+            ...(switches
+              ? [
+                  {
+                    accessor: 'history' as const,
+                    title: 'Marked by',
+                    toggleable: false,
+                    render: (r: Row) =>
+                      r.history.length > 0 ? (
+                        <MarkedBy history={r.history} name={markerName} />
+                      ) : null,
+                  },
+                ]
+              : []),
             // Without the Mark attending button, who's attending is a column.
-            ...(props.canMark
+            ...(props.canMark || ownColumn
               ? []
               : [
                   {

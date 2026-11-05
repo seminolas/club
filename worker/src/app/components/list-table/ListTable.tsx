@@ -212,6 +212,11 @@ export interface ListTableProps<T> {
   detail?: (record: T, row: RowControls) => ReactNode
   /** Column heading over the primary action buttons. */
   primaryActionTitle?: string
+  /**
+   * The primary action has no column of its own (Enter still runs it on the
+   * active row): a column of the page's shows its control instead.
+   */
+  primaryActionHidden?: boolean
   /** Keep the search text after a primary action (default: clear it). */
   keepSearchAfterAction?: boolean
   rowActions?: (record: T) => ReactNode
@@ -374,7 +379,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
   // Extra, library-free columns: the row buttons, last.
   const columns: ListColumn<T>[] = [
     ...allColumns,
-    ...(props.primaryAction
+    ...(props.primaryAction && !props.primaryActionHidden
       ? [
           {
             accessor: '__primary',
