@@ -18,6 +18,7 @@ import { IconChevronDown, IconHome } from '@tabler/icons-react'
 import { Link, useMatches } from '@tanstack/react-router'
 import type { Viewer } from '../../services/viewer'
 import { ColorSchemeToggle } from './ColorSchemeToggle'
+import { useClubSlug } from '../lib/club'
 import { PageCrumbs } from './PageCrumbs'
 
 export function AppHeader(props: {
@@ -28,6 +29,8 @@ export function AppHeader(props: {
   const { viewer } = props
   const fullName = viewer.player?.name ?? viewer.name ?? ''
   const first = fullName.trim().split(/\s+/)[0]
+  // Home is the page's club's landing page.
+  const club = useClubSlug()
   // The deepest route with a breadcrumb trail (detail pages); none on the
   // landing pages.
   const trail = useMatches({
@@ -42,7 +45,8 @@ export function AppHeader(props: {
   const home = (inTrail: boolean) => (
     <Anchor
       component={Link}
-      to="/players"
+      // A plain path: Anchor's polymorphic props don't carry route params.
+      to={`/${club}/players`}
       fw={700}
       c="var(--mantine-color-text)"
       underline="never"

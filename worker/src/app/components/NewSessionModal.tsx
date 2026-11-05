@@ -12,6 +12,8 @@ import { toastError } from '../lib/toasts'
 
 export function NewSessionModal(props: {
   opened: boolean
+  /** The club the session is for (its slug). */
+  club: string
   sessions: SessionListRow[]
   onClose: () => void
   onCreated: (date: string) => void
@@ -30,6 +32,7 @@ export function NewSessionModal(props: {
 }
 
 function NewSessionForm(props: {
+  club: string
   sessions: SessionListRow[]
   onClose: () => void
   onCreated: (date: string) => void
@@ -40,7 +43,7 @@ function NewSessionForm(props: {
   const [date, setDate] = useState(openOne?.date ?? nextTuesday())
   const exists = props.sessions.some((s) => s.date === date)
   const create = useMutation({
-    mutationFn: () => createSessionFn({ data: date }),
+    mutationFn: () => createSessionFn({ data: { club: props.club, date } }),
     onSuccess: async () => {
       await queryClient.invalidateQueries()
       props.onCreated(date)

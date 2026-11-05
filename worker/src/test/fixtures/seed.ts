@@ -189,6 +189,8 @@ export async function seed(db: DB): Promise<void> {
       id: 1,
       name: 'Test Club',
       short_name: 'TC',
+      // As prod after migration 0015.
+      slug: 'seniors',
       config: JSON.stringify({
         timezone: 'Pacific/Auckland',
         hcSubdomain: 'testclub',

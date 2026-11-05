@@ -17,6 +17,7 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
+  redirect,
   useNavigate,
 } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
@@ -25,6 +26,7 @@ import { AppHeader } from '../components/AppHeader'
 import { ClaimModal } from '../components/ClaimModal'
 import { SignInModal } from '../components/SignInModal'
 import { signOut } from '../lib/auth'
+import { DEFAULT_CLUB } from '../lib/club'
 import { legacyPath } from '../lib/legacy'
 import { viewerQuery } from '../lib/queries'
 import { toastOk } from '../lib/toasts'
@@ -49,8 +51,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         },
       ],
     }),
-    beforeLoad: ({ context }) =>
-      context.queryClient.ensureQueryData(viewerQuery),
+    beforeLoad: ({ context, location }) => {
+      // Addresses from before clubs had URLs (/players, /sessions/…, shared
+      // on WhatsApp) were the seniors': /seniors/… (MULTI-CLUB.md).
+      if (/^\/(players|sessions)(\/|$)/.test(location.pathname))
+        throw redirect({
+          href: `/${DEFAULT_CLUB}${location.href}`,
+          statusCode: 301,
+        })
+      return context.queryClient.ensureQueryData(viewerQuery)
+    },
     shellComponent: RootDocument,
     component: RootLayout,
   },

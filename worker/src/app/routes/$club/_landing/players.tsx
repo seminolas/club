@@ -3,24 +3,29 @@ import { Button, FileButton } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useRef } from 'react'
-import { ListTable } from '../../components/list-table/ListTable'
+import { ListTable } from '../../../components/list-table/ListTable'
 import {
   Dash,
   SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
   playedDate,
-} from '../../components/list-helpers'
-import type { PersonRow } from '../../components/list-helpers'
-import { importLadderFn } from '../../fns/ladder'
-import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../lib/csv'
-import { nextTuesday } from '../../lib/dates'
-import { cleanName } from '../../lib/names'
-import { ladderQuery, sessionListQuery, viewerQuery } from '../../lib/queries'
-import { confirmAction, toastError, toastOk } from '../../lib/toasts'
+} from '../../../components/list-helpers'
+import type { PersonRow } from '../../../components/list-helpers'
+import { importLadderFn } from '../../../fns/ladder'
+import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../../lib/csv'
+import { nextTuesday } from '../../../lib/dates'
+import { cleanName } from '../../../lib/names'
+import {
+  ladderQuery,
+  sessionListQuery,
+  viewerQuery,
+} from '../../../lib/queries'
+import { confirmAction, toastError, toastOk } from '../../../lib/toasts'
 
-export const Route = createFileRoute('/_landing/players')({
-  loader: ({ context }) => context.queryClient.ensureQueryData(ladderQuery),
+export const Route = createFileRoute('/$club/_landing/players')({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(ladderQuery(params.club)),
   component: PlayersPage,
 })
 
@@ -32,8 +37,9 @@ interface Row extends PersonRow {
 }
 
 function PlayersPage() {
+  const { club } = Route.useParams()
   const { data: viewer } = useSuspenseQuery(viewerQuery)
-  const { data: ladder } = useSuspenseQuery(ladderQuery)
+  const { data: ladder } = useSuspenseQuery(ladderQuery(club))
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const resetFile = useRef<() => void>(null)
@@ -68,7 +74,7 @@ function PlayersPage() {
   const importCsv = async (file: File | null) => {
     resetFile.current?.()
     if (!file) return
-    const sessions = await queryClient.fetchQuery(sessionListQuery)
+    const sessions = await queryClient.fetchQuery(sessionListQuery(club))
     if (sessions[0] && sessions[0].status !== 'closed')
       return toastError(
         new Error(
@@ -85,7 +91,7 @@ function PlayersPage() {
       danger: true,
       onConfirm: async () => {
         try {
-          await importLadderFn({ data: names })
+          await importLadderFn({ data: { club, names } })
           await queryClient.invalidateQueries()
           toastOk(`Imported ${names.length} players.`)
         } catch (e) {
@@ -113,8 +119,8 @@ function PlayersPage() {
               label: 'View',
               run: () =>
                 void navigate({
-                  to: '/players/$id',
-                  params: { id: String(r.personId) },
+                  to: '/$club/players/$id',
+                  params: { club, id: String(r.personId) },
                 }),
             })
           : undefined

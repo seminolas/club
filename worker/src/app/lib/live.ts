@@ -67,6 +67,8 @@ export class LiveChannel {
   private everOpen = false
 
   constructor(
+    /** The club's slug: its rooms are its own (MULTI-CLUB.md). */
+    private readonly club: string,
     private readonly date: string,
     private readonly handlers: LiveHandlers,
   ) {}
@@ -115,7 +117,7 @@ export class LiveChannel {
     if (this.closed) return
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(
-      `${proto}://${location.host}/api/live/${this.date}`,
+      `${proto}://${location.host}/api/live/${this.club}/${this.date}`,
     )
     this.ws = ws
     ws.onopen = () => {
@@ -218,6 +220,7 @@ export class LiveChannel {
  * the connection problem to show (if any) and the channel, for writes.
  */
 export function useSessionLive(
+  club: string,
   date: string,
   handlers: Omit<LiveHandlers, 'onProblem'>,
 ) {
@@ -227,7 +230,7 @@ export function useSessionLive(
   const latest = useRef(handlers)
   latest.current = handlers
   useEffect(() => {
-    const live = new LiveChannel(date, {
+    const live = new LiveChannel(club, date, {
       onMatch: (...a) => latest.current.onMatch(...a),
       onAttendance: (c) => latest.current.onAttendance(c),
       onChanged: (first) => latest.current.onChanged(first),
@@ -240,6 +243,6 @@ export function useSessionLive(
       live.stop()
       setProblem(null)
     }
-  }, [date])
+  }, [club, date])
   return { problem, channel }
 }

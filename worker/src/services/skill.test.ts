@@ -10,6 +10,7 @@ import type { TestDb } from '../test/d1'
 import { seed, seedTestUsers } from '../test/fixtures/seed'
 import type { Env } from '../types'
 import { clearCache } from './cache'
+import { SENIORS } from './context'
 import type { ServiceContext } from './context'
 import { ladder } from './ladder'
 import { fillSkill } from './skill'
@@ -57,7 +58,12 @@ beforeEach(async () => {
     .join('; ')
 })
 
-const ctx = (): ServiceContext => ({ env, db: t.db, headers: new Headers() })
+const ctx = (): ServiceContext => ({
+  env,
+  db: t.db,
+  headers: new Headers(),
+  club: SENIORS,
+})
 const admin = (method: string, path: string, body?: unknown) =>
   app.request(
     path,

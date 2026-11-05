@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { ladderFn } from '../fns/ladder'
 import { playerFn } from '../fns/players'
 import { sessionFn } from '../fns/session'
-import { sessionListFn } from '../fns/sessions'
+import { clubsFn, sessionListFn } from '../fns/sessions'
 import { claimablePlayersFn, getViewerFn } from '../fns/viewer'
 
 /** How long loaded data counts as fresh (the query client's staleTime). */
@@ -18,24 +18,36 @@ export const claimableQuery = queryOptions({
   queryFn: () => claimablePlayersFn(),
 })
 
-export const ladderQuery = queryOptions({
-  queryKey: ['ladder'],
-  queryFn: () => ladderFn(),
+/** The clubs the app serves (slug, label, session title). */
+export const clubsQuery = queryOptions({
+  queryKey: ['clubs'],
+  queryFn: () => clubsFn(),
+  // Clubs change rarely (admin screens, later).
+  staleTime: 5 * 60_000,
 })
 
-export const sessionListQuery = queryOptions({
-  queryKey: ['sessions'],
-  queryFn: () => sessionListFn(),
-})
-
-export const playerQuery = (id: number) =>
+// A club's own data: keyed by its slug first, so a club's queries can be
+// found (and refreshed) together.
+export const ladderQuery = (club: string) =>
   queryOptions({
-    queryKey: ['player', id],
-    queryFn: () => playerFn({ data: id }),
+    queryKey: [club, 'ladder'],
+    queryFn: () => ladderFn({ data: club }),
   })
 
-export const sessionQuery = (date: string) =>
+export const sessionListQuery = (club: string) =>
   queryOptions({
-    queryKey: ['session', date],
-    queryFn: () => sessionFn({ data: date }),
+    queryKey: [club, 'sessions'],
+    queryFn: () => sessionListFn({ data: club }),
+  })
+
+export const playerQuery = (club: string, id: number) =>
+  queryOptions({
+    queryKey: [club, 'player', id],
+    queryFn: () => playerFn({ data: { club, id } }),
+  })
+
+export const sessionQuery = (club: string, date: string) =>
+  queryOptions({
+    queryKey: [club, 'session', date],
+    queryFn: () => sessionFn({ data: { club, date } }),
   })

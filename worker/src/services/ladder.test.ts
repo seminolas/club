@@ -7,6 +7,7 @@ import type { TestDb } from '../test/d1'
 import { seed } from '../test/fixtures/seed'
 import type { Env } from '../types'
 import { clearCache } from './cache'
+import { SENIORS } from './context'
 import type { ServiceContext } from './context'
 import { ladder } from './ladder'
 import { sessionList } from './sessions'
@@ -40,6 +41,7 @@ function context() {
     env: {} as Env,
     db: counting,
     headers: new Headers(),
+    club: SENIORS,
   }
   // The per-player aggregate over every attendee row.
   const attendeeReads = () =>

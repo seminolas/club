@@ -9,6 +9,7 @@ import {
   exists,
   gte,
   inArray,
+  isNotNull,
   isNull,
   ne,
   notExists,
@@ -1122,6 +1123,18 @@ export async function getClub(
     .where(eq(t.clubs.id, clubId))
     .get()
   return row ?? null
+}
+
+/** Every club with a slug (the ones the app serves). */
+export async function listClubs(
+  db: DB,
+): Promise<{ id: number; slug: string; config: string }[]> {
+  const rows = await orm(db)
+    .select({ id: t.clubs.id, slug: t.clubs.slug, config: t.clubs.config })
+    .from(t.clubs)
+    .where(isNotNull(t.clubs.slug))
+    .orderBy(asc(t.clubs.id))
+  return rows.map((r) => ({ ...r, slug: r.slug ?? '' }))
 }
 
 // ── New UI (UI-PORT.md, U2) ───────────────────────────────────────────────────

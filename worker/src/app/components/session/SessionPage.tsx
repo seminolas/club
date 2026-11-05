@@ -55,14 +55,19 @@ import type { MenuAction, StepAction, StepId } from './SessionCard'
  */
 const previousLayouts = new Map<string, number[][]>()
 
-export function SessionPage(props: { date: string; step: StepId }) {
-  const { date, step } = props
+export function SessionPage(props: {
+  /** The club's slug (MULTI-CLUB.md). */
+  club: string
+  date: string
+  step: StepId
+}) {
+  const { club, date, step } = props
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { data: session } = useSuspenseQuery(sessionQuery(date))
+  const { data: session } = useSuspenseQuery(sessionQuery(club, date))
   const { data: viewer } = useSuspenseQuery(viewerQuery)
-  const { data: ladder } = useSuspenseQuery(ladderQuery)
-  const { data: sessions } = useSuspenseQuery(sessionListQuery)
+  const { data: ladder } = useSuspenseQuery(ladderQuery(club))
+  const { data: sessions } = useSuspenseQuery(sessionListQuery(club))
   const [assigning, setAssigning] = useState(false)
   const [syncing, setSyncing] = useState<string | null>(null)
   const [sheets, setSheets] = useState<SheetLayout>('cards')
@@ -74,20 +79,22 @@ export function SessionPage(props: { date: string; step: StepId }) {
 
   const reload = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['session', date] }),
-      queryClient.invalidateQueries({ queryKey: ['sessions'] }),
-      queryClient.invalidateQueries({ queryKey: ['ladder'] }),
+      queryClient.invalidateQueries({ queryKey: [club, 'session', date] }),
+      queryClient.invalidateQueries({ queryKey: [club, 'sessions'] }),
+      queryClient.invalidateQueries({ queryKey: [club, 'ladder'] }),
     ])
   // Scores: typed cells are kept until saved; everything else follows the
   // live channel (lib/scores.ts).
   const channel = useRef<LiveChannel | null>(null)
-  const scores = useScoreEntry(date, channel)
-  const live = useSessionLive(date, {
+  const scores = useScoreEntry(club, date, channel)
+  const live = useSessionLive(club, date, {
     onChanged: (firstConnect) => {
       // The first connection comes a moment after the page loaded its data:
       // skip the catch-up while that data is fresh (the query client's
       // staleTime), so a page view doesn't read everything twice.
-      const loaded = queryClient.getQueryState(sessionQuery(date).queryKey)
+      const loaded = queryClient.getQueryState(
+        sessionQuery(club, date).queryKey,
+      )
       if (
         firstConnect &&
         loaded &&
@@ -95,14 +102,14 @@ export function SessionPage(props: { date: string; step: StepId }) {
       )
         return
       void scores.refresh().catch(() => {})
-      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      void queryClient.invalidateQueries({ queryKey: ['ladder'] })
+      void queryClient.invalidateQueries({ queryKey: [club, 'sessions'] })
+      void queryClient.invalidateQueries({ queryKey: [club, 'ladder'] })
     },
     onMatch: scores.mergeMatch,
     // One row changes on every screen; nothing is reloaded (V2).
     onAttendance: (change) =>
       queryClient.setQueryData(
-        sessionQuery(date).queryKey,
+        sessionQuery(club, date).queryKey,
         (s) => s && withAttendance(s, change),
       ),
     onSettled: scores.settled,
@@ -116,8 +123,8 @@ export function SessionPage(props: { date: string; step: StepId }) {
   const allFinished = prog.boxes > 0 && prog.finishedBoxes === prog.boxes
   const goStep = (s: StepId) =>
     void navigate({
-      to: '/sessions/$date/$step',
-      params: { date, step: s },
+      to: '/$club/sessions/$date/$step',
+      params: { club, date, step: s },
       replace: true,
     })
 
@@ -155,7 +162,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
 
   const assign = async (boxes: BoxInput[]) => {
     try {
-      await saveBoxesFn({ data: { date, boxes } })
+      await saveBoxesFn({ data: { club, date, boxes } })
       previousLayouts.delete(date)
       setAssigning(false)
       await reload()
@@ -200,7 +207,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
       onConfirm: () =>
         move(
           async () => {
-            await reopenAttendanceFn({ data: date })
+            await reopenAttendanceFn({ data: { club, date } })
             previousLayouts.set(date, current)
           },
           'Check-in re-opened',
@@ -228,7 +235,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
       cancelLabel: 'Not yet',
       onConfirm: () =>
         move(
-          () => closeSessionFn({ data: { date, ladderAfter: after } }),
+          () => closeSessionFn({ data: { club, date, ladderAfter: after } }),
           isLatest ? 'Session closed. Ladder updated.' : 'Session closed.',
           'results',
         ),
@@ -245,7 +252,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
       danger: true,
       onConfirm: () =>
         move(
-          () => reopenSessionFn({ data: date }),
+          () => reopenSessionFn({ data: { club, date } }),
           'Session re-opened',
           'boxes',
         ),
@@ -258,10 +265,10 @@ export function SessionPage(props: { date: string; step: StepId }) {
       danger: true,
       onConfirm: async () => {
         try {
-          await deleteSessionFn({ data: date })
+          await deleteSessionFn({ data: { club, date } })
           await queryClient.invalidateQueries()
           toastOk('Session deleted.')
-          void navigate({ to: '/sessions' })
+          void navigate({ to: '/$club/sessions', params: { club } })
         } catch (e) {
           toastError(e)
         }
@@ -413,6 +420,7 @@ export function SessionPage(props: { date: string; step: StepId }) {
       {view(
         'checkin',
         <CheckInStep
+          club={club}
           session={session}
           ladder={ladder}
           canMark={(admin || !!viewer.player) && phase === 'checkin'}
@@ -449,7 +457,11 @@ export function SessionPage(props: { date: string; step: StepId }) {
       {session.boxes.length > 0 && (
         <ScoreSheets boxes={session.boxes} layout={sheets} label={label} />
       )}
-      <HcSyncModal date={syncing} onClose={() => setSyncing(null)} />
+      <HcSyncModal
+        club={club}
+        date={syncing}
+        onClose={() => setSyncing(null)}
+      />
       <AssignBoxesModal
         opened={assigning}
         players={coming}

@@ -6,8 +6,9 @@ import { getSession, requireAdmin } from './auth'
 import { createAuth } from './better-auth'
 import * as db from './db'
 import type { DB } from './db'
-import { CLUB_ID, ServiceError } from './services/context'
-import type { ServiceContext } from './services/context'
+import { SENIORS, ServiceError } from './services/context'
+import type { ClubRef, ServiceContext } from './services/context'
+import { clubBySlug } from './services/clubs'
 import { importLadder } from './services/ladder'
 import {
   HcError,
@@ -59,11 +60,13 @@ app.use('*', async (c, next) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// The request as the shared services see it.
-const ctx = (c: AppContext): ServiceContext => ({
+// The request as the shared services see it. The REST API serves the
+// seniors (the club it always served); the new UI names its club in the URL.
+const ctx = (c: AppContext, club: ClubRef = SENIORS): ServiceContext => ({
   env: c.env,
   db: c.get('db'),
   headers: c.req.raw.headers,
+  club,
 })
 
 // A service's result as JSON, or its refusal as `{ error }` with its status.
@@ -108,27 +111,37 @@ app.post('/api/me/claim', async (c) => {
 // ── Live session (S6a) ────────────────────────────────────────────────────────
 
 // The session's Durable Object (one per club + date).
-const sessionRoom = (env: Env, date: string) =>
-  env.SESSION_ROOM?.get(env.SESSION_ROOM.idFromName(`${CLUB_ID}:${date}`))
+const sessionRoom = (env: Env, clubId: number, date: string) =>
+  env.SESSION_ROOM?.get(env.SESSION_ROOM.idFromName(`${clubId}:${date}`))
 
 // A WebSocket to the session's live channel: everyone viewing gets updates;
 // admins may enter any score, players (V3) their own box's.
-app.get('/api/live/:date', async (c) => {
+async function liveSocket(c: AppContext, club: ClubRef, date: string) {
   if (c.req.header('Upgrade') !== 'websocket')
     return c.json({ error: 'Expected a WebSocket' }, 426)
-  const room = sessionRoom(c.env, c.req.param('date'))
+  const room = sessionRoom(c.env, club.id, date)
   if (!room) return c.json({ error: 'Live updates unavailable' }, 503)
   const session = await getSession(c)
   const player = session
-    ? await db.getPlayerByUserId(c.get('db'), CLUB_ID, session.user.id)
+    ? await db.getPlayerByUserId(c.get('db'), club.id, session.user.id)
     : null
   // Overwrites anything the browser sent under these names.
   const headers = new Headers(c.req.raw.headers)
-  headers.set('x-session-date', c.req.param('date'))
+  headers.set('x-club-id', String(club.id))
+  headers.set('x-session-date', date)
   headers.set('x-is-admin', session?.user.role === 'admin' ? '1' : '0')
   headers.set('x-player-id', player ? String(player.id) : '')
   return room.fetch(new Request(c.req.raw.url, { headers }))
+}
+app.get('/api/live/:club/:date', async (c) => {
+  const club = await clubBySlug(c.get('db'), c.req.param('club')).catch(
+    () => null,
+  )
+  if (!club) return c.json({ error: 'Club not found' }, 404)
+  return liveSocket(c, club, c.req.param('date'))
 })
+// Screens opened before clubs had URLs: the seniors.
+app.get('/api/live/:date', (c) => liveSocket(c, SENIORS, c.req.param('date')))
 
 // Tell the session's screens to reload it (after changes made here, not
 // through the live channel).
@@ -136,7 +149,7 @@ function notifyLive(
   c: { env: Env; executionCtx: { waitUntil: (p: Promise<unknown>) => void } },
   date: string,
 ) {
-  const room = sessionRoom(c.env, date)
+  const room = sessionRoom(c.env, SENIORS.id, date)
   if (!room) return
   const done = room
     .fetch('https://live/notify', { method: 'POST' })
@@ -151,7 +164,7 @@ function notifyLive(
 // ── Config ────────────────────────────────────────────────────────────────────
 
 app.get('/api/config', async (c) => {
-  const club = await db.getClub(c.get('db'), CLUB_ID)
+  const club = await db.getClub(c.get('db'), SENIORS.id)
   if (!club) return c.json({ error: 'Club not found' }, 404)
   return c.json(JSON.parse(club.config))
 })
@@ -159,7 +172,7 @@ app.get('/api/config', async (c) => {
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 
 app.get('/api/leaderboard', async (c) => {
-  const players = await db.getLeaderboardPlayers(c.get('db'), CLUB_ID)
+  const players = await db.getLeaderboardPlayers(c.get('db'), SENIORS.id)
   return c.json({
     players: players.map((p) => ({
       id: p.id,
@@ -182,7 +195,7 @@ app.post('/api/leaderboard/import', requireAdmin, async (c) => {
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 app.get('/api/sessions', async (c) => {
-  const sessions = await db.listSessions(c.get('db'), CLUB_ID)
+  const sessions = await db.listSessions(c.get('db'), SENIORS.id)
   return c.json(sessions)
 })
 
@@ -233,7 +246,7 @@ app.put('/api/sessions/:date/score', requireAdmin, async (c) => {
       score_b: number | null
     }>()
 
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, date)
+  const session = await db.getSessionByDate(c.get('db'), SENIORS.id, date)
   if (!session) return c.json({ error: 'Not found' }, 404)
   if (session.status === 'closed')
     return c.json({ error: 'Session is closed' }, 400)
@@ -344,10 +357,19 @@ app.get('/api/hc/members', requireAdmin, async (c) => {
 })
 
 app.post('/api/hc/sync', requireAdmin, async (c) => {
-  const { session_date } = await c.req.json<{ session_date: string }>()
+  const { session_date, club: slug } = await c.req.json<{
+    session_date: string
+    club?: string
+  }>()
   if (!session_date) return c.json({ error: 'session_date required' }, 400)
+  // The new UI says which club; without one, the seniors (as before).
+  const club = await clubBySlug(c.get('db'), slug ?? SENIORS.slug).catch(
+    () => null,
+  )
+  if (!club) return c.json({ error: 'Club not found' }, 404)
+  const eventName = club.config.hcEvent ?? 'Senior Box'
 
-  const session = await db.getSessionByDate(c.get('db'), CLUB_ID, session_date)
+  const session = await db.getSessionByDate(c.get('db'), club.id, session_date)
   if (!session) return c.json({ error: 'Session not found' }, 404)
 
   const HC_BASE = `https://${c.env.HC_CLUB_ID}.helloclub.com/api`
@@ -380,9 +402,10 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
       events?: Array<{ id: string; name: string }>
     }>()
     const event = (eventData.events ?? []).find((e) =>
-      e.name?.includes('Senior Box'),
+      e.name?.includes(eventName),
     )
-    if (!event) throw new Error(`No Senior Box event found for ${session_date}`)
+    if (!event)
+      throw new Error(`No ${eventName} event found for ${session_date}`)
 
     emit(`Found event: "${event.name}"`)
 

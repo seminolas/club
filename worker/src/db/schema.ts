@@ -19,6 +19,8 @@ export const clubs = sqliteTable('clubs', {
   shortName: text('short_name'),
   /** JSON: club settings (timezone, HelloClub subdomain, ...). */
   config: text('config').notNull(),
+  /** In URLs: /seniors/…, /juniors/… (migration 0015). */
+  slug: text('slug'),
 })
 
 // ── BetterAuth (S4) ──────────────────────────────────────────────────────────
