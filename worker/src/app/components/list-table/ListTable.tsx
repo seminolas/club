@@ -481,15 +481,35 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
     if (!table || !root || !scroller) return
     const check = () => {
       root.removeAttribute('data-compact')
-      if (!table.querySelector('.lt-short')) return
-      root.toggleAttribute(
-        'data-compact',
-        table.scrollWidth > scroller.clientWidth + 1,
+      if (table.querySelector('.lt-short'))
+        root.toggleAttribute(
+          'data-compact',
+          table.scrollWidth > scroller.clientWidth + 1,
+        )
+      // Column headers stick (under a sticky toolbar) only while the table
+      // fits: then it doesn't scroll sideways, and a sideways scroller would
+      // hold a sticky header inside itself, not at the top of the screen.
+      const fits = table.scrollWidth <= scroller.clientWidth + 1
+      root.toggleAttribute('data-fits', fits)
+      // Rows scrolled into view stop below sticking headers too.
+      const sticks = fits && table.closest('[data-sticky]')
+      root.style.setProperty(
+        '--lt-head-h',
+        sticks ? `${table.tHead?.offsetHeight ?? 0}px` : '0px',
+      )
+      // They stick just below the toolbar: its whole height, measured here
+      // (padding and bottom line included) as it changes with the pills.
+      const toolbarEl = root.querySelector<HTMLElement>('.lt-toolbar')
+      root.style.setProperty(
+        '--lt-head-top',
+        `${(props.stickyTop ?? 0) + (toolbarEl?.offsetHeight ?? 0)}px`,
       )
     }
     check()
     const observer = new ResizeObserver(check)
     observer.observe(scroller)
+    const toolbarEl = root.querySelector('.lt-toolbar')
+    if (toolbarEl) observer.observe(toolbarEl)
     return () => observer.disconnect()
   })
 
@@ -1135,6 +1155,8 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
         <Box px={phone ? 'md' : 0}>{props.intro}</Box>
       )}
       <Box
+        className="lt-card"
+        data-sticky={props.stickyHeader || undefined}
         style={{
           ...cardStyle,
           overflow: 'clip',
