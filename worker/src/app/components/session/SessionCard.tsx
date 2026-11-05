@@ -4,7 +4,8 @@
 // "…" beside it (re-open, reassign, delete), the step's own word buttons,
 // and a stepper (Check-in → Boxes → Results) that only navigates: steps the
 // session hasn't reached are locked. Scrolled down, a compact copy stays
-// pinned at the top.
+// pinned at the top: date and step, state and count (or a connection
+// problem), and the way forward.
 import {
   ActionIcon,
   Badge,
@@ -15,8 +16,9 @@ import {
   Stack,
   Stepper,
   Text,
+  UnstyledButton,
 } from '@mantine/core'
-import { useMediaQuery } from '@mantine/hooks'
+import { useMediaQuery, useReducedMotion } from '@mantine/hooks'
 import {
   IconChevronDown,
   IconChevronLeft,
@@ -86,8 +88,12 @@ export interface SessionCardProps {
   onStep: (step: StepId) => void
   /** [label, value] of the third pill. */
   count: [string, string]
+  /** The session's date in the pinned bar, e.g. "5 Nov". */
+  date: string
   /** Under the step name in the pinned bar, e.g. "1 of 8 boxes finished". */
   status: string
+  /** A live-connection problem, shown in the pinned bar. */
+  problem?: 'reconnecting' | 'reload' | null
   /** The way forward (admins), or nothing. */
   forward?: {
     label: string
@@ -106,6 +112,7 @@ export interface SessionCardProps {
 /** The card's content for each step, plus the pinned bar. */
 export function useSessionCard(props: SessionCardProps) {
   const phone = !useMediaQuery('(min-width: 36em)', true)
+  const reducedMotion = useReducedMotion()
   const furthest = STEPS.findIndex((s) => s.id === furthestStep(props.phase))
   const reachable = (id: StepId) =>
     STEPS.findIndex((x) => x.id === id) <= furthest
@@ -297,24 +304,65 @@ export function useSessionCard(props: SessionCardProps) {
     </Stack>
   )
 
+  // The pinned bar: which night and step ("5 Nov · Results"), then the
+  // session's state and count ("Closed · 38 players"); a connection problem
+  // takes the second line, turns the bar yellow, and offers Reload when one
+  // is needed. Tapping the text goes back up to the full card.
+  const problem =
+    props.problem === 'reconnecting'
+      ? 'Connection lost – reconnecting…'
+      : props.problem === 'reload'
+        ? 'Some changes may not have been saved'
+        : null
+  const toTop = () =>
+    window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })
+  const line = { display: 'block' } as const
   const pinnedBar = pinned ? (
     <Group
       className="app-pinned"
+      data-problem={problem ? true : undefined}
       h={PINNED_H}
       justify="space-between"
       gap="xs"
       wrap="nowrap"
     >
-      <Box style={{ minWidth: 0 }}>
-        <Text size="sm" fw={700} truncate>
-          {STEPS.find((s) => s.id === props.step)?.label}
+      <UnstyledButton
+        onClick={toTop}
+        title="Back to the top"
+        style={{ minWidth: 0 }}
+      >
+        <Text span size="sm" fw={700} truncate style={line}>
+          {props.date} · {STEPS.find((s) => s.id === props.step)?.label}
         </Text>
-        <Text size="sm" c={INFO_TEXT} truncate>
-          {props.status}
-        </Text>
+        {problem ? (
+          <Text span size="sm" fw={600} truncate style={line} role="status">
+            {problem}
+          </Text>
+        ) : (
+          <Text span size="sm" c={INFO_TEXT} truncate style={line}>
+            <Text
+              span
+              inherit
+              fw={600}
+              c={`var(--mantine-color-${PHASE_COLOR[props.phase]}-light-color)`}
+            >
+              {PHASE_LABEL[props.phase]}
+            </Text>
+            {' · '}
+            {props.status}
+          </Text>
+        )}
+      </UnstyledButton>
+      {/* Only the way forward (or Reload); "…" stays in the full card. */}
+      <Box style={{ flexShrink: 0 }}>
+        {props.problem === 'reload' ? (
+          <Button size="sm" variant="default" onClick={() => location.reload()}>
+            Reload
+          </Button>
+        ) : (
+          forward('sm')
+        )}
       </Box>
-      {/* Only the way forward; "…" stays in the full card. */}
-      <Box style={{ flexShrink: 0 }}>{forward('sm')}</Box>
     </Group>
   ) : null
 
