@@ -18,7 +18,7 @@ import type { BatchItem } from 'drizzle-orm/batch'
 import { drizzle } from 'drizzle-orm/d1'
 import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import * as t from './db/schema'
-import type { Box, BoxInput, Match, SessionStatus } from './types'
+import type { CheckIn, Box, BoxInput, Match, SessionStatus } from './types'
 
 // Accepts either a plain D1Database or a D1DatabaseSession (see index.ts's
 // withSession('first-primary') wrapper) — both expose prepare()/batch().
@@ -398,6 +398,68 @@ export async function setAttendance(
             ),
           ),
   ])
+}
+
+/** The player is on the session's starting ladder. */
+export async function isOnSessionLadder(
+  db: DB,
+  sessionId: number,
+  playerId: number,
+): Promise<boolean> {
+  const row = await orm(db)
+    .select({ one: sql`1` })
+    .from(t.sessionRanks)
+    .where(
+      and(
+        eq(t.sessionRanks.sessionId, sessionId),
+        eq(t.sessionRanks.playerId, playerId),
+        eq(t.sessionRanks.phase, 'before'),
+      ),
+    )
+    .get()
+  return row !== undefined
+}
+
+/**
+ * The session's check-in changes (or one player's), oldest first, with who
+ * made them. One indexed read of the session's audit (a few dozen rows a
+ * night); players marked before the audit existed have none.
+ */
+export async function getCheckIns(
+  db: DB,
+  sessionId: number,
+  playerId?: number,
+): Promise<CheckIn[]> {
+  const rows = await orm(db)
+    .select({
+      id: t.attendanceEvents.id,
+      playerId: t.attendanceEvents.playerId,
+      attending: t.attendanceEvents.attending,
+      byId: t.attendanceEvents.byPlayerId,
+      byName: t.players.name,
+      at: t.attendanceEvents.at,
+    })
+    .from(t.attendanceEvents)
+    .leftJoin(t.players, eq(t.players.id, t.attendanceEvents.byPlayerId))
+    .where(
+      and(
+        eq(t.attendanceEvents.sessionId, sessionId),
+        playerId === undefined
+          ? undefined
+          : eq(t.attendanceEvents.playerId, playerId),
+      ),
+    )
+    .orderBy(t.attendanceEvents.id)
+  return rows.map((r) => ({
+    id: r.id,
+    playerId: r.playerId,
+    attending: r.attending,
+    by:
+      r.byId !== null && r.byName !== null
+        ? { id: r.byId, name: r.byName }
+        : null,
+    at: r.at,
+  }))
 }
 
 // ── Boxes ─────────────────────────────────────────────────────────────────────

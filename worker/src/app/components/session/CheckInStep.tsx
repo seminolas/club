@@ -1,13 +1,18 @@
-// Check-in (club-table-lab AttendanceDemo; old UI: the Attendance tab). Admins
-// mark people coming while check-in is open: type a few letters, Enter marks
-// the first match, with Undo. Everyone else, and every later state, sees who's
-// coming. "Add “…”" adds someone new (admins, check-in open).
+// Check-in (club-table-lab AttendanceDemo; old UI: the Attendance tab). While
+// check-in is open, any signed-in player marks themselves or anyone else as
+// attending (V2) with an Attending switch, with Undo. Admins also add someone
+// new ("Add “…”"). Typing a few letters and Enter toggles the first match.
+// "Marked by", next to it: who made the latest change; tap it for the night's
+// history.
 import {
+  Anchor,
   Button,
   Group,
   Modal,
   NumberInput,
+  Popover,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from '@mantine/core'
@@ -15,9 +20,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
+import type { CheckIn, Player } from '../../../types'
 import { addPlayerFn, setAttendanceFn } from '../../fns/session'
 import { INFO_TEXT } from '../../lib/colors'
-import { cleanName, shortName } from '../../lib/names'
+import { boxName, cleanName, shortName } from '../../lib/names'
+import { withAttendance } from '../../lib/session'
 import type { Session } from '../../lib/session'
 import { toastError, toastOk, toastWithUndo } from '../../lib/toasts'
 import { ListTable } from '../list-table/ListTable'
@@ -26,24 +33,33 @@ import {
   SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
+  markedTime,
   playedDate,
 } from '../list-helpers'
 import type { PersonRow } from '../list-helpers'
 
+const WIDE = '(min-width: 36em)'
+
 interface Row extends PersonRow {
   rank: number
   coming: boolean
+  /** This player's check-in changes tonight, oldest first. */
+  history: CheckIn[]
 }
 
 export function CheckInStep(props: {
   session: Session
   ladder: LadderRow[]
-  /** Admins while check-in is open. */
+  /** Signed-in players and admins, while check-in is open. */
   canMark: boolean
+  /** Admins, while check-in is open: adding someone new. */
+  canAdd: boolean
+  /** The viewer's own player, if signed in. */
+  me: Player | null
   header: ReactNode
   stickyTop: number
 }) {
-  const { session } = props
+  const { session, me } = props
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState<string | null>(null)
   const key = ['session', session.date]
@@ -56,6 +72,9 @@ export function CheckInStep(props: {
       ? props.ladder.map((p) => ({ id: p.id, name: p.name }))
       : session.leaderboardBefore
   const coming = new Set(session.attendees.map((p) => p.id))
+  const history = new Map<number, CheckIn[]>()
+  for (const c of session.checkIns)
+    history.set(c.playerId, [...(history.get(c.playerId) ?? []), c])
   const rows: Row[] = base.map((p, i) => {
     const d = details.get(p.id)
     return {
@@ -66,29 +85,80 @@ export function CheckInStep(props: {
       helloClub: Boolean(d?.hcMemberId),
       rank: i + 1,
       coming: coming.has(p.id),
+      history: history.get(p.id) ?? [],
     }
   })
+  // Who made a change, by their short name (as in boxes: "Sam N." on a clash).
+  const markerName = (by: CheckIn['by']) => {
+    if (!by) return 'an admin'
+    const p = details.get(by.id)
+    return boxName(
+      { name: by.name, preferredName: p?.preferredName },
+      props.ladder,
+    )
+  }
 
-  // Marks straight away; puts it back if the server refuses.
+  // "Marked by" filter: whoever the Marked by column shows (the latest
+  // change's marker). Me first, then everyone else who marked someone.
+  const markerKey = (by: CheckIn['by']) => (by ? String(by.id) : 'admin')
+  const latestKey = (r: Row) => {
+    const latest = r.history.at(-1)
+    return latest ? markerKey(latest.by) : null
+  }
+  const markers = new Map<string, CheckIn['by']>()
+  for (const r of rows) {
+    const latest = r.history.at(-1)
+    if (latest) markers.set(markerKey(latest.by), latest.by)
+  }
+  if (me) markers.delete(String(me.id))
+  const markedByOptions = [
+    ...(me
+      ? [
+          {
+            value: String(me.id),
+            label: 'Me',
+            pill: 'Marked by me',
+            test: (r: Row) => latestKey(r) === String(me.id),
+          },
+        ]
+      : []),
+    ...[...markers]
+      .map(([value, by]) => ({
+        value,
+        label: markerName(by),
+        test: (r: Row) => latestKey(r) === value,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  ]
+
+  // Marks straight away, with a provisional "by me" note; the server's reply
+  // replaces it with the saved change, or puts everything back if refused.
   const setComing = async (r: Row, attending: boolean) => {
-    const patch = (on: boolean) =>
+    const player = { id: r.personId, name: r.fullName }
+    const apply = (change: Parameters<typeof withAttendance>[1]) =>
       queryClient.setQueryData<Session>(
         key,
-        (s) =>
-          s && {
-            ...s,
-            attendees: on
-              ? [...s.attendees, { id: r.personId, name: r.fullName }]
-              : s.attendees.filter((a) => a.id !== r.personId),
-          },
+        (s) => s && withAttendance(s, change),
       )
-    patch(attending)
+    apply({
+      player,
+      attending,
+      checkIn: {
+        id: -Date.now(),
+        playerId: r.personId,
+        attending,
+        by: me,
+        at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      },
+    })
     try {
-      await setAttendanceFn({
-        data: { date: session.date, playerId: r.personId, attending },
-      })
+      apply(
+        await setAttendanceFn({
+          data: { date: session.date, playerId: r.personId, attending },
+        }),
+      )
     } catch (e) {
-      patch(!attending)
+      apply({ player, attending: !attending, checkIn: null })
       toastError(e)
       return false
     }
@@ -97,10 +167,16 @@ export function CheckInStep(props: {
   const toggle = async (r: Row) => {
     const attending = !r.coming
     if (!(await setComing(r, attending))) return
+    const you = r.personId === me?.id
+    const message = attending
+      ? you
+        ? 'You’re marked attending'
+        : `${r.fullName} marked attending`
+      : you
+        ? 'You’re no longer attending'
+        : `${r.fullName} is no longer attending`
     toastWithUndo(
-      attending
-        ? `${r.fullName} marked attending`
-        : `${r.fullName} is no longer attending`,
+      message,
       () => void setComing({ ...r, coming: attending }, !attending),
     )
   }
@@ -134,6 +210,16 @@ export function CheckInStep(props: {
               },
             ],
           },
+          {
+            kind: 'options',
+            id: 'markedBy',
+            label: 'Marked by',
+            multiple: true,
+            anyLabel: 'Anyone',
+            onlyLabel: 'Only these',
+            column: 'history',
+            options: markedByOptions,
+          },
           lastPlayedFilter,
           helloClubFilter,
         ]}
@@ -141,24 +227,24 @@ export function CheckInStep(props: {
         stickyHeader
         stickyTop={props.stickyTop}
         primaryColumn="fullName"
-        initialSort={{ column: 'rank', direction: 'asc' }}
-        header={props.header}
-        // The primary action toggles; Enter and a tap do the same.
-        primaryActionTitle="Attending"
+        // Enter toggles the active row; its switch is the Attending column
+        // (not the table's own action column), so Marked by can follow it.
+        primaryActionHidden
         primaryAction={
           props.canMark
-            ? (r) =>
-                r.coming
-                  ? {
-                      label: 'Attending ✓',
-                      done: true,
-                      run: () => void toggle(r),
-                    }
-                  : { label: 'Mark attending', run: () => void toggle(r) }
+            ? (r) => ({
+                label: r.coming ? 'Attending' : 'Mark attending',
+                run: () => void toggle(r),
+              })
             : undefined
         }
+        // The marked row stays in view (its switch flips, Marked by updates);
+        // the next name typed replaces the search.
+        keepSearchAfterAction
+        initialSort={{ column: 'rank', direction: 'asc' }}
+        header={props.header}
         addNew={
-          props.canMark
+          props.canAdd
             ? {
                 label: (q) => `Add “${q}” as a new player`,
                 onAdd: (q) => setAdding(q),
@@ -182,31 +268,46 @@ export function CheckInStep(props: {
               title: 'Last played',
               sortable: true,
               sortDescFirst: true,
-              visibleMediaQuery: '(min-width: 36em)',
+              visibleMediaQuery: WIDE,
               render: (r) => playedDate(r.lastPlayed),
             },
             {
               accessor: 'helloClub',
               title: 'HelloClub',
-              visibleMediaQuery: '(min-width: 36em)',
+              visibleMediaQuery: WIDE,
               render: (r) => (r.helloClub ? 'Linked' : <Dash />),
             },
-            // Without the Mark attending button, who's attending is a column.
-            ...(props.canMark
-              ? []
-              : [
-                  {
-                    accessor: 'coming',
-                    title: 'Attending',
-                    toggleable: false,
-                    render: (r: Row) =>
-                      r.coming ? (
-                        <Text size="sm" fw={600} c="teal">
-                          Attending ✓
-                        </Text>
-                      ) : null,
-                  },
-                ]),
+            {
+              accessor: 'coming',
+              title: 'Attending',
+              toggleable: false,
+              textAlign: 'center',
+              render: (r) =>
+                props.canMark ? (
+                  <Switch
+                    checked={r.coming}
+                    onChange={() => void toggle(r)}
+                    // Not the row's own tap.
+                    onClick={(e) => e.stopPropagation()}
+                    size="md"
+                    aria-label={`${r.fullName} attending`}
+                    styles={{ body: { justifyContent: 'center' } }}
+                  />
+                ) : r.coming ? (
+                  <Text size="sm" fw={600} c="teal">
+                    Attending ✓
+                  </Text>
+                ) : null,
+            },
+            {
+              accessor: 'history',
+              title: 'Marked by',
+              toggleable: false,
+              render: (r) =>
+                r.history.length > 0 ? (
+                  <MarkedBy history={r.history} name={markerName} />
+                ) : null,
+            },
           ]
         }}
       />
@@ -226,6 +327,43 @@ export function CheckInStep(props: {
         }}
       />
     </>
+  )
+}
+
+/**
+ * Who made a player's latest check-in change; a tap shows every change
+ * tonight, newest first ("Unmarked by Ray · 6:45pm").
+ */
+function MarkedBy(props: {
+  history: CheckIn[]
+  name: (by: CheckIn['by']) => string
+}) {
+  const { history, name } = props
+  const latest = history[history.length - 1]
+  return (
+    <Popover position="bottom" withArrow shadow="md">
+      <Popover.Target>
+        <Anchor
+          component="button"
+          size="sm"
+          // Not the row's own tap.
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Check-in history: ${history.length} changes`}
+        >
+          {name(latest.by)}
+        </Anchor>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <Stack gap={4}>
+          {[...history].reverse().map((c) => (
+            <Text key={c.id} size="xs">
+              {c.attending ? 'Marked' : 'Unmarked'} by {name(c.by)} ·{' '}
+              {markedTime(c.at)}
+            </Text>
+          ))}
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   )
 }
 

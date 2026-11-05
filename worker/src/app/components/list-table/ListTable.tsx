@@ -196,7 +196,15 @@ export interface ListTableProps<T> {
   detail?: (record: T, row: RowControls) => ReactNode
   /** Column heading over the primary action buttons. */
   primaryActionTitle?: string
-  /** Keep the search text after a primary action (default: clear it). */
+  /**
+   * The primary action has no column of its own (Enter still runs it on the
+   * active row): a column of the page's shows its control instead.
+   */
+  primaryActionHidden?: boolean
+  /**
+   * Keep the search text after a primary action, selected so typing replaces
+   * it (default: clear it).
+   */
   keepSearchAfterAction?: boolean
   rowActions?: (record: T) => ReactNode
   onRowClick?: (record: T) => void
@@ -358,7 +366,7 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
   // Extra, library-free columns: the row buttons, last.
   const columns: ListColumn<T>[] = [
     ...allColumns,
-    ...(props.primaryAction
+    ...(props.primaryAction && !props.primaryActionHidden
       ? [
           {
             accessor: '__primary',
@@ -531,7 +539,10 @@ function ListTableView<T extends object>(props: ListTableProps<T>) {
     if (!action) return
     action.run()
     if (q && !props.keepSearchAfterAction) setQuery('')
-    if (!action.keepFocus) inputRef.current?.focus()
+    if (action.keepFocus) return
+    inputRef.current?.focus()
+    // A kept search is selected: typing the next name replaces it.
+    if (props.keepSearchAfterAction) inputRef.current?.select()
   }
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

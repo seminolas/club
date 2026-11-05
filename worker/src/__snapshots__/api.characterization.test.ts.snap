@@ -210,6 +210,108 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
         },
       ],
       "boxes": [],
+      "checkIns": [
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 1,
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 2,
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 3,
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 4,
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 5,
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 6,
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 7,
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 8,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": false,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 9,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 10,
+          "playerId": 20,
+        },
+      ],
       "date": "2026-01-20",
       "leaderboardAfter": null,
       "leaderboardBefore": [
@@ -484,6 +586,108 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
           ],
         },
       ],
+      "checkIns": [
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 1,
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 2,
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 3,
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 4,
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 5,
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 6,
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 7,
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 8,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": false,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 9,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 10,
+          "playerId": 20,
+        },
+      ],
       "date": "2026-01-20",
       "leaderboardAfter": null,
       "leaderboardBefore": [
@@ -593,6 +797,108 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
         },
       ],
       "boxes": [],
+      "checkIns": [
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 1,
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 2,
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 3,
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 4,
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 5,
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 6,
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 7,
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 8,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": false,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 9,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 10,
+          "playerId": 20,
+        },
+      ],
       "date": "2026-01-20",
       "leaderboardAfter": null,
       "leaderboardBefore": [
@@ -807,6 +1113,108 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
               "name": "Dev Singh",
             },
           ],
+        },
+      ],
+      "checkIns": [
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 1,
+          "playerId": 2,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 2,
+          "playerId": 1,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 3,
+          "playerId": 14,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 4,
+          "playerId": 5,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 5,
+          "playerId": 6,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 6,
+          "playerId": 3,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 7,
+          "playerId": 4,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 8,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": false,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 9,
+          "playerId": 7,
+        },
+        {
+          "at": "<now>",
+          "attending": true,
+          "by": {
+            "id": 19,
+            "name": "Test Admin",
+          },
+          "id": 10,
+          "playerId": 20,
         },
       ],
       "date": "2026-01-20",
@@ -1597,6 +2005,7 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 1`] 
         ],
       },
     ],
+    "checkIns": [],
     "date": "2026-01-06",
     "leaderboardAfter": [
       {
@@ -1929,6 +2338,7 @@ exports[`public reads > GET /api/sessions/:date (closed, in games, missing) 2`] 
         ],
       },
     ],
+    "checkIns": [],
     "date": "2026-01-13",
     "leaderboardAfter": null,
     "leaderboardBefore": [

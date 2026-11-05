@@ -2,7 +2,8 @@
 // Every screen on the session page holds a WebSocket to it. Score writes
 // arrive over the socket and are applied strictly one at a time (live-core.ts),
 // then broadcast; other changes (made through the REST API) are announced via
-// POST /notify so screens reload the session. D1 stays the only store of
+// POST /notify: a check-in change as itself (V2), anything else as "changed",
+// so screens reload the session. D1 stays the only store of
 // session data; this object keeps just the ids of recent writes.
 import { DurableObject } from 'cloudflare:workers'
 import { handleWrite, parseClientMessage } from './live-core'
@@ -38,8 +39,12 @@ export class SessionRoom extends DurableObject<Env> {
       await fillSkill(this.env.DB.withSession('first-primary'), CLUB_ID)
       return new Response(null, { status: 204 })
     }
+    // Only the Worker reaches this path (it forwards screens to /api/live/…).
     if (new URL(request.url).pathname === '/notify') {
-      this.broadcast({ type: 'changed' })
+      const body = await request.text()
+      this.broadcast(
+        body ? (JSON.parse(body) as ServerMessage) : { type: 'changed' },
+      )
       return new Response(null, { status: 204 })
     }
     if (request.headers.get('Upgrade') !== 'websocket')

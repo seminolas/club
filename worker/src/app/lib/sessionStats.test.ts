@@ -13,6 +13,7 @@ function night(...matches: Sets[]): Session {
     attendees: [...players, { id: 5, name: 'P5' }],
     leaderboardBefore: players,
     leaderboardAfter: players,
+    checkIns: [],
     boxes: [
       {
         players,

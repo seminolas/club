@@ -4,6 +4,7 @@
 // every screen on the session.
 import * as db from './db'
 import type { DB } from './db'
+import type { CheckIn, Player } from './types'
 
 export type Score = number | null
 
@@ -28,7 +29,18 @@ export type ServerMessage =
   | { type: 'ack'; id: string; ok: false; error: string }
   /** A match's scores after a write, as GET /api/sessions/:date shows them. */
   | { type: 'match'; box: number; match: number; sets: db.SetScores }
-  /** Something else changed (boxes, attendance, status): reload the session. */
+  /**
+   * A player's check-in changed (V2): whether they're coming, and the change
+   * (who, when) for the session's check-in history.
+   * Screens update that one row instead of reloading the session.
+   */
+  | {
+      type: 'attendance'
+      player: Player
+      attending: boolean
+      checkIn: CheckIn | null
+    }
+  /** Something else changed (boxes, status, a new player): reload the session. */
   | { type: 'changed' }
 
 const isIndex = (v: unknown, max: number) =>

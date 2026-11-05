@@ -81,3 +81,29 @@ export function movement(before: number[], after: number[]) {
   })
   return { up, down }
 }
+
+/**
+ * The session with one player's check-in changed (V2): whether they're
+ * coming, and the change added to the check-in history (unless it's already
+ * there: our own reply and its broadcast carry the same change). A change
+ * with a negative id is provisional (our own, not saved yet): any new change
+ * for the player replaces it.
+ */
+export function withAttendance(
+  s: Session,
+  change: {
+    player: { id: number; name: string }
+    attending: boolean
+    checkIn: Session['checkIns'][number] | null
+  },
+): Session {
+  const { player, attending, checkIn } = change
+  const others = s.attendees.filter((a) => a.id !== player.id)
+  const kept = s.checkIns.filter((c) => !(c.id < 0 && c.playerId === player.id))
+  const known = checkIn === null || kept.some((c) => c.id === checkIn.id)
+  return {
+    ...s,
+    attendees: attending ? [...others, player] : others,
+    checkIns: known ? kept : [...kept, checkIn],
+  }
+}
