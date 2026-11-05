@@ -86,7 +86,24 @@
 /* Active row (keyboard): what Enter will act on. Wins over stripes and the
    hidden-matches tint; its bar replaces the orange one. */
 .lt-root tbody tr {
-  scroll-margin-top: var(--lt-sticky-h, 0px);
+  scroll-margin-top: calc(var(--lt-sticky-h, 0px) + var(--lt-head-h, 0px));
+}
+
+/* Sticky column headers, under the sticky toolbar, while the table fits its
+   width (data-fits, set by ListTable). The sideways scroller is switched off
+   then (clip, unlike auto, doesn't make a scroll container), so the headers
+   stick to the screen rather than inside it. A table too wide for its box
+   keeps sideways scrolling, and its headers scroll away with the rows. */
+.lt-root[data-fits] .lt-card[data-sticky] .mantine-Table-scrollContainer,
+.lt-root[data-fits]
+  .lt-card[data-sticky]
+  .mantine-TableScrollContainer-scrollContainer {
+  overflow-x: clip;
+}
+.lt-root[data-fits] .lt-card[data-sticky] thead {
+  position: sticky;
+  top: var(--lt-head-top, 0px);
+  z-index: 2;
 }
 .lt-root tbody tr.lt-active,
 .lt-root tbody tr.lt-active.lt-odd,
