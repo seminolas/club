@@ -20,7 +20,12 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  redirect,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router'
 import { IconDots } from '@tabler/icons-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -30,16 +35,23 @@ import type {
   playerProfile,
 } from '../../services/players'
 import { PageCard } from '../components/PageCard'
-import { PageCrumbs } from '../components/PageCrumbs'
 import {
   removePlayerFn,
   searchHcFn,
   unlinkPlayerFn,
   updatePlayerFn,
 } from '../fns/players'
+import type { Crumbs } from '../components/PageCrumbs'
 import { INFO_TEXT } from '../lib/colors'
 import { playerQuery, viewerQuery } from '../lib/queries'
 import { confirmAction, toastError, toastOk } from '../lib/toasts'
+
+// Typed, as the route's own type depends on it.
+function useCrumbs(): Crumbs {
+  const { id }: { id?: string } = useParams({ strict: false })
+  const { data: player } = useSuspenseQuery(playerQuery(Number(id)))
+  return { parent: { label: 'Players', to: '/players' }, current: player.name }
+}
 
 export const Route = createFileRoute('/players/$id')({
   beforeLoad: async ({ context }) => {
@@ -48,6 +60,7 @@ export const Route = createFileRoute('/players/$id')({
   },
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(playerQuery(Number(params.id))),
+  staticData: { crumbs: useCrumbs },
   component: PlayerPage,
 })
 
@@ -166,10 +179,6 @@ function PlayerPage() {
 
   return (
     <Stack gap="sm">
-      <PageCrumbs
-        parent={{ label: 'Players', to: '/players' }}
-        current={player.name}
-      />
       <PageCard
         title={player.name}
         actions={
