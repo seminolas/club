@@ -244,6 +244,9 @@ export function CheckInStep(props: {
         stickyTop={props.stickyTop}
         primaryColumn="fullName"
         primaryActionHidden={ownColumn}
+        // The marked row stays in view (its switch flips, Marked by updates);
+        // the next name typed replaces the search.
+        keepSearchAfterAction
         initialSort={{ column: 'rank', direction: 'asc' }}
         header={props.header}
         // The primary action toggles; Enter and a tap do the same.
