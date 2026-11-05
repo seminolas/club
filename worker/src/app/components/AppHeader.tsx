@@ -1,4 +1,5 @@
-// The header (UI-PORT.md, App shell): home (a house and "NBA"), the day/night switch
+// The header (UI-PORT.md, App shell): home (a house and "NBA") and, on a detail
+// page, its breadcrumb after it (PageCrumbs), the day/night switch
 // (for everyone, signed in or not), and the user menu ("Signed in as <first
 // name>", Sign out) or "Sign in". The decision for S5 (V1): Mantine Avatar +
 // Menu.
@@ -14,9 +15,10 @@ import {
   UnstyledButton,
 } from '@mantine/core'
 import { IconChevronDown, IconHome } from '@tabler/icons-react'
-import { Link } from '@tanstack/react-router'
+import { Link, useMatches } from '@tanstack/react-router'
 import type { Viewer } from '../../services/viewer'
 import { ColorSchemeToggle } from './ColorSchemeToggle'
+import { PageCrumbs } from './PageCrumbs'
 
 export function AppHeader(props: {
   viewer: Viewer
@@ -26,24 +28,50 @@ export function AppHeader(props: {
   const { viewer } = props
   const fullName = viewer.player?.name ?? viewer.name ?? ''
   const first = fullName.trim().split(/\s+/)[0]
+  // The deepest route with a breadcrumb trail (detail pages); none on the
+  // landing pages.
+  const trail = useMatches({
+    select: (ms) => {
+      const m = [...ms].reverse().find((x) => x.staticData.crumbs)
+      return m?.staticData.crumbs
+        ? { routeId: m.routeId, use: m.staticData.crumbs }
+        : undefined
+    },
+  })
+  // Home: the house and "NBA"; in a trail on phones, the house alone.
+  const home = (inTrail: boolean) => (
+    <Anchor
+      component={Link}
+      to="/players"
+      fw={700}
+      c="var(--mantine-color-text)"
+      underline="never"
+      // Short, to leave room for a club selector later.
+      aria-label="Northland Badminton, home"
+      title="Northland Badminton"
+      style={{ flexShrink: 0 }}
+    >
+      <Group component="span" gap={6} wrap="nowrap">
+        <IconHome size={20} stroke={2} />
+        <Text span inherit visibleFrom={inTrail ? 'xs' : undefined}>
+          NBA
+        </Text>
+      </Group>
+    </Anchor>
+  )
   return (
     <Container size="md" h="100%" px="md">
       <Group h="100%" justify="space-between" wrap="nowrap" gap="sm">
-        <Anchor
-          component={Link}
-          to="/players"
-          fw={700}
-          c="var(--mantine-color-text)"
-          underline="never"
-          // Short, to leave room for a club selector later.
-          aria-label="Northland Badminton, home"
-          title="Northland Badminton"
-        >
-          <Group component="span" gap={6} wrap="nowrap">
-            <IconHome size={20} stroke={2} />
-            NBA
-          </Group>
-        </Anchor>
+        {trail ? (
+          <PageCrumbs
+            // A new hook per page: remount rather than change hooks.
+            key={trail.routeId}
+            home={home(true)}
+            use={trail.use}
+          />
+        ) : (
+          home(false)
+        )}
         <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
           <ColorSchemeToggle />
           {viewer.signedIn ? (

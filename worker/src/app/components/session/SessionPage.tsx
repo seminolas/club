@@ -38,7 +38,6 @@ import {
 } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 import { sessionDate } from '../list-helpers'
-import { PageCrumbs } from '../PageCrumbs'
 import { AssignBoxesModal } from './AssignBoxesModal'
 import { ScoreSheets } from '../print/ScoreSheets'
 import type { SheetLayout } from '../print/ScoreSheets'
@@ -388,12 +387,6 @@ export function SessionPage(props: { date: string; step: StepId }) {
   return (
     <Stack gap="sm">
       {card.pinnedBar}
-      <PageCrumbs
-        parent={{ label: 'Sessions', to: '/sessions' }}
-        // "20 Oct" (the weekday would repeat "Tuesday"); the year as in the
-        // Sessions list.
-        current={`Tuesday Box · ${sessionDate(date).replace(/^\S+ /, '')}`}
-      />
       {live.problem && (
         <Alert color="yellow" p="xs">
           <Group justify="center" gap="sm">
