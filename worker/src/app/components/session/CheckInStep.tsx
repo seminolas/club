@@ -1,26 +1,23 @@
 // Check-in (club-table-lab AttendanceDemo; old UI: the Attendance tab). While
 // check-in is open, any signed-in player marks themselves or anyone else as
-// attending (V2), with Undo; a card at the top does it for yourself. Admins
-// also add someone new ("Add “…”"). Typing a few letters and Enter marks the
-// first match. Under each player's button (or "Attending ✓"), their latest
-// check-in change ("by Ray · 6:30pm"); tap it for the night's history.
+// attending (V2) with an Attending switch, with Undo. Admins also add someone
+// new ("Add “…”"). Typing a few letters and Enter toggles the first match.
+// "Marked by", next to it: who made the latest change; tap it for the night's
+// history.
 import {
   Anchor,
   Button,
   Group,
   Modal,
   NumberInput,
-  Paper,
   Popover,
   Stack,
   Switch,
   Text,
   TextInput,
-  UnstyledButton,
 } from '@mantine/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { IconHistory } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { LadderRow } from '../../../services/ladder'
 import type { CheckIn, Player } from '../../../types'
@@ -42,36 +39,6 @@ import {
 import type { PersonRow } from '../list-helpers'
 
 const WIDE = '(min-width: 36em)'
-
-// TRIAL (remove before merging), picked on the page's URL:
-// ?cue=underline|icon|count|none: how a note with history shows it;
-// ?layout=switch: an Attending switch and a "Marked by" column instead of
-// the button and its note; ?layout=switch2: the same, Marked by after
-// Attending.
-type Cue = 'underline' | 'icon' | 'count' | 'none'
-const CUES: Cue[] = ['underline', 'icon', 'count', 'none']
-type Layout = 'button' | 'switch' | 'switch2'
-function useTrial(): { cue: Cue; layout: Layout } {
-  const [trial, setTrial] = useState<{ cue: Cue; layout: Layout }>({
-    cue: 'underline',
-    layout: 'button',
-  })
-  // After mounting, so the server's and the browser's first render match.
-  useEffect(() => {
-    const q = new URLSearchParams(location.search)
-    const cue = q.get('cue') as Cue | null
-    setTrial({
-      cue: cue && CUES.includes(cue) ? cue : 'underline',
-      layout:
-        q.get('layout') === 'switch'
-          ? 'switch'
-          : q.get('layout') === 'switch2'
-            ? 'switch2'
-            : 'button',
-    })
-  }, [])
-  return trial
-}
 
 interface Row extends PersonRow {
   rank: number
@@ -121,7 +88,6 @@ export function CheckInStep(props: {
       history: history.get(p.id) ?? [],
     }
   })
-  const myRow = me ? rows.find((r) => r.personId === me.id) : undefined
   // Who made a change, by their short name (as in boxes: "Sam N." on a clash).
   const markerName = (by: CheckIn['by']) => {
     if (!by) return 'an admin'
@@ -131,6 +97,39 @@ export function CheckInStep(props: {
       props.ladder,
     )
   }
+
+  // "Marked by" filter: whoever the Marked by column shows (the latest
+  // change's marker). Me first, then everyone else who marked someone.
+  const markerKey = (by: CheckIn['by']) => (by ? String(by.id) : 'admin')
+  const latestKey = (r: Row) => {
+    const latest = r.history.at(-1)
+    return latest ? markerKey(latest.by) : null
+  }
+  const markers = new Map<string, CheckIn['by']>()
+  for (const r of rows) {
+    const latest = r.history.at(-1)
+    if (latest) markers.set(markerKey(latest.by), latest.by)
+  }
+  if (me) markers.delete(String(me.id))
+  const markedByOptions = [
+    ...(me
+      ? [
+          {
+            value: String(me.id),
+            label: 'Me',
+            pill: 'Marked by me',
+            test: (r: Row) => latestKey(r) === String(me.id),
+          },
+        ]
+      : []),
+    ...[...markers]
+      .map(([value, by]) => ({
+        value,
+        label: markerName(by),
+        test: (r: Row) => latestKey(r) === value,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  ]
 
   // Marks straight away, with a provisional "by me" note; the server's reply
   // replaces it with the saved change, or puts everything back if refused.
@@ -182,26 +181,6 @@ export function CheckInStep(props: {
     )
   }
 
-  const { cue, layout } = useTrial()
-  const switches = layout !== 'button'
-  // switch2: the switch is a column of its own, so Marked by can follow it.
-  const ownColumn = layout === 'switch2'
-  const attendingSwitch = (r: Row) => (
-    <Switch
-      checked={r.coming}
-      onChange={() => void toggle(r)}
-      onClick={(e) => e.stopPropagation()}
-      size="md"
-      disabled={!props.canMark}
-      aria-label={`${r.fullName} attending`}
-      styles={{ body: { justifyContent: 'center' } }}
-    />
-  )
-  const note = (r: Row) =>
-    r.history.length > 0 ? (
-      <CheckInNote history={r.history} name={markerName} cue={cue} />
-    ) : undefined
-
   return (
     <>
       <ListTable<Row>
@@ -210,11 +189,6 @@ export function CheckInStep(props: {
         noun={{ one: 'player', many: 'players' }}
         searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
         searchPlaceholder="Find a player…"
-        intro={
-          props.canMark && myRow ? (
-            <YouCard row={myRow} onToggle={() => void toggle(myRow)} />
-          ) : undefined
-        }
         filters={[
           {
             kind: 'options',
@@ -236,6 +210,16 @@ export function CheckInStep(props: {
               },
             ],
           },
+          {
+            kind: 'options',
+            id: 'markedBy',
+            label: 'Marked by',
+            multiple: true,
+            anyLabel: 'Anyone',
+            onlyLabel: 'Only these',
+            column: 'history',
+            options: markedByOptions,
+          },
           lastPlayedFilter,
           helloClubFilter,
         ]}
@@ -243,39 +227,22 @@ export function CheckInStep(props: {
         stickyHeader
         stickyTop={props.stickyTop}
         primaryColumn="fullName"
-        primaryActionHidden={ownColumn}
+        // Enter toggles the active row; its switch is the Attending column
+        // (not the table's own action column), so Marked by can follow it.
+        primaryActionHidden
+        primaryAction={
+          props.canMark
+            ? (r) => ({
+                label: r.coming ? 'Attending' : 'Mark attending',
+                run: () => void toggle(r),
+              })
+            : undefined
+        }
         // The marked row stays in view (its switch flips, Marked by updates);
         // the next name typed replaces the search.
         keepSearchAfterAction
         initialSort={{ column: 'rank', direction: 'asc' }}
         header={props.header}
-        // The primary action toggles; Enter and a tap do the same.
-        primaryActionTitle="Attending"
-        primaryAction={
-          props.canMark && switches
-            ? (r) => ({
-                label: r.coming ? 'Attending' : 'Mark attending',
-                run: () => void toggle(r),
-                control: attendingSwitch(r),
-              })
-            : props.canMark
-              ? (r) =>
-                  r.coming
-                    ? {
-                        label: 'Attending ✓',
-                        widestLabel: 'Mark attending',
-                        done: true,
-                        run: () => void toggle(r),
-                        note: note(r),
-                      }
-                    : {
-                        label: 'Mark attending',
-                        widestLabel: 'Mark attending',
-                        run: () => void toggle(r),
-                        note: note(r),
-                      }
-              : undefined
-        }
         addNew={
           props.canAdd
             ? {
@@ -310,57 +277,37 @@ export function CheckInStep(props: {
               visibleMediaQuery: WIDE,
               render: (r) => (r.helloClub ? 'Linked' : <Dash />),
             },
-            ...(ownColumn
-              ? [
-                  {
-                    accessor: 'coming' as const,
-                    title: 'Attending',
-                    toggleable: false,
-                    textAlign: 'center' as const,
-                    render: (r: Row) =>
-                      props.canMark ? (
-                        attendingSwitch(r)
-                      ) : r.coming ? (
-                        <Text size="sm" fw={600} c="teal">
-                          Attending ✓
-                        </Text>
-                      ) : null,
-                  },
-                ]
-              : []),
-            ...(switches
-              ? [
-                  {
-                    accessor: 'history' as const,
-                    title: 'Marked by',
-                    toggleable: false,
-                    render: (r: Row) =>
-                      r.history.length > 0 ? (
-                        <MarkedBy history={r.history} name={markerName} />
-                      ) : null,
-                  },
-                ]
-              : []),
-            // Without the Mark attending button, who's attending is a column.
-            ...(props.canMark || ownColumn
-              ? []
-              : [
-                  {
-                    accessor: 'coming',
-                    title: 'Attending',
-                    toggleable: false,
-                    render: (r: Row) => (
-                      <Stack gap={2} align="flex-end">
-                        {r.coming && (
-                          <Text size="sm" fw={600} c="teal">
-                            Attending ✓
-                          </Text>
-                        )}
-                        {!switches && note(r)}
-                      </Stack>
-                    ),
-                  },
-                ]),
+            {
+              accessor: 'coming',
+              title: 'Attending',
+              toggleable: false,
+              textAlign: 'center',
+              render: (r) =>
+                props.canMark ? (
+                  <Switch
+                    checked={r.coming}
+                    onChange={() => void toggle(r)}
+                    // Not the row's own tap.
+                    onClick={(e) => e.stopPropagation()}
+                    size="md"
+                    aria-label={`${r.fullName} attending`}
+                    styles={{ body: { justifyContent: 'center' } }}
+                  />
+                ) : r.coming ? (
+                  <Text size="sm" fw={600} c="teal">
+                    Attending ✓
+                  </Text>
+                ) : null,
+            },
+            {
+              accessor: 'history',
+              title: 'Marked by',
+              toggleable: false,
+              render: (r) =>
+                r.history.length > 0 ? (
+                  <MarkedBy history={r.history} name={markerName} />
+                ) : null,
+            },
           ]
         }}
       />
@@ -384,72 +331,9 @@ export function CheckInStep(props: {
 }
 
 /**
- * A player's latest check-in change: "by Ray · 6:30pm", or "unmarked by Ray
- * · 6:45pm". With more than one change tonight it's underlined, and a tap
- * shows them all, newest first.
+ * Who made a player's latest check-in change; a tap shows every change
+ * tonight, newest first ("Unmarked by Ray · 6:45pm").
  */
-function CheckInNote(props: {
-  history: CheckIn[]
-  name: (by: CheckIn['by']) => string
-  cue: Cue
-}) {
-  const { history, name, cue } = props
-  const line = (c: CheckIn, first: boolean) =>
-    `${c.attending ? (first ? 'Marked by' : 'by') : first ? 'Unmarked by' : 'unmarked by'} ${name(c.by)} · ${markedTime(c.at)}`
-  const latest = history[history.length - 1]
-  const text = (
-    <Text size="xs" c="dimmed" span>
-      {line(latest, false)}
-    </Text>
-  )
-  if (history.length < 2) return text
-  const target =
-    cue === 'icon' ? (
-      <>
-        {text}{' '}
-        <IconHistory
-          size={12}
-          color="var(--mantine-color-dimmed)"
-          style={{ verticalAlign: '-2px' }}
-        />
-      </>
-    ) : cue === 'count' ? (
-      <Text size="xs" c="dimmed" span>
-        {line(latest, false)} ({history.length})
-      </Text>
-    ) : (
-      text
-    )
-  return (
-    <Popover position="bottom-end" withArrow shadow="md">
-      <Popover.Target>
-        <UnstyledButton
-          // Not the row's own tap (that marks or unmarks).
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Check-in history: ${history.length} changes`}
-          style={
-            cue === 'underline'
-              ? { textDecoration: 'underline dotted', textUnderlineOffset: 3 }
-              : undefined
-          }
-        >
-          {target}
-        </UnstyledButton>
-      </Popover.Target>
-      <Popover.Dropdown>
-        <Stack gap={4}>
-          {[...history].reverse().map((c) => (
-            <Text key={c.id} size="xs">
-              {line(c, true)}
-            </Text>
-          ))}
-        </Stack>
-      </Popover.Dropdown>
-    </Popover>
-  )
-}
-
-/** TRIAL (layout=switch): who made the latest change; a tap shows them all. */
 function MarkedBy(props: {
   history: CheckIn[]
   name: (by: CheckIn['by']) => string
@@ -480,27 +364,6 @@ function MarkedBy(props: {
         </Stack>
       </Popover.Dropdown>
     </Popover>
-  )
-}
-
-/** "Are you playing tonight?" for the signed-in player (V2). */
-function YouCard(props: { row: Row; onToggle: () => void }) {
-  const { row } = props
-  return (
-    <Paper withBorder p="md" radius="md" mb="sm">
-      <Group justify="space-between" wrap="nowrap">
-        <Text fw={600}>
-          {row.coming ? 'You’re attending ✓' : 'Are you playing tonight?'}
-        </Text>
-        {row.coming ? (
-          <Button variant="default" onClick={props.onToggle}>
-            Undo
-          </Button>
-        ) : (
-          <Button onClick={props.onToggle}>I’m playing</Button>
-        )}
-      </Group>
-    </Paper>
   )
 }
 

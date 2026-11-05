@@ -1,7 +1,8 @@
-// V2 check: a player marks themselves ("I'm playing") and someone else, then
-// unmarks them; a second screen (an admin's) shows each change and who made it
-// ("by …" under the button, history on a tap), without reloading the session
-// (no data requests at all: the live channel carries the change).
+// V2 check: a player marks themselves (type and Enter) and someone else (the
+// Attending switch), then unmarks them; a second screen (an admin's) shows
+// each change and who made it (the "Marked by" column, history on a tap),
+// without reloading the session (no data requests at all: the live channel
+// carries the change). Also the "Marked by: Me" filter.
 // Defaults to the local dev server (no Cloudflare usage); BASE=<staging> to
 // run it there once. Needs the date of a session with check-in open, whose
 // ladder includes Test Player's player, and that player's name.
@@ -88,18 +89,37 @@ admin.page.on("request", (r) => {
   if (["fetch", "xhr", "document"].includes(r.resourceType()))
     adminRequests.push(r.url());
 });
-// The row whose Player cell starts with the name (another row may say
-// "by <name>").
+// The row whose Player cell starts with the name.
 const row = (page, name) =>
   page.getByRole("row").filter({
     has: page.locator("td:nth-child(2)", {
       hasText: new RegExp(`^\\s*${name}`),
     }),
   });
-const find = (page, name) => page.getByPlaceholder("Find a player…").fill(name);
+const search = (page) => page.getByPlaceholder("Find a player…");
+const find = (page, name) => search(page).fill(name);
+const attending = (page, name) => row(page, name).getByRole("switch");
+/** Taps a row's switch (its input is visually hidden: tap the track). */
+const tap = (page, name) =>
+  row(page, name).locator(".mantine-Switch-track").click();
+/** Waits until a row's switch is on (or off). */
+const waitSwitch = (page, name, on) =>
+  page.waitForFunction(
+    ([n, want]) =>
+      [...document.querySelectorAll("tr")].some(
+        (tr) =>
+          tr
+            .querySelector("td:nth-child(2)")
+            ?.textContent?.trim()
+            .startsWith(n) &&
+          tr.querySelector('input[role="switch"]')?.checked === want,
+      ),
+    [name, on],
+    { timeout: 10_000 },
+  );
 
-// A tap clears the search, and the default "Last played" filter may hide the
-// players (made-up ones locally): remove it on both screens.
+// The default "Last played" filter may hide the players (made-up ones
+// locally): remove it on both screens.
 for (const page of [player.page, admin.page]) {
   const remove = page.getByRole("button", {
     name: /^Remove filter: Last played/,
@@ -110,52 +130,53 @@ for (const page of [player.page, admin.page]) {
 // Start clean: nobody of the two marked (a failed run may leave them).
 for (const name of [myName, otherName]) {
   await find(player.page, name);
-  const on = row(player.page, name).getByRole("button", {
-    name: "Attending ✓",
-  });
-  if (await on.isVisible()) {
-    await on.click();
-    await row(player.page, name)
-      .getByRole("button", { name: "Mark attending" })
-      .waitFor({ timeout: 10_000 });
+  if (await attending(player.page, name).isChecked()) {
+    await tap(player.page, name);
+    await waitSwitch(player.page, name, false);
   }
 }
 await find(player.page, "");
 adminRequests.length = 0;
 
-// Notes say who by their short name: preferred, else first name (a clash
-// adds an initial, so match the start).
+// Marked by says who by their short name: preferred, else first name (a
+// clash adds an initial, so match the start).
 const ladder = (await (await fetch(`${BASE}/api/leaderboard`)).json()).players;
 const mine = ladder.find((p) => p.name === myName);
 const myShort = mine?.preferred_name ?? myName.split(" ")[0];
-/** The visible note under a row's button. */
-const note = (page, name) =>
-  row(page, name)
-    .getByText(/^(unmarked )?by /)
-    .locator("visible=true")
-    .first();
-const noteSays = async (page, name, text) =>
-  ((await note(page, name).textContent()) ?? "").startsWith(text);
+/** The row's "Marked by" (a button opening the history). */
+const markedBy = (page, name) =>
+  row(page, name).getByRole("button", { name: /^Check-in history/ });
+const markedBySays = async (page, name, text) =>
+  ((await markedBy(page, name).textContent()) ?? "").startsWith(text);
 
-// 1. "I'm playing" on the You card.
-const card = player.page.getByText("Are you playing tonight?");
-check("player sees the You card", await card.isVisible());
-await player.page.getByRole("button", { name: "I’m playing" }).click();
-await player.page.getByText("You’re attending ✓").waitFor({ timeout: 10_000 });
-check("the card says attending", true);
-// 2. Marks someone else from the list.
-await find(player.page, otherName);
-await row(player.page, otherName)
-  .getByRole("button", { name: "Mark attending" })
-  .click();
-await row(player.page, otherName)
-  .getByRole("button", { name: "Attending ✓" })
-  .waitFor({ timeout: 10_000 });
-await note(player.page, otherName).waitFor({ timeout: 10_000 });
+// 1. Type my name and Enter: marked, and the row stays in view with the
+// search selected (typing the next name replaces it).
+await find(player.page, myName);
+await search(player.page).press("Enter");
+await waitSwitch(player.page, myName, true);
 check(
-  "under the button on the player’s phone: who marked them",
-  await noteSays(player.page, otherName, `by ${myShort} · `),
-  await note(player.page, otherName).textContent(),
+  "Enter marks me; the search stays, selected",
+  (await search(player.page).inputValue()) === myName &&
+    (await search(player.page).evaluate(
+      (el) => el.selectionStart === 0 && el.selectionEnd === el.value.length,
+    )),
+);
+check(
+  "Marked by: me",
+  await markedBySays(player.page, myName, myShort),
+  await markedBy(player.page, myName).textContent(),
+);
+// 2. Marks someone else with their switch.
+await search(player.page).pressSequentially(otherName);
+check(
+  "typing replaced the search",
+  (await search(player.page).inputValue()) === otherName,
+);
+await tap(player.page, otherName);
+await waitSwitch(player.page, otherName, true);
+check(
+  "Marked by on the player’s phone: who marked them",
+  await markedBySays(player.page, otherName, myShort),
 );
 if (outDir)
   await player.page.screenshot({
@@ -165,22 +186,18 @@ if (outDir)
 
 // 3. The admin's screen: both changes, who marked them, nothing reloaded.
 await find(admin.page, otherName);
-await row(admin.page, otherName)
-  .getByRole("button", { name: "Attending ✓" })
-  .waitFor({ timeout: 10_000 });
+await waitSwitch(admin.page, otherName, true);
 check("admin sees the other player attending, live", true);
 check(
   "admin sees who marked them",
-  await noteSays(admin.page, otherName, `by ${myShort} · `),
+  await markedBySays(admin.page, otherName, myShort),
 );
-await find(admin.page, myShort);
-await row(admin.page, myName)
-  .getByRole("button", { name: "Attending ✓" })
-  .waitFor({ timeout: 10_000 });
+await find(admin.page, myName);
+await waitSwitch(admin.page, myName, true);
 check("admin sees the player attending, live", true);
 check(
-  "a self-mark shows the same label",
-  await noteSays(admin.page, myName, `by ${myShort} · `),
+  "a self-mark shows the same",
+  await markedBySays(admin.page, myName, myShort),
 );
 if (outDir)
   await admin.page.screenshot({
@@ -188,32 +205,20 @@ if (outDir)
     fullPage: true,
   });
 
-// 4. The player unmarks the other player: the admin sees "unmarked by", and
-// with two changes, tapping it shows the history.
+// 4. The player unmarks the other player: the admin sees it, and tapping
+// Marked by shows the history, newest first.
 await find(player.page, otherName);
-await row(player.page, otherName)
-  .getByRole("button", { name: "Attending ✓" })
-  .click();
-await row(player.page, otherName)
-  .getByRole("button", { name: "Mark attending" })
-  .waitFor({ timeout: 10_000 });
+await tap(player.page, otherName);
+await waitSwitch(player.page, otherName, false);
 await find(admin.page, otherName);
-await row(admin.page, otherName)
-  .getByRole("button", { name: "Mark attending" })
-  .waitFor({ timeout: 10_000 });
+await waitSwitch(admin.page, otherName, false);
 check("unmarking reaches the admin too", true);
-check(
-  "an unmarked player keeps a label: unmarked by",
-  await noteSays(admin.page, otherName, `unmarked by ${myShort} · `),
-);
-await row(admin.page, otherName)
-  .getByRole("button", { name: /^Check-in history/ })
-  .click();
+await markedBy(admin.page, otherName).click();
 const dropdown = admin.page.locator(".mantine-Popover-dropdown");
 await dropdown.waitFor({ timeout: 5_000 });
 const lines = await dropdown.locator("p").allTextContents();
 check(
-  "tapping it shows the history, newest first",
+  "tapping Marked by shows the history, newest first",
   lines[0]?.startsWith(`Unmarked by ${myShort}`) &&
     lines[1]?.startsWith(`Marked by ${myShort}`),
   lines.join(" / "),
@@ -229,11 +234,41 @@ check(
   adminRequests.join(", "),
 );
 
-// 5. Put the player back: Undo on the card.
-await player.page.getByRole("button", { name: "Undo" }).first().click();
+// 5. "Marked by: Me" on the player's phone: exactly the two I changed.
+await find(player.page, "");
+await player.page.getByRole("button", { name: "Filters", exact: true }).click();
+await player.page.getByRole("checkbox", { name: /^Me\b/ }).check();
+await player.page.getByRole("button", { name: /^Show \d+ players?$/ }).click();
 await player.page
-  .getByText("Are you playing tonight?")
-  .waitFor({ timeout: 10_000 });
+  .getByRole("button", { name: "Remove filter: Marked by me" })
+  .waitFor({ timeout: 5_000 });
+// Rows as [player, marked by] (earlier runs may have marked others too).
+const shown = await player.page
+  .locator("tbody tr")
+  .evaluateAll((trs) =>
+    trs.map((tr) =>
+      [...tr.querySelectorAll("td")].map((td) => td.textContent.trim()),
+    ),
+  );
+check(
+  "Marked by: Me shows the players I changed, and only them",
+  [myName, otherName].every((n) => shown.some((r) => r[1].startsWith(n))) &&
+    shown.every((r) => r.at(-1).startsWith(myShort)),
+  shown.map((r) => `${r[1]} by ${r.at(-1)}`).join(", "),
+);
+if (outDir)
+  await player.page.screenshot({
+    path: `${outDir}/player-marked-by-me.png`,
+    fullPage: true,
+  });
+await player.page
+  .getByRole("button", { name: "Remove filter: Marked by me" })
+  .click();
+
+// 6. Put me back: my switch off.
+await find(player.page, myName);
+await tap(player.page, myName);
+await waitSwitch(player.page, myName, false);
 
 for (const [who, s] of [
   ["player", player],
