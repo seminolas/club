@@ -13,15 +13,19 @@ import {
 import { sql } from 'drizzle-orm'
 import type { SessionStatus } from '../types'
 
-export const clubs = sqliteTable('clubs', {
-  id: integer('id').primaryKey(),
-  name: text('name').notNull(),
-  shortName: text('short_name'),
-  /** JSON: club settings (timezone, HelloClub subdomain, ...). */
-  config: text('config').notNull(),
-  /** In URLs: /seniors/…, /juniors/… (migration 0015). */
-  slug: text('slug'),
-})
+export const clubs = sqliteTable(
+  'clubs',
+  {
+    id: integer('id').primaryKey(),
+    name: text('name').notNull(),
+    shortName: text('short_name'),
+    /** JSON: club settings (timezone, HelloClub subdomain, ...). */
+    config: text('config').notNull(),
+    /** In URLs: /seniors/…, /juniors/… (migration 0015). */
+    slug: text('slug'),
+  },
+  (t) => [uniqueIndex('clubs_slug').on(t.slug)],
+)
 
 // ── BetterAuth (S4) ──────────────────────────────────────────────────────────
 // Its core tables plus the admin plugin's columns. `user.role` ('admin' |
