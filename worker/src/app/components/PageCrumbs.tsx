@@ -9,8 +9,11 @@ import type { ReactNode } from 'react'
 import { useClubSlug } from '../lib/club'
 
 export interface Crumbs {
-  /** A list of the page's club. */
-  parent: { label: string; to: '/$club/sessions' | '/$club/players' }
+  /** A list of the page's club, or the admin clubs list; none for a top page. */
+  parent?: {
+    label: string
+    to: '/$club/sessions' | '/$club/players' | '/admin/clubs'
+  }
   current: string
   /** Shorter text for the current page on phones, e.g. "5 Nov". */
   short?: string
@@ -35,14 +38,16 @@ export function PageCrumbs(props: { home: ReactNode; use: () => Crumbs }) {
         styles={{ root: { flexWrap: 'nowrap', minWidth: 0 } }}
       >
         {props.home}
-        <Anchor
-          component={Link}
-          // A plain path: Anchor's polymorphic props don't carry route params.
-          to={c.parent.to.replace('$club', club)}
-          size="sm"
-        >
-          {c.parent.label}
-        </Anchor>
+        {c.parent && (
+          <Anchor
+            component={Link}
+            // A plain path: Anchor's polymorphic props don't carry route params.
+            to={c.parent.to.replace('$club', club)}
+            size="sm"
+          >
+            {c.parent.label}
+          </Anchor>
+        )}
         <Text size="sm" fw={600} aria-current="page" truncate miw={0}>
           {c.short ? (
             <>

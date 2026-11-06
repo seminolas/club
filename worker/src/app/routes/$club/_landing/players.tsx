@@ -14,7 +14,8 @@ import {
 import type { PersonRow } from '../../../components/list-helpers'
 import { importLadderFn } from '../../../fns/ladder'
 import { generateLeaderboardCSV, parseLeaderboardCSV } from '../../../lib/csv'
-import { nextTuesday } from '../../../lib/dates'
+import { useClub } from '../../../lib/club'
+import { nextNight } from '../../../lib/dates'
 import { cleanName } from '../../../lib/names'
 import {
   ladderQuery,
@@ -38,6 +39,7 @@ interface Row extends PersonRow {
 
 function PlayersPage() {
   const { club } = Route.useParams()
+  const { weekday } = useClub()
   const { data: viewer } = useSuspenseQuery(viewerQuery)
   const { data: ladder } = useSuspenseQuery(ladderQuery(club))
   const queryClient = useQueryClient()
@@ -56,7 +58,7 @@ function PlayersPage() {
   }))
 
   const exportCsv = () => {
-    const date = nextTuesday()
+    const date = nextNight(weekday)
     const csv = generateLeaderboardCSV(
       ladder.map((p) => p.name),
       date,

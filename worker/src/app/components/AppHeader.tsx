@@ -113,6 +113,12 @@ export function AppHeader(props: {
                   </Group>
                 </Menu.Label>
                 <Menu.Divider />
+                {viewer.isAdmin && (
+                  // Admin pages, outside any club (/admin/…).
+                  <Menu.Item component={Link} to="/admin/clubs">
+                    Clubs
+                  </Menu.Item>
+                )}
                 <Menu.Item onClick={props.onSignOut}>Sign out</Menu.Item>
               </Menu.Dropdown>
             </Menu>

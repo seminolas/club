@@ -1157,6 +1157,37 @@ export async function listClubs(
   return rows.map((r) => ({ ...r, slug: r.slug ?? '' }))
 }
 
+/** A new club (admin): its name, URL slug and settings (JSON). */
+export async function insertClub(
+  db: DB,
+  name: string,
+  slug: string,
+  config: string,
+): Promise<void> {
+  await orm(db).insert(t.clubs).values({ name, slug, config })
+}
+
+/** Replace a club's settings (JSON). */
+export async function updateClubConfig(
+  db: DB,
+  clubId: number,
+  config: string,
+): Promise<void> {
+  await orm(db).update(t.clubs).set({ config }).where(eq(t.clubs.id, clubId))
+}
+
+/** Each club's latest session date (clubs without one are left out). */
+export async function latestSessionDates(db: DB): Promise<Map<number, string>> {
+  const rows = await orm(db)
+    .select({
+      clubId: t.sessions.clubId,
+      date: sql<string>`max(${t.sessions.date})`,
+    })
+    .from(t.sessions)
+    .groupBy(t.sessions.clubId)
+  return new Map(rows.map((r) => [r.clubId, r.date]))
+}
+
 // ── New UI (UI-PORT.md, U2) ───────────────────────────────────────────────────
 // These read every attendee row of the club's closed sessions (about 1,300
 // rows read in 2026-10, growing ~1,500 a year), so callers cache them by
