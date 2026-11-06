@@ -141,7 +141,7 @@
     "type": "table",
     "name": "session_ranks",
     "tbl_name": "session_ranks",
-    "sql": "CREATE TABLE \"session_ranks\" (\n  session_id    INTEGER REFERENCES sessions(id),\n  player_id     INTEGER NOT NULL REFERENCES players(id),\n  rank_position INTEGER NOT NULL,\n  phase         TEXT NOT NULL DEFAULT 'after',\n  UNIQUE(session_id, player_id, phase)\n)"
+    "sql": "CREATE TABLE \"session_ranks\" (\n  session_id    INTEGER REFERENCES sessions(id),\n  player_id     INTEGER NOT NULL REFERENCES players(id),\n  rank_position INTEGER NOT NULL,\n  phase         TEXT NOT NULL DEFAULT 'after', club_id INTEGER REFERENCES clubs(id),\n  UNIQUE(session_id, player_id, phase)\n)"
   },
   {
     "type": "table",
