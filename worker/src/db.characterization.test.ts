@@ -70,22 +70,24 @@ describe('reads', () => {
     ])
   })
 
-  it('getPlayerByName: active players in the club only', async () => {
-    expect(await db.getPlayerByName(t.db, 1, 'Aroha Ngata')).toEqual({
+  it('getPlayerByName: active people in any club; the oldest of a shared name', async () => {
+    expect(await db.getPlayerByName(t.db, 'Aroha Ngata')).toEqual({
       id: 1,
       name: 'Aroha Ngata',
     })
-    expect(await db.getPlayerByName(t.db, 2, 'Aroha Ngata')).toEqual({
-      id: 15,
-      name: 'Aroha Ngata',
+    // Club 2's only (people are shared across clubs: MULTI-CLUB.md).
+    expect(await db.getPlayerByName(t.db, 'Zed Other')).toEqual({
+      id: 16,
+      name: 'Zed Other',
     })
-    expect(await db.getPlayerByName(t.db, 1, 'Liam Gone')).toBeNull()
-    expect(await db.getPlayerByName(t.db, 1, 'Nobody')).toBeNull()
+    expect(await db.getPlayerByName(t.db, 'Liam Gone')).toBeNull()
+    expect(await db.getPlayerByName(t.db, 'Nobody')).toBeNull()
   })
 
-  it('getSessionRanks: by session and phase; seed rows for null', async () => {
+  it('getSessionRanks: by session and phase; getSeedRanks: a club’s starting ladder', async () => {
     expect({
-      seed: await db.getSessionRanks(t.db, null),
+      seed: await db.getSeedRanks(t.db, 1),
+      newClubSeed: await db.getSeedRanks(t.db, 3),
       s1before: await db.getSessionRanks(t.db, 1, 'before'),
       s1after: await db.getSessionRanks(t.db, 1),
       s2before: await db.getSessionRanks(t.db, 2, 'before'),
@@ -126,11 +128,12 @@ describe('reads', () => {
     expect(await db.getBoxes(t.db, 4)).toEqual([])
   })
 
-  it('getPlayerById: active players in the club only', async () => {
-    expect(await db.getPlayerById(t.db, 1, 1)).toMatchSnapshot()
-    expect(await db.getPlayerById(t.db, 1, 2)).toMatchSnapshot()
-    expect(await db.getPlayerById(t.db, 1, 13)).toBeNull()
-    expect(await db.getPlayerById(t.db, 1, 15)).toBeNull()
+  it('getPlayerById: active people in any club', async () => {
+    expect(await db.getPlayerById(t.db, 1)).toMatchSnapshot()
+    expect(await db.getPlayerById(t.db, 2)).toMatchSnapshot()
+    expect(await db.getPlayerById(t.db, 13)).toBeNull()
+    // Another club's (people are shared across clubs).
+    expect(await db.getPlayerById(t.db, 15)).toMatchObject({ id: 15 })
   })
 
   it('getPlayerByUserId: the active player linked to a login', async () => {
@@ -142,13 +145,12 @@ describe('reads', () => {
     await t.raw
       .prepare("UPDATE players SET user_id = 'u-' || id WHERE id IN (1, 13)")
       .run()
-    expect(await db.getPlayerByUserId(t.db, 1, 'u-1')).toEqual({
+    expect(await db.getPlayerByUserId(t.db, 'u-1')).toEqual({
       id: 1,
       name: 'Aroha Ngata',
     })
-    expect(await db.getPlayerByUserId(t.db, 2, 'u-1')).toBeNull()
-    expect(await db.getPlayerByUserId(t.db, 1, 'u-13')).toBeNull()
-    expect(await db.getPlayerByUserId(t.db, 1, 'nobody')).toBeNull()
+    expect(await db.getPlayerByUserId(t.db, 'u-13')).toBeNull()
+    expect(await db.getPlayerByUserId(t.db, 'nobody')).toBeNull()
     await t.raw.prepare('UPDATE players SET user_id = NULL').run()
     await t.raw.prepare('DELETE FROM user').run()
   })
@@ -180,14 +182,15 @@ describe('writes', () => {
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 
-  it('setSessionRanks: replaces one session+phase, or all seed rows; ignores an empty list', async () => {
+  it('setSessionRanks: replaces one session+phase; setSeedRanks a club’s seed rows (others kept); empty lists ignored', async () => {
     await db.setSessionRanks(t.db, 2, [3, 1, 2], 'after')
-    await db.setSessionRanks(t.db, null, [5, 4])
+    await db.setSeedRanks(t.db, 1, [5, 4])
     await db.setSessionRanks(t.db, 1, [], 'before')
+    await db.setSeedRanks(t.db, 3, [])
     expect(await snapshotTables(t.db)).toMatchSnapshot()
   })
 
-  it('replaceLeaderboard: re-ranks, archives omitted players, revives and adds by name', async () => {
+  it('replaceLeaderboard: re-ranks the club’s ladder; revives and adds by name (any club); archives nobody', async () => {
     await db.replaceLeaderboard(t.db, 1, [
       'Chloe Wu',
       'Liam Gone',
@@ -298,7 +301,7 @@ describe('writes', () => {
       .prepare("UPDATE players SET user_id = 'u-12' WHERE id = 12")
       .run()
     expect(await db.deletePlayer(t.db, 12)).toEqual({ deleted: true })
-    expect(await db.getPlayerById(t.db, 1, 12)).toBeNull()
+    expect(await db.getPlayerById(t.db, 12)).toBeNull()
   })
 
   it('deleteSession: removes everything belonging to the session', async () => {

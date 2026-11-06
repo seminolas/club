@@ -6,8 +6,8 @@ import {
 } from '../../services/viewer'
 import { requestContext } from '../server/request'
 
-// Who's signed in isn't a club's own: the seniors' players, until people are
-// shared across clubs (MULTI-CLUB.md).
+// Who's signed in isn't a club's own: people are shared across clubs
+// (MULTI-CLUB.md).
 export const getViewerFn = createServerFn({ method: 'GET' }).handler(async () =>
   loadViewer(await requestContext()),
 )

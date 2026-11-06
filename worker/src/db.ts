@@ -13,6 +13,7 @@ import {
   isNull,
   ne,
   notExists,
+  or,
   sql,
 } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
@@ -77,10 +78,14 @@ export async function getLeaderboardPlayers(
     .leftJoin(t.sessions, eq(t.sessions.id, t.sessionRanks.sessionId))
     .where(
       and(
-        eq(t.players.clubId, clubId),
         isNull(t.players.archivedAt),
-        // IS: also matches the seed rows (NULL) when there are no sessions.
+        // IS: also matches the seed rows (NULL) when there are no sessions,
+        // this club's own (people are shared across clubs: MULTI-CLUB.md).
         sql`${t.sessionRanks.sessionId} IS (${latestSession})`,
+        or(
+          isNotNull(t.sessionRanks.sessionId),
+          eq(t.sessionRanks.clubId, clubId),
+        ),
         // An open session's ladder is its 'before'; a closed one's its 'after'.
         sql`${t.sessionRanks.phase} = CASE WHEN COALESCE(${t.sessions.status}, 'closed') = 'closed' THEN 'after' ELSE 'before' END`,
       ),
@@ -88,30 +93,24 @@ export async function getLeaderboardPlayers(
     .orderBy(asc(t.sessionRanks.rankPosition))
 }
 
+/** An active person by exact name, in any club (people are shared). */
 export async function getPlayerByName(
   db: DB,
-  clubId: number,
   name: string,
 ): Promise<{ id: number; name: string } | null> {
   const row = await orm(db)
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(
-      and(
-        eq(t.players.clubId, clubId),
-        eq(t.players.name, name),
-        isNull(t.players.archivedAt),
-      ),
-    )
+    .where(and(eq(t.players.name, name), isNull(t.players.archivedAt)))
+    .orderBy(asc(t.players.id))
     .get()
   return row ?? null
 }
 
 // Get ranked players for a given session_id and phase.
-// Seed rows (session_id = null) have no phase distinction — all are returned.
 export async function getSessionRanks(
   db: DB,
-  sessionId: number | null,
+  sessionId: number,
   phase: 'before' | 'after' = 'after',
 ): Promise<{ id: number; name: string }[]> {
   return orm(db)
@@ -119,21 +118,18 @@ export async function getSessionRanks(
     .from(t.sessionRanks)
     .innerJoin(t.players, eq(t.players.id, t.sessionRanks.playerId))
     .where(
-      sessionId === null
-        ? isNull(t.sessionRanks.sessionId)
-        : and(
-            eq(t.sessionRanks.sessionId, sessionId),
-            eq(t.sessionRanks.phase, phase),
-          ),
+      and(
+        eq(t.sessionRanks.sessionId, sessionId),
+        eq(t.sessionRanks.phase, phase),
+      ),
     )
     .orderBy(asc(t.sessionRanks.rankPosition))
 }
 
 // Replace all session_ranks rows for a given session_id and phase.
-// Seed rows (session_id = null) are always phase 'after' — all seed rows are replaced.
 export async function setSessionRanks(
   db: DB,
-  sessionId: number | null,
+  sessionId: number,
   playerIds: number[],
   phase: 'before' | 'after' = 'after',
 ): Promise<void> {
@@ -143,12 +139,10 @@ export async function setSessionRanks(
     d
       .delete(t.sessionRanks)
       .where(
-        sessionId === null
-          ? isNull(t.sessionRanks.sessionId)
-          : and(
-              eq(t.sessionRanks.sessionId, sessionId),
-              eq(t.sessionRanks.phase, phase),
-            ),
+        and(
+          eq(t.sessionRanks.sessionId, sessionId),
+          eq(t.sessionRanks.phase, phase),
+        ),
       ),
     ...playerIds.map((playerId, i) =>
       d
@@ -158,34 +152,76 @@ export async function setSessionRanks(
   ])
 }
 
-// Replace the full leaderboard: re-rank all listed players, archive omitted ones.
-// Writes through to both seed rows and the most recent session's ranks so the
-// live leaderboard reflects the import immediately.
+// A club's starting ladder (seed rows: session_id NULL, the club named on
+// each row; migration 0016), used before the club's first session.
+export async function getSeedRanks(
+  db: DB,
+  clubId: number,
+): Promise<{ id: number; name: string }[]> {
+  return orm(db)
+    .select({ id: t.players.id, name: t.players.name })
+    .from(t.sessionRanks)
+    .innerJoin(t.players, eq(t.players.id, t.sessionRanks.playerId))
+    .where(
+      and(isNull(t.sessionRanks.sessionId), eq(t.sessionRanks.clubId, clubId)),
+    )
+    .orderBy(asc(t.sessionRanks.rankPosition))
+}
+
+// Replace a club's starting ladder (other clubs' are kept).
+export async function setSeedRanks(
+  db: DB,
+  clubId: number,
+  playerIds: number[],
+): Promise<void> {
+  if (playerIds.length === 0) return
+  const d = orm(db)
+  await runBatch(db, [
+    d
+      .delete(t.sessionRanks)
+      .where(
+        and(
+          isNull(t.sessionRanks.sessionId),
+          eq(t.sessionRanks.clubId, clubId),
+        ),
+      ),
+    ...playerIds.map((playerId, i) =>
+      d.insert(t.sessionRanks).values({
+        sessionId: null,
+        playerId,
+        rankPosition: i + 1,
+        phase: 'after',
+        clubId,
+      }),
+    ),
+  ])
+}
+
+// Replace a club's ladder with these names, in order. Names match people in
+// any club (people are shared: MULTI-CLUB.md), active or archived; new names
+// become new people. Anyone left out is only off this club's ladder (the
+// ladder is its ranks), not archived: they may be on another club's.
+// Writes through to both the club's seed rows and its most recent session's
+// ranks so the live leaderboard reflects the import immediately.
 export async function replaceLeaderboard(
   db: DB,
   clubId: number,
   names: string[],
 ): Promise<void> {
   const d = orm(db)
-  // Build name → lowest-id map across all players (including archived).
+  // Build name → lowest-id map across all people (including archived).
   // Lowest id = the "original" record; duplicates created by past buggy imports stay archived.
   const allPlayers = await d
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(eq(t.players.clubId, clubId))
     .orderBy(asc(t.players.id))
   const existingByName = new Map<string, number>()
   for (const p of allPlayers) {
     if (!existingByName.has(p.name)) existingByName.set(p.name, p.id)
   }
 
-  // Archive everyone active, then unarchive existing players by id or insert new ones.
-  const queries: Query[] = [
-    d
-      .update(t.players)
-      .set({ archivedAt: sql`date('now')` })
-      .where(and(eq(t.players.clubId, clubId), isNull(t.players.archivedAt))),
-  ]
+  // Revive listed people who were archived, or add them.
+  const queries: Query[] = []
   for (const name of names) {
     const id = existingByName.get(name)
     queries.push(
@@ -199,11 +235,11 @@ export async function replaceLeaderboard(
   }
   await runBatch(db, queries)
 
-  // Re-query active players to pick up newly inserted IDs.
+  // Re-query active people to pick up newly inserted IDs.
   const active = await d
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(and(eq(t.players.clubId, clubId), isNull(t.players.archivedAt)))
+    .where(isNull(t.players.archivedAt))
     .orderBy(asc(t.players.id))
   const activeByName = new Map<string, number>()
   for (const p of active) {
@@ -214,20 +250,26 @@ export async function replaceLeaderboard(
     .map((name) => activeByName.get(name))
     .filter((id): id is number => id !== undefined)
 
-  // Write seed rows (used when no sessions exist).
-  await setSessionRanks(db, null, playerIds)
+  // Write the club's seed rows (used when it has no sessions).
+  await setSeedRanks(db, clubId, playerIds)
 
   // Also overwrite the most recent session's ranks so getLeaderboardPlayers
-  // returns the imported order immediately (not just after the next session).
+  // returns the imported order immediately (not just after the next session):
+  // the ranks it reads, 'after' for a closed session, 'before' for an open one.
   const latest = await d
-    .select({ id: t.sessions.id })
+    .select({ id: t.sessions.id, status: t.sessions.status })
     .from(t.sessions)
     .where(eq(t.sessions.clubId, clubId))
     .orderBy(desc(t.sessions.date))
     .limit(1)
     .get()
   if (latest) {
-    await setSessionRanks(db, latest.id, playerIds)
+    await setSessionRanks(
+      db,
+      latest.id,
+      playerIds,
+      latest.status === 'closed' ? 'after' : 'before',
+    )
   }
 }
 
@@ -812,10 +854,13 @@ export async function addPlayerMidSession(
           gte(t.sessionRanks.rankPosition, insertRank),
         ),
       ),
-    d.insert(t.players).values({ clubId, name }),
+    // An active person with this name (e.g. from another club) is reused.
+    ...((await getPlayerByName(db, name))
+      ? []
+      : [d.insert(t.players).values({ clubId, name })]),
   ])
 
-  const newPlayer = await getPlayerByName(db, clubId, name)
+  const newPlayer = await getPlayerByName(db, name)
   if (!newPlayer) throw new Error('Failed to insert player')
 
   await runBatch(db, [
@@ -837,9 +882,9 @@ export async function addPlayerMidSession(
   return newPlayer.id
 }
 
+/** An active person by id, in any club. */
 export async function getPlayerById(
   db: DB,
-  clubId: number,
   id: number,
 ): Promise<{
   id: number
@@ -857,13 +902,7 @@ export async function getPlayerById(
       preferred_name: t.players.preferredName,
     })
     .from(t.players)
-    .where(
-      and(
-        eq(t.players.clubId, clubId),
-        eq(t.players.id, id),
-        isNull(t.players.archivedAt),
-      ),
-    )
+    .where(and(eq(t.players.id, id), isNull(t.players.archivedAt)))
     .get()
   return row ?? null
 }
@@ -931,36 +970,27 @@ export async function isPlayerInBox(
   return row !== undefined
 }
 
-/** Unlinked active players in the club, by name: who "This is me" can pick. */
+/** Unlinked active people (any club), by name: who "This is me" can pick. */
 export async function listClaimablePlayers(
   db: DB,
-  clubId: number,
 ): Promise<{ id: number; name: string }[]> {
   return orm(db)
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(
-      and(
-        eq(t.players.clubId, clubId),
-        isNull(t.players.archivedAt),
-        isNull(t.players.userId),
-      ),
-    )
+    .where(and(isNull(t.players.archivedAt), isNull(t.players.userId)))
     .orderBy(asc(t.players.name))
 }
 
 /**
- * Links the login to the player, if the player is active, in the club and
- * unlinked, and the login has no player yet. False otherwise (e.g. someone
- * claimed them first).
+ * Links the login to the person, if they're active and unlinked, and the
+ * login has no person yet. False otherwise (e.g. someone claimed them first).
  */
 export async function claimPlayer(
   db: DB,
-  clubId: number,
   playerId: number,
   userId: string,
 ): Promise<boolean> {
-  if (await getPlayerByUserId(db, clubId, userId)) return false
+  if (await getPlayerByUserId(db, userId)) return false
   try {
     const res = await orm(db)
       .update(t.players)
@@ -968,7 +998,6 @@ export async function claimPlayer(
       .where(
         and(
           eq(t.players.id, playerId),
-          eq(t.players.clubId, clubId),
           isNull(t.players.archivedAt),
           isNull(t.players.userId),
         ),
@@ -987,7 +1016,6 @@ export async function claimPlayer(
  */
 export async function autoLinkByEmail(
   db: DB,
-  clubId: number,
   userId: string,
   email: string,
 ): Promise<{ id: number; name: string } | null> {
@@ -1002,14 +1030,13 @@ export async function autoLinkByEmail(
     .from(t.players)
     .where(
       and(
-        eq(t.players.clubId, clubId),
         isNull(t.players.archivedAt),
         sql`lower(trim(${t.players.email})) = ${normalised}`,
       ),
     )
   if (matches.length !== 1 || matches[0].userId !== null) return null
   const { id, name } = matches[0]
-  return (await claimPlayer(db, clubId, id, userId)) ? { id, name } : null
+  return (await claimPlayer(db, id, userId)) ? { id, name } : null
 }
 
 /** The Google account (email) a player signs in with, if linked. */
@@ -1033,22 +1060,15 @@ export async function unlinkPlayer(db: DB, playerId: number): Promise<void> {
     .where(eq(t.players.id, playerId))
 }
 
-/** The active player linked to a login (BetterAuth user), if any. */
+/** The active person linked to a login (BetterAuth user), if any. */
 export async function getPlayerByUserId(
   db: DB,
-  clubId: number,
   userId: string,
 ): Promise<{ id: number; name: string } | null> {
   const row = await orm(db)
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(
-      and(
-        eq(t.players.clubId, clubId),
-        eq(t.players.userId, userId),
-        isNull(t.players.archivedAt),
-      ),
-    )
+    .where(and(eq(t.players.userId, userId), isNull(t.players.archivedAt)))
     .get()
   return row ?? null
 }

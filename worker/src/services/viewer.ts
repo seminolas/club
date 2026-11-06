@@ -20,10 +20,10 @@ export async function loadViewer(ctx: ServiceContext): Promise<Viewer> {
   const session = await signedIn(ctx)
   if (!session) return { signedIn: false, isAdmin: false }
   const { user } = session
-  let player = await db.getPlayerByUserId(ctx.db, ctx.club.id, user.id)
+  let player = await db.getPlayerByUserId(ctx.db, user.id)
   let justLinked = false
   if (!player && user.emailVerified) {
-    player = await db.autoLinkByEmail(ctx.db, ctx.club.id, user.id, user.email)
+    player = await db.autoLinkByEmail(ctx.db, user.id, user.email)
     justLinked = player !== null
   }
   return {
@@ -38,7 +38,7 @@ export async function loadViewer(ctx: ServiceContext): Promise<Viewer> {
 /** The players a signed-in login can pick: unlinked and active. */
 export async function claimablePlayers(ctx: ServiceContext) {
   if (!(await signedIn(ctx))) throw new ServiceError('Unauthorized', 401)
-  return db.listClaimablePlayers(ctx.db, ctx.club.id)
+  return db.listClaimablePlayers(ctx.db)
 }
 
 /** Link the signed-in login to a player; refused if someone has them. */
@@ -47,16 +47,11 @@ export async function claimPlayer(ctx: ServiceContext, playerId: number) {
   if (!session) throw new ServiceError('Unauthorized', 401)
   if (!Number.isInteger(playerId))
     throw new ServiceError('player_id required', 400)
-  const ok = await db.claimPlayer(
-    ctx.db,
-    ctx.club.id,
-    playerId,
-    session.user.id,
-  )
+  const ok = await db.claimPlayer(ctx.db, playerId, session.user.id)
   if (!ok)
     throw new ServiceError(
       'That player is already linked to a sign-in. Ask an admin.',
       409,
     )
-  return db.getPlayerByUserId(ctx.db, ctx.club.id, session.user.id)
+  return db.getPlayerByUserId(ctx.db, session.user.id)
 }

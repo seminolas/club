@@ -10,7 +10,7 @@ function playerId(id: number) {
 
 export async function playerProfile(ctx: ServiceContext, id: number) {
   await requireAdmin(ctx)
-  const player = await db.getPlayerById(ctx.db, ctx.club.id, playerId(id))
+  const player = await db.getPlayerById(ctx.db, playerId(id))
   if (!player) throw new ServiceError('Not found', 404)
   return { ...player, login: await db.getPlayerLogin(ctx.db, id) }
 }

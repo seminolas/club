@@ -207,7 +207,7 @@ export async function seed(db: DB): Promise<void> {
       config: '{}',
     }),
     ...players.map((p) => insert(db, 'players', p)),
-    // The new club's seed ladder (seed rows are one list across clubs).
+    // The new club's seed ladder (seed rows name their club: see below).
     ...[18, 17].map((pid, i) =>
       insert(db, 'session_ranks', {
         session_id: null,
@@ -303,6 +303,19 @@ export async function seed(db: DB): Promise<void> {
     })
   }
   await db.batch(stmts)
+  // Seed rows name their club (migration 0016), as its backfill does: from
+  // their player's club. Older schemas (migration tests) have no such column.
+  const { results } = await db
+    .prepare(
+      "SELECT 1 FROM pragma_table_info('session_ranks') WHERE name = 'club_id'",
+    )
+    .all()
+  if (results.length > 0)
+    await db
+      .prepare(
+        'UPDATE session_ranks SET club_id = (SELECT club_id FROM players WHERE players.id = session_ranks.player_id) WHERE session_id IS NULL',
+      )
+      .run()
 }
 
 /**

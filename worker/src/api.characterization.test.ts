@@ -271,11 +271,17 @@ describe('admin', () => {
       await call('DELETE', '/api/players/1'),
       await call('DELETE', '/api/players/12'),
       await call('POST', '/api/leaderboard/import', { players: [] }),
+      // Refused while a session is open (2026-01-13, 2025-12-30)…
       await call('POST', '/api/leaderboard/import', {
         players: ['Chloe Wu', 'Aroha Ngata', 'Ben Carter'],
       }),
       await call('DELETE', '/api/sessions/2026-01-13'),
       await call('DELETE', '/api/sessions/2026-01-13'),
+      await call('DELETE', '/api/sessions/2025-12-30'),
+      // …and done once none is.
+      await call('POST', '/api/leaderboard/import', {
+        players: ['Chloe Wu', 'Aroha Ngata', 'Ben Carter'],
+      }),
       await get('/api/sessions'),
       await get('/api/leaderboard').then((r) => ({
         ...r,

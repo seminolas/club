@@ -47,5 +47,12 @@ export async function importLadder(ctx: ServiceContext, players: string[]) {
   await requireAdmin(ctx)
   if (!Array.isArray(players) || players.length === 0)
     throw new ServiceError('players array required', 400)
+  // As the page says: an open session has its own ladder by now.
+  // (Open sessions only: cheap, no closed session's attendees read.)
+  if ((await db.listSessions(ctx.db, ctx.club.id, false)).length > 0)
+    throw new ServiceError(
+      'Finish the current session before importing a new leaderboard.',
+      409,
+    )
   await db.replaceLeaderboard(ctx.db, ctx.club.id, players)
 }
