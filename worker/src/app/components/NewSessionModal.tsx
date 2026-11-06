@@ -1,5 +1,5 @@
 // New session (admins): a date, defaulting to the open session's date or
-// next Tuesday, with the old UI's rules: one session per date, and the latest
+// the club's next night, with the old UI's rules: one session per date, and the latest
 // session must be closed first.
 import { Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -7,7 +7,8 @@ import { useState } from 'react'
 import type { SessionListRow } from '../../services/sessions'
 import { createSessionFn } from '../fns/sessions'
 import { INFO_TEXT } from '../lib/colors'
-import { nextTuesday } from '../lib/dates'
+import { useClub } from '../lib/club'
+import { nextNight } from '../lib/dates'
 import { toastError } from '../lib/toasts'
 
 export function NewSessionModal(props: {
@@ -38,9 +39,10 @@ function NewSessionForm(props: {
   onCreated: (date: string) => void
 }) {
   const queryClient = useQueryClient()
+  const { weekday } = useClub()
   const latest = props.sessions[0]
   const openOne = latest && latest.status !== 'closed' ? latest : null
-  const [date, setDate] = useState(openOne?.date ?? nextTuesday())
+  const [date, setDate] = useState(openOne?.date ?? nextNight(weekday))
   const exists = props.sessions.some((s) => s.date === date)
   const create = useMutation({
     mutationFn: () => createSessionFn({ data: { club: props.club, date } }),

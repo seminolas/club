@@ -13,12 +13,13 @@ export const createSessionFn = createServerFn({ method: 'POST' })
     await createSession(await requestContext(data.club), data.date)
   })
 
-/** The clubs the app serves: slug, label and session title, for the UI. */
+/** The clubs the app serves: slug, label, session title and night. */
 export const clubsFn = createServerFn({ method: 'GET' }).handler(async () => {
   const ctx = await requestContext()
   return (await listClubs(ctx.db)).map((c) => ({
     slug: c.slug,
     label: c.label,
     title: c.title,
+    weekday: c.weekday,
   }))
 })

@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
+import { adminClubsFn, hcSeriesFn } from '../fns/clubs'
 import { ladderFn } from '../fns/ladder'
 import { playerFn } from '../fns/players'
 import { sessionFn } from '../fns/session'
@@ -51,3 +52,18 @@ export const sessionQuery = (club: string, date: string) =>
     queryKey: [club, 'session', date],
     queryFn: () => sessionFn({ data: { club, date } }),
   })
+
+// ── Admin (/admin/clubs) ──────────────────────────────────────────────────────
+
+export const adminClubsQuery = queryOptions({
+  queryKey: ['admin', 'clubs'],
+  queryFn: () => adminClubsFn(),
+})
+
+/** HelloClub's recurring series (a read-only call; changes rarely). */
+export const hcSeriesQuery = queryOptions({
+  queryKey: ['admin', 'hc-series'],
+  queryFn: () => hcSeriesFn(),
+  staleTime: 5 * 60_000,
+  retry: false,
+})

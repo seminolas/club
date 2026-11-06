@@ -8,7 +8,7 @@ import * as db from './db'
 import type { DB } from './db'
 import { SENIORS, ServiceError } from './services/context'
 import type { ClubRef, ServiceContext } from './services/context'
-import { clubBySlug } from './services/clubs'
+import { clubBySlug, pickHcEvent } from './services/clubs'
 import { importLadder } from './services/ladder'
 import {
   HcError,
@@ -367,7 +367,6 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     () => null,
   )
   if (!club) return c.json({ error: 'Club not found' }, 404)
-  const eventName = club.config.hcEvent ?? 'Senior Box'
 
   const session = await db.getSessionByDate(c.get('db'), club.id, session_date)
   if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -399,13 +398,13 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
       )
     }
     const eventData = await eventRes.json<{
-      events?: Array<{ id: string; name: string }>
+      events?: Array<{ id: string; name: string; series?: string | null }>
     }>()
-    const event = (eventData.events ?? []).find((e) =>
-      e.name?.includes(eventName),
-    )
-    if (!event)
-      throw new Error(`No ${eventName} event found for ${session_date}`)
+    // The club's linked series' event that day, or (not linked yet) the one
+    // named like its hcEvent (services/clubs.ts).
+    const picked = pickHcEvent(club, eventData.events ?? [])
+    if ('error' in picked) throw new Error(`${picked.error} (${session_date})`)
+    const { event } = picked
 
     emit(`Found event: "${event.name}"`)
 

@@ -1,9 +1,14 @@
-/** The next Tuesday (today if it's Tuesday), as YYYY-MM-DD in local time. */
-export function nextTuesday(fromDate?: string | Date): string {
+/**
+ * The club's next night (today if it's that day), as YYYY-MM-DD in local
+ * time. `weekday`: 0 Sunday … 6 Saturday; without one (not set), today.
+ */
+export function nextNight(
+  weekday: number | null,
+  fromDate?: string | Date,
+): string {
   const d = fromDate ? new Date(fromDate) : new Date()
-  const day = d.getDay()
-  const daysUntilTuesday = day === 2 ? 0 : (2 - day + 7) % 7
-  d.setDate(d.getDate() + daysUntilTuesday)
+  if (weekday !== null)
+    d.setDate(d.getDate() + ((weekday - d.getDay() + 7) % 7))
   // Use local date parts to avoid UTC offset issues (important for NZ timezone)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')

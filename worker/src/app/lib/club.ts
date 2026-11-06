@@ -13,7 +13,7 @@ export function useClubSlug(): string {
   return club ?? DEFAULT_CLUB
 }
 
-/** The page's club: slug, label ("Seniors") and session title. */
+/** The page's club: slug, label ("Seniors"), session title and night. */
 export function useClub() {
   const slug = useClubSlug()
   const { data } = useQuery(clubsQuery)
@@ -22,5 +22,18 @@ export function useClub() {
     slug,
     label: club?.label ?? slug,
     title: club?.title ?? 'Box night',
+    /** 0 Sunday … 6 Saturday, or null if not set. */
+    weekday: club?.weekday ?? null,
   }
 }
+
+/** Day names for a club's night (0 Sunday … 6 Saturday). */
+export const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const

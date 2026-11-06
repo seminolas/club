@@ -11,11 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClubRouteRouteImport } from './routes/$club/route'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as ClubIndexRouteImport } from './routes/$club/index'
 import { Route as ClubLandingRouteImport } from './routes/$club/_landing'
 import { Route as ClubLandingPlayersRouteImport } from './routes/$club/_landing/players'
 import { Route as ClubLandingSessionsRouteImport } from './routes/$club/_landing/sessions'
 import { Route as ClubPlayersIdRouteImport } from './routes/$club/players.$id'
+import { Route as AdminClubsIndexRouteImport } from './routes/admin/clubs.index'
+import { Route as AdminClubsSlugRouteImport } from './routes/admin/clubs.$slug'
 import { Route as ClubSessionsDateIndexRouteImport } from './routes/$club/sessions.$date.index'
 import { Route as ClubSessionsDateStepRouteImport } from './routes/$club/sessions.$date.$step'
 
@@ -27,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const ClubRouteRoute = ClubRouteRouteImport.update({
   id: '/$club',
   path: '/$club',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClubIndexRoute = ClubIndexRouteImport.update({
@@ -53,6 +61,16 @@ const ClubPlayersIdRoute = ClubPlayersIdRouteImport.update({
   path: '/players/$id',
   getParentRoute: () => ClubRouteRoute,
 } as any)
+const AdminClubsIndexRoute = AdminClubsIndexRouteImport.update({
+  id: '/clubs/',
+  path: '/clubs/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminClubsSlugRoute = AdminClubsSlugRouteImport.update({
+  id: '/clubs/$slug',
+  path: '/clubs/$slug',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const ClubSessionsDateIndexRoute = ClubSessionsDateIndexRouteImport.update({
   id: '/sessions/$date/',
   path: '/sessions/$date/',
@@ -67,19 +85,25 @@ const ClubSessionsDateStepRoute = ClubSessionsDateStepRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$club': typeof ClubRouteRouteWithChildren
+  '/admin': typeof AdminRouteRouteWithChildren
   '/$club/': typeof ClubIndexRoute
   '/$club/players': typeof ClubLandingPlayersRoute
   '/$club/sessions': typeof ClubLandingSessionsRoute
   '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/admin/clubs/$slug': typeof AdminClubsSlugRoute
+  '/admin/clubs/': typeof AdminClubsIndexRoute
   '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
   '/$club/sessions/$date/': typeof ClubSessionsDateIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/$club': typeof ClubIndexRoute
   '/$club/players': typeof ClubLandingPlayersRoute
   '/$club/sessions': typeof ClubLandingSessionsRoute
   '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/admin/clubs/$slug': typeof AdminClubsSlugRoute
+  '/admin/clubs': typeof AdminClubsIndexRoute
   '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
   '/$club/sessions/$date': typeof ClubSessionsDateIndexRoute
 }
@@ -87,11 +111,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$club': typeof ClubRouteRouteWithChildren
+  '/admin': typeof AdminRouteRouteWithChildren
   '/$club/_landing': typeof ClubLandingRouteWithChildren
   '/$club/': typeof ClubIndexRoute
   '/$club/_landing/players': typeof ClubLandingPlayersRoute
   '/$club/_landing/sessions': typeof ClubLandingSessionsRoute
   '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/admin/clubs/$slug': typeof AdminClubsSlugRoute
+  '/admin/clubs/': typeof AdminClubsIndexRoute
   '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
   '/$club/sessions/$date/': typeof ClubSessionsDateIndexRoute
 }
@@ -100,30 +127,39 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$club'
+    | '/admin'
     | '/$club/'
     | '/$club/players'
     | '/$club/sessions'
     | '/$club/players/$id'
+    | '/admin/clubs/$slug'
+    | '/admin/clubs/'
     | '/$club/sessions/$date/$step'
     | '/$club/sessions/$date/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/$club'
     | '/$club/players'
     | '/$club/sessions'
     | '/$club/players/$id'
+    | '/admin/clubs/$slug'
+    | '/admin/clubs'
     | '/$club/sessions/$date/$step'
     | '/$club/sessions/$date'
   id:
     | '__root__'
     | '/'
     | '/$club'
+    | '/admin'
     | '/$club/_landing'
     | '/$club/'
     | '/$club/_landing/players'
     | '/$club/_landing/sessions'
     | '/$club/players/$id'
+    | '/admin/clubs/$slug'
+    | '/admin/clubs/'
     | '/$club/sessions/$date/$step'
     | '/$club/sessions/$date/'
   fileRoutesById: FileRoutesById
@@ -131,6 +167,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClubRouteRoute: typeof ClubRouteRouteWithChildren
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -147,6 +184,13 @@ declare module '@tanstack/react-router' {
       path: '/$club'
       fullPath: '/$club'
       preLoaderRoute: typeof ClubRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$club/': {
@@ -183,6 +227,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/$club/players/$id'
       preLoaderRoute: typeof ClubPlayersIdRouteImport
       parentRoute: typeof ClubRouteRoute
+    }
+    '/admin/clubs/': {
+      id: '/admin/clubs/'
+      path: '/clubs'
+      fullPath: '/admin/clubs/'
+      preLoaderRoute: typeof AdminClubsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/clubs/$slug': {
+      id: '/admin/clubs/$slug'
+      path: '/clubs/$slug'
+      fullPath: '/admin/clubs/$slug'
+      preLoaderRoute: typeof AdminClubsSlugRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
     '/$club/sessions/$date/': {
       id: '/$club/sessions/$date/'
@@ -235,9 +293,24 @@ const ClubRouteRouteWithChildren = ClubRouteRoute._addFileChildren(
   ClubRouteRouteChildren,
 )
 
+interface AdminRouteRouteChildren {
+  AdminClubsSlugRoute: typeof AdminClubsSlugRoute
+  AdminClubsIndexRoute: typeof AdminClubsIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminClubsSlugRoute: AdminClubsSlugRoute,
+  AdminClubsIndexRoute: AdminClubsIndexRoute,
+}
+
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClubRouteRoute: ClubRouteRouteWithChildren,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
