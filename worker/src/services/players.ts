@@ -1,6 +1,6 @@
 // A player's admin page: profile, sign-in link, HelloClub link (admins).
 import * as db from '../db'
-import { CLUB_ID, ServiceError, requireAdmin } from './context'
+import { ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
 
 function playerId(id: number) {
@@ -10,7 +10,7 @@ function playerId(id: number) {
 
 export async function playerProfile(ctx: ServiceContext, id: number) {
   await requireAdmin(ctx)
-  const player = await db.getPlayerById(ctx.db, CLUB_ID, playerId(id))
+  const player = await db.getPlayerById(ctx.db, ctx.club.id, playerId(id))
   if (!player) throw new ServiceError('Not found', 404)
   return { ...player, login: await db.getPlayerLogin(ctx.db, id) }
 }

@@ -6,9 +6,11 @@
 import { Anchor, Breadcrumbs, Text } from '@mantine/core'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { useClubSlug } from '../lib/club'
 
 export interface Crumbs {
-  parent: { label: string; to: '/sessions' | '/players' }
+  /** A list of the page's club. */
+  parent: { label: string; to: '/$club/sessions' | '/$club/players' }
   current: string
   /** Shorter text for the current page on phones, e.g. "5 Nov". */
   short?: string
@@ -23,6 +25,7 @@ declare module '@tanstack/react-router' {
 
 export function PageCrumbs(props: { home: ReactNode; use: () => Crumbs }) {
   const c = props.use()
+  const club = useClubSlug()
   return (
     <nav aria-label="Breadcrumb" style={{ minWidth: 0 }}>
       <Breadcrumbs
@@ -32,7 +35,12 @@ export function PageCrumbs(props: { home: ReactNode; use: () => Crumbs }) {
         styles={{ root: { flexWrap: 'nowrap', minWidth: 0 } }}
       >
         {props.home}
-        <Anchor component={Link} to={c.parent.to} size="sm">
+        <Anchor
+          component={Link}
+          // A plain path: Anchor's polymorphic props don't carry route params.
+          to={c.parent.to.replace('$club', club)}
+          size="sm"
+        >
           {c.parent.label}
         </Anchor>
         <Text size="sm" fw={600} aria-current="page" truncate miw={0}>

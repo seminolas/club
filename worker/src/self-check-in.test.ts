@@ -13,6 +13,7 @@ import * as db from './db'
 import app from './index'
 import type { ServerMessage } from './live-core'
 import { getSession, setAttendance } from './services/session-night'
+import { SENIORS } from './services/context'
 import type { ServiceContext } from './services/context'
 import { createTestDb } from './test/d1'
 import type { TestDb } from './test/d1'
@@ -110,7 +111,7 @@ async function as(who?: 'test-admin' | 'test-player'): Promise<ServiceContext> {
         .join('; '),
     )
   }
-  return { env, db: t.db, headers }
+  return { env, db: t.db, headers, club: SENIORS }
 }
 
 const attendees = async () =>

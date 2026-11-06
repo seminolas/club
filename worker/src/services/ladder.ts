@@ -2,7 +2,7 @@
 // last night played (UI-PORT.md, U2).
 import * as db from '../db'
 import { cachedByVersion } from './cache'
-import { CLUB_ID, ServiceError, requireAdmin } from './context'
+import { ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
 import { currentSkill } from './skill'
 
@@ -22,11 +22,11 @@ export interface LadderRow {
 
 export async function ladder(ctx: ServiceContext): Promise<LadderRow[]> {
   const [players, version] = await Promise.all([
-    db.getLeaderboardPlayers(ctx.db, CLUB_ID),
-    db.closedSessionsVersion(ctx.db, CLUB_ID),
+    db.getLeaderboardPlayers(ctx.db, ctx.club.id),
+    db.closedSessionsVersion(ctx.db, ctx.club.id),
   ])
-  const stats = await cachedByVersion(`played:${CLUB_ID}`, version, () =>
-    db.playedStats(ctx.db, CLUB_ID),
+  const stats = await cachedByVersion(`played:${ctx.club.id}`, version, () =>
+    db.playedStats(ctx.db, ctx.club.id),
   )
   const skill = await currentSkill(ctx)
   const byPlayer = new Map(stats.map((s) => [s.playerId, s]))
@@ -47,5 +47,5 @@ export async function importLadder(ctx: ServiceContext, players: string[]) {
   await requireAdmin(ctx)
   if (!Array.isArray(players) || players.length === 0)
     throw new ServiceError('players array required', 400)
-  await db.replaceLeaderboard(ctx.db, CLUB_ID, players)
+  await db.replaceLeaderboard(ctx.db, ctx.club.id, players)
 }

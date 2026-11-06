@@ -2,7 +2,7 @@
 import * as db from '../db'
 import type { SessionStatus } from '../types'
 import { cachedByVersion } from './cache'
-import { CLUB_ID, ServiceError, requireAdmin } from './context'
+import { ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
 
 export interface SessionListRow {
@@ -18,20 +18,20 @@ export async function sessionList(
   ctx: ServiceContext,
 ): Promise<SessionListRow[]> {
   const [version, openSessions, open] = await Promise.all([
-    db.closedSessionsVersion(ctx.db, CLUB_ID),
+    db.closedSessionsVersion(ctx.db, ctx.club.id),
     // Sessions still open change all the time; they're few and small.
-    db.listSessions(ctx.db, CLUB_ID, false),
-    db.sessionAttendeeNames(ctx.db, CLUB_ID, false),
+    db.listSessions(ctx.db, ctx.club.id, false),
+    db.sessionAttendeeNames(ctx.db, ctx.club.id, false),
   ])
   // Closed sessions read every attendee row: cached until one closes,
   // re-opens or is deleted.
   const [closedSessions, closed] = await cachedByVersion(
-    `sessions:${CLUB_ID}`,
+    `sessions:${ctx.club.id}`,
     version,
     () =>
       Promise.all([
-        db.listSessions(ctx.db, CLUB_ID, true),
-        db.sessionAttendeeNames(ctx.db, CLUB_ID, true),
+        db.listSessions(ctx.db, ctx.club.id, true),
+        db.sessionAttendeeNames(ctx.db, ctx.club.id, true),
       ]),
   )
   const sessions = [...openSessions, ...closedSessions].sort((a, b) =>
@@ -53,14 +53,14 @@ export async function createSession(ctx: ServiceContext, date: string) {
   await requireAdmin(ctx)
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
     throw new ServiceError('Invalid date', 400)
-  const existing = await db.getSessionByDate(ctx.db, CLUB_ID, date)
+  const existing = await db.getSessionByDate(ctx.db, ctx.club.id, date)
   if (existing) throw new ServiceError('Session already exists', 409)
 
   // Fetch leaderboard BEFORE creating the session — after creation the new
   // session becomes the most recent, making getLeaderboardPlayers return nothing.
-  const players = await db.getLeaderboardPlayers(ctx.db, CLUB_ID)
+  const players = await db.getLeaderboardPlayers(ctx.db, ctx.club.id)
 
-  const sessionId = await db.createSession(ctx.db, CLUB_ID, date)
+  const sessionId = await db.createSession(ctx.db, ctx.club.id, date)
   await db.setSessionRanks(
     ctx.db,
     sessionId,

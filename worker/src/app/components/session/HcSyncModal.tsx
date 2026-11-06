@@ -17,6 +17,8 @@ const COLOR: Record<string, string> = {
 }
 
 export function HcSyncModal(props: {
+  /** The club's slug: the sync looks for its HelloClub event. */
+  club: string
   date: string | null
   onClose: () => void
 }) {
@@ -33,7 +35,7 @@ export function HcSyncModal(props: {
         const res = await fetch('/api/hc/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_date: props.date }),
+          body: JSON.stringify({ session_date: props.date, club: props.club }),
         })
         const data = (await res.json().catch(() => ({}))) as {
           log?: LogLine[]
@@ -58,7 +60,7 @@ export function HcSyncModal(props: {
     return () => {
       cancelled = true
     }
-  }, [props.date])
+  }, [props.club, props.date])
   useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [log])
 
   return (

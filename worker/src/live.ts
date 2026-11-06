@@ -11,10 +11,11 @@ import type { SeenWrites, ServerMessage, Writer } from './live-core'
 import { fillSkill } from './services/skill'
 import type { Env } from './types'
 
-const CLUB_ID = 1
 const RECENT_WRITES = 2000
 
 interface Attachment {
+  /** Set by the Worker (index.ts); screens opened before clubs: the seniors. */
+  clubId?: number
   date: string
   writer: Writer
 }
@@ -35,12 +36,16 @@ export class SessionRoom extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     // Skill snapshots (services/skill.ts): the club's "skill:<club>" room
     // computes them, as a fit needs more CPU than a Worker request has.
-    if (new URL(request.url).pathname === '/skill') {
-      await fillSkill(this.env.DB.withSession('first-primary'), CLUB_ID)
+    const url = new URL(request.url)
+    if (url.pathname === '/skill') {
+      await fillSkill(
+        this.env.DB.withSession('first-primary'),
+        Number(url.searchParams.get('club')) || 1,
+      )
       return new Response(null, { status: 204 })
     }
     // Only the Worker reaches this path (it forwards screens to /api/live/…).
-    if (new URL(request.url).pathname === '/notify') {
+    if (url.pathname === '/notify') {
       const body = await request.text()
       this.broadcast(
         body ? (JSON.parse(body) as ServerMessage) : { type: 'changed' },
@@ -56,6 +61,7 @@ export class SessionRoom extends DurableObject<Env> {
     // Set by the Worker from the sign-in (the room isn't reachable otherwise).
     const playerId = Number(request.headers.get('x-player-id'))
     server.serializeAttachment({
+      clubId: Number(request.headers.get('x-club-id')) || 1,
       date: request.headers.get('x-session-date') ?? '',
       writer: {
         isAdmin: request.headers.get('x-is-admin') === '1',
@@ -70,12 +76,16 @@ export class SessionRoom extends DurableObject<Env> {
       typeof raw === 'string' ? raw : new TextDecoder().decode(raw),
     )
     if (!msg) return
-    const { date, writer } = ws.deserializeAttachment() as Attachment
+    const {
+      clubId = 1,
+      date,
+      writer,
+    } = ws.deserializeAttachment() as Attachment
     const run = this.queue.then(() =>
       handleWrite(
         {
           db: this.env.DB.withSession('first-primary'),
-          clubId: CLUB_ID,
+          clubId,
           date,
           writer,
           seen: this.seen,

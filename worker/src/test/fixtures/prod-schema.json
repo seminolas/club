@@ -19,6 +19,12 @@
   },
   {
     "type": "index",
+    "name": "clubs_slug",
+    "tbl_name": "clubs",
+    "sql": "CREATE UNIQUE INDEX clubs_slug ON clubs(slug)"
+  },
+  {
+    "type": "index",
     "name": "matches_box",
     "tbl_name": "matches",
     "sql": "CREATE INDEX matches_box ON matches(box_id, match_number)"
@@ -99,7 +105,7 @@
     "type": "table",
     "name": "clubs",
     "tbl_name": "clubs",
-    "sql": "CREATE TABLE clubs (\n  id         INTEGER PRIMARY KEY,\n  name       TEXT NOT NULL,\n  short_name TEXT,\n  config     TEXT NOT NULL  \n)"
+    "sql": "CREATE TABLE clubs (\n  id         INTEGER PRIMARY KEY,\n  name       TEXT NOT NULL,\n  short_name TEXT,\n  config     TEXT NOT NULL  \n, slug TEXT)"
   },
   {
     "type": "table",

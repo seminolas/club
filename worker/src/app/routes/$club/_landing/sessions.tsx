@@ -1,24 +1,24 @@
-// The Sessions tab: every club night (lab: SessionsDemo; old UI: home
-// "Sessions"). One club night for now, so no Night filter (until V8).
+// The Sessions tab: the club's nights (lab: SessionsDemo; old UI: home
+// "Sessions"). Each club is one night (MULTI-CLUB.md), so no Night filter.
 import { Button, Text } from '@mantine/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { ListTable } from '../../components/list-table/ListTable'
-import type { FilterDef } from '../../components/list-table/filters'
+import { ListTable } from '../../../components/list-table/ListTable'
+import type { FilterDef } from '../../../components/list-table/filters'
 import {
   SIX_MONTHS,
   dayStart,
   sessionDate,
-} from '../../components/list-helpers'
-import { NewSessionModal } from '../../components/NewSessionModal'
-import { INFO_TEXT } from '../../lib/colors'
-import { sessionListQuery, viewerQuery } from '../../lib/queries'
-import type { SessionListRow } from '../../../services/sessions'
+} from '../../../components/list-helpers'
+import { NewSessionModal } from '../../../components/NewSessionModal'
+import { INFO_TEXT } from '../../../lib/colors'
+import { sessionListQuery, viewerQuery } from '../../../lib/queries'
+import type { SessionListRow } from '../../../../services/sessions'
 
-export const Route = createFileRoute('/_landing/sessions')({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(sessionListQuery),
+export const Route = createFileRoute('/$club/_landing/sessions')({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(sessionListQuery(params.club)),
   component: SessionsPage,
 })
 
@@ -32,12 +32,13 @@ const dateFilter: FilterDef<SessionListRow> = {
 }
 
 function SessionsPage() {
+  const { club } = Route.useParams()
   const { data: viewer } = useSuspenseQuery(viewerQuery)
-  const { data: sessions } = useSuspenseQuery(sessionListQuery)
+  const { data: sessions } = useSuspenseQuery(sessionListQuery(club))
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const view = (date: string) =>
-    void navigate({ to: '/sessions/$date', params: { date } })
+    void navigate({ to: '/$club/sessions/$date', params: { club, date } })
 
   return (
     <>
@@ -94,6 +95,7 @@ function SessionsPage() {
       />
       <NewSessionModal
         opened={creating}
+        club={club}
         sessions={sessions}
         onClose={() => setCreating(false)}
         onCreated={(date) => {

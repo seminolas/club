@@ -45,12 +45,13 @@ function withMatch(
 }
 
 export function useScoreEntry(
+  club: string,
   date: string,
   /** The session's live channel (set once it exists). */
   live: RefObject<LiveChannel | null>,
 ) {
   const queryClient = useQueryClient()
-  const key = ['session', date]
+  const key = [club, 'session', date]
   /** Cells being typed in or not yet confirmed saved. */
   const dirty = useRef(new Set<string>())
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -126,7 +127,7 @@ export function useScoreEntry(
    * (as long as their box still has the same players).
    */
   const refresh = async () => {
-    const remote = await sessionFn({ data: date })
+    const remote = await sessionFn({ data: { club, date } })
     const local = get()
     let next = remote
     if (local)

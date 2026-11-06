@@ -6,7 +6,7 @@
 import * as db from '../db'
 import type { BoxInput, SessionResponse } from '../types'
 import type { ServerMessage } from '../live-core'
-import { CLUB_ID, ServiceError, requireAdmin, signedIn } from './context'
+import { ServiceError, requireAdmin, signedIn } from './context'
 import { pairsProblem } from '../domain/matches'
 import type { ServiceContext } from './context'
 import { skillChangedFrom } from './skill'
@@ -14,7 +14,7 @@ import { skillChangedFrom } from './skill'
 /** The session's live room (one per club + date), if there is one. */
 export const sessionRoom = (ctx: ServiceContext, date: string) =>
   ctx.env.SESSION_ROOM?.get(
-    ctx.env.SESSION_ROOM.idFromName(`${CLUB_ID}:${date}`),
+    ctx.env.SESSION_ROOM.idFromName(`${ctx.club.id}:${date}`),
   )
 
 /**
@@ -35,7 +35,7 @@ export async function notifyLive(
 }
 
 async function session(ctx: ServiceContext, date: string) {
-  const s = await db.getSessionByDate(ctx.db, CLUB_ID, date)
+  const s = await db.getSessionByDate(ctx.db, ctx.club.id, date)
   if (!s) throw new ServiceError('Not found', 404)
   return s
 }
@@ -43,7 +43,7 @@ async function session(ctx: ServiceContext, date: string) {
 /** Admins only; the admin's own player, for the check-in audit. */
 async function actingAdmin(ctx: ServiceContext) {
   const userId = await requireAdmin(ctx)
-  return (await db.getPlayerByUserId(ctx.db, CLUB_ID, userId))?.id ?? null
+  return (await db.getPlayerByUserId(ctx.db, ctx.club.id, userId))?.id ?? null
 }
 
 /**
@@ -53,7 +53,7 @@ async function actingAdmin(ctx: ServiceContext) {
 async function actingPlayer(ctx: ServiceContext) {
   const auth = await signedIn(ctx)
   if (!auth) throw new ServiceError('Sign in to mark who’s coming', 401)
-  const player = await db.getPlayerByUserId(ctx.db, CLUB_ID, auth.user.id)
+  const player = await db.getPlayerByUserId(ctx.db, ctx.club.id, auth.user.id)
   const isAdmin = auth.user.role === 'admin'
   if (!isAdmin && !player) throw new ServiceError('Pick your player first', 403)
   return { id: player?.id ?? null, isAdmin }
@@ -95,7 +95,7 @@ export async function setAttendance(
   const s = await session(ctx, date)
   if (s.status === 'games' || s.status === 'closed')
     throw new ServiceError('Cannot change attendance in this state', 400)
-  const player = await db.getPlayerById(ctx.db, CLUB_ID, playerId)
+  const player = await db.getPlayerById(ctx.db, ctx.club.id, playerId)
   if (!player) throw new ServiceError('Player not found', 404)
   // Players mark from the ladder; someone new is added by an admin.
   if (!by.isAdmin && !(await db.isOnSessionLadder(ctx.db, s.id, playerId)))
@@ -199,7 +199,7 @@ export async function addPlayer(
   const { name, insertRank, date } = input
   if (!name || !insertRank || !date)
     throw new ServiceError('name, insert_rank, session_date required', 400)
-  const s = await db.getSessionByDate(ctx.db, CLUB_ID, date)
+  const s = await db.getSessionByDate(ctx.db, ctx.club.id, date)
   if (!s) throw new ServiceError('Session not found', 404)
   if (s.status === 'closed') throw new ServiceError('Session is closed', 400)
   if (s.status === 'games')
@@ -207,11 +207,11 @@ export async function addPlayer(
       'Cannot add players during games — re-open attendance first',
       400,
     )
-  if (await db.getPlayerByName(ctx.db, CLUB_ID, name))
+  if (await db.getPlayerByName(ctx.db, ctx.club.id, name))
     throw new ServiceError('Player already exists', 409)
   const id = await db.addPlayerMidSession(
     ctx.db,
-    CLUB_ID,
+    ctx.club.id,
     s.id,
     name,
     insertRank,

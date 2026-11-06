@@ -10,7 +10,6 @@
 import * as db from '../db'
 import type { DB } from '../db'
 import { fitSkill } from '../domain/skill'
-import { CLUB_ID } from './context'
 import type { ServiceContext } from './context'
 
 const day = (date: string) => Date.parse(`${date}T00:00:00Z`) / 864e5
@@ -34,11 +33,13 @@ export async function requestSkillFill(ctx: ServiceContext) {
   try {
     const ns = ctx.env.SESSION_ROOM
     if (!ns) {
-      await fillSkill(ctx.db, CLUB_ID)
+      await fillSkill(ctx.db, ctx.club.id)
       return
     }
-    const room = ns.get(ns.idFromName(`skill:${CLUB_ID}`))
-    const res = await room.fetch('https://live/skill', { method: 'POST' })
+    const room = ns.get(ns.idFromName(`skill:${ctx.club.id}`))
+    const res = await room.fetch(`https://live/skill?club=${ctx.club.id}`, {
+      method: 'POST',
+    })
     if (!res.ok) throw new Error(`skill fill: ${res.status}`)
   } catch (err) {
     // Never fails the change that asked for it: the ladder shows the last
@@ -49,7 +50,7 @@ export async function requestSkillFill(ctx: ServiceContext) {
 
 /** A session's date on or after which snapshots are out of date. */
 export async function skillChangedFrom(ctx: ServiceContext, date: string) {
-  await db.deleteSkillFrom(ctx.db, CLUB_ID, date)
+  await db.deleteSkillFrom(ctx.db, ctx.club.id, date)
   await requestSkillFill(ctx)
 }
 
@@ -58,7 +59,7 @@ export async function currentSkill(
   ctx: ServiceContext,
 ): Promise<Map<number, number>> {
   const read = async () => {
-    const sessions = await db.closedSessionsSkill(ctx.db, CLUB_ID)
+    const sessions = await db.closedSessionsSkill(ctx.db, ctx.club.id)
     return sessions.at(-1)
   }
   let latest = await read()

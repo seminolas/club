@@ -13,47 +13,69 @@ import {
 import type { BoxInput } from '../../types'
 import { requestContext } from '../server/request'
 
+/** A session night, on its club's pages. */
+type Night = { club: string; date: string }
+
 export const sessionFn = createServerFn({ method: 'GET' })
-  .inputValidator((date: string) => date)
-  .handler(({ data }) => getSession(requestContext(), data))
+  .inputValidator((input: Night) => input)
+  .handler(async ({ data }) =>
+    getSession(await requestContext(data.club), data.date),
+  )
 
 export const setAttendanceFn = createServerFn({ method: 'POST' })
   .inputValidator(
-    (input: { date: string; playerId: number; attending: boolean }) => input,
+    (input: Night & { playerId: number; attending: boolean }) => input,
   )
-  .handler(({ data }) =>
-    setAttendance(requestContext(), data.date, data.playerId, data.attending),
+  .handler(async ({ data }) =>
+    setAttendance(
+      await requestContext(data.club),
+      data.date,
+      data.playerId,
+      data.attending,
+    ),
   )
 
 export const addPlayerFn = createServerFn({ method: 'POST' })
   .inputValidator(
-    (input: {
-      date: string
-      name: string
-      insertRank: number
-      preferredName: string | null
-    }) => input,
+    (
+      input: Night & {
+        name: string
+        insertRank: number
+        preferredName: string | null
+      },
+    ) => input,
   )
-  .handler(({ data }) => addPlayer(requestContext(), data))
+  .handler(async ({ data }) => {
+    const { club, ...input } = data
+    return addPlayer(await requestContext(club), input)
+  })
 
 export const saveBoxesFn = createServerFn({ method: 'POST' })
-  .inputValidator((input: { date: string; boxes: BoxInput[] }) => input)
-  .handler(({ data }) => saveBoxes(requestContext(), data.date, data.boxes))
+  .inputValidator((input: Night & { boxes: BoxInput[] }) => input)
+  .handler(async ({ data }) =>
+    saveBoxes(await requestContext(data.club), data.date, data.boxes),
+  )
 
 export const closeSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator((input: { date: string; ladderAfter: number[] }) => input)
-  .handler(({ data }) =>
-    closeSession(requestContext(), data.date, data.ladderAfter),
+  .inputValidator((input: Night & { ladderAfter: number[] }) => input)
+  .handler(async ({ data }) =>
+    closeSession(await requestContext(data.club), data.date, data.ladderAfter),
   )
 
 export const reopenSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator((date: string) => date)
-  .handler(({ data }) => reopenSession(requestContext(), data))
+  .inputValidator((input: Night) => input)
+  .handler(async ({ data }) =>
+    reopenSession(await requestContext(data.club), data.date),
+  )
 
 export const reopenAttendanceFn = createServerFn({ method: 'POST' })
-  .inputValidator((date: string) => date)
-  .handler(({ data }) => reopenAttendance(requestContext(), data))
+  .inputValidator((input: Night) => input)
+  .handler(async ({ data }) =>
+    reopenAttendance(await requestContext(data.club), data.date),
+  )
 
 export const deleteSessionFn = createServerFn({ method: 'POST' })
-  .inputValidator((date: string) => date)
-  .handler(({ data }) => deleteSession(requestContext(), data))
+  .inputValidator((input: Night) => input)
+  .handler(async ({ data }) =>
+    deleteSession(await requestContext(data.club), data.date),
+  )

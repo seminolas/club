@@ -10,108 +10,127 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as LandingRouteImport } from './routes/_landing'
-import { Route as LandingPlayersRouteImport } from './routes/_landing/players'
-import { Route as LandingSessionsRouteImport } from './routes/_landing/sessions'
-import { Route as PlayersIdRouteImport } from './routes/players.$id'
-import { Route as SessionsDateIndexRouteImport } from './routes/sessions.$date.index'
-import { Route as SessionsDateStepRouteImport } from './routes/sessions.$date.$step'
+import { Route as ClubRouteRouteImport } from './routes/$club/route'
+import { Route as ClubIndexRouteImport } from './routes/$club/index'
+import { Route as ClubLandingRouteImport } from './routes/$club/_landing'
+import { Route as ClubLandingPlayersRouteImport } from './routes/$club/_landing/players'
+import { Route as ClubLandingSessionsRouteImport } from './routes/$club/_landing/sessions'
+import { Route as ClubPlayersIdRouteImport } from './routes/$club/players.$id'
+import { Route as ClubSessionsDateIndexRouteImport } from './routes/$club/sessions.$date.index'
+import { Route as ClubSessionsDateStepRouteImport } from './routes/$club/sessions.$date.$step'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LandingRoute = LandingRouteImport.update({
-  id: '/_landing',
+const ClubRouteRoute = ClubRouteRouteImport.update({
+  id: '/$club',
+  path: '/$club',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LandingPlayersRoute = LandingPlayersRouteImport.update({
+const ClubIndexRoute = ClubIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClubRouteRoute,
+} as any)
+const ClubLandingRoute = ClubLandingRouteImport.update({
+  id: '/_landing',
+  getParentRoute: () => ClubRouteRoute,
+} as any)
+const ClubLandingPlayersRoute = ClubLandingPlayersRouteImport.update({
   id: '/players',
   path: '/players',
-  getParentRoute: () => LandingRoute,
+  getParentRoute: () => ClubLandingRoute,
 } as any)
-const LandingSessionsRoute = LandingSessionsRouteImport.update({
+const ClubLandingSessionsRoute = ClubLandingSessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
-  getParentRoute: () => LandingRoute,
+  getParentRoute: () => ClubLandingRoute,
 } as any)
-const PlayersIdRoute = PlayersIdRouteImport.update({
+const ClubPlayersIdRoute = ClubPlayersIdRouteImport.update({
   id: '/players/$id',
   path: '/players/$id',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClubRouteRoute,
 } as any)
-const SessionsDateIndexRoute = SessionsDateIndexRouteImport.update({
+const ClubSessionsDateIndexRoute = ClubSessionsDateIndexRouteImport.update({
   id: '/sessions/$date/',
   path: '/sessions/$date/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClubRouteRoute,
 } as any)
-const SessionsDateStepRoute = SessionsDateStepRouteImport.update({
+const ClubSessionsDateStepRoute = ClubSessionsDateStepRouteImport.update({
   id: '/sessions/$date/$step',
   path: '/sessions/$date/$step',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClubRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/players': typeof LandingPlayersRoute
-  '/sessions': typeof LandingSessionsRoute
-  '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date/$step': typeof SessionsDateStepRoute
-  '/sessions/$date/': typeof SessionsDateIndexRoute
+  '/$club': typeof ClubRouteRouteWithChildren
+  '/$club/': typeof ClubIndexRoute
+  '/$club/players': typeof ClubLandingPlayersRoute
+  '/$club/sessions': typeof ClubLandingSessionsRoute
+  '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
+  '/$club/sessions/$date/': typeof ClubSessionsDateIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/players': typeof LandingPlayersRoute
-  '/sessions': typeof LandingSessionsRoute
-  '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date/$step': typeof SessionsDateStepRoute
-  '/sessions/$date': typeof SessionsDateIndexRoute
+  '/$club': typeof ClubIndexRoute
+  '/$club/players': typeof ClubLandingPlayersRoute
+  '/$club/sessions': typeof ClubLandingSessionsRoute
+  '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
+  '/$club/sessions/$date': typeof ClubSessionsDateIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/_landing': typeof LandingRouteWithChildren
-  '/_landing/players': typeof LandingPlayersRoute
-  '/_landing/sessions': typeof LandingSessionsRoute
-  '/players/$id': typeof PlayersIdRoute
-  '/sessions/$date/$step': typeof SessionsDateStepRoute
-  '/sessions/$date/': typeof SessionsDateIndexRoute
+  '/$club': typeof ClubRouteRouteWithChildren
+  '/$club/_landing': typeof ClubLandingRouteWithChildren
+  '/$club/': typeof ClubIndexRoute
+  '/$club/_landing/players': typeof ClubLandingPlayersRoute
+  '/$club/_landing/sessions': typeof ClubLandingSessionsRoute
+  '/$club/players/$id': typeof ClubPlayersIdRoute
+  '/$club/sessions/$date/$step': typeof ClubSessionsDateStepRoute
+  '/$club/sessions/$date/': typeof ClubSessionsDateIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/players'
-    | '/sessions'
-    | '/players/$id'
-    | '/sessions/$date/$step'
-    | '/sessions/$date/'
+    | '/$club'
+    | '/$club/'
+    | '/$club/players'
+    | '/$club/sessions'
+    | '/$club/players/$id'
+    | '/$club/sessions/$date/$step'
+    | '/$club/sessions/$date/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/players'
-    | '/sessions'
-    | '/players/$id'
-    | '/sessions/$date/$step'
-    | '/sessions/$date'
+    | '/$club'
+    | '/$club/players'
+    | '/$club/sessions'
+    | '/$club/players/$id'
+    | '/$club/sessions/$date/$step'
+    | '/$club/sessions/$date'
   id:
     | '__root__'
     | '/'
-    | '/_landing'
-    | '/_landing/players'
-    | '/_landing/sessions'
-    | '/players/$id'
-    | '/sessions/$date/$step'
-    | '/sessions/$date/'
+    | '/$club'
+    | '/$club/_landing'
+    | '/$club/'
+    | '/$club/_landing/players'
+    | '/$club/_landing/sessions'
+    | '/$club/players/$id'
+    | '/$club/sessions/$date/$step'
+    | '/$club/sessions/$date/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LandingRoute: typeof LandingRouteWithChildren
-  PlayersIdRoute: typeof PlayersIdRoute
-  SessionsDateStepRoute: typeof SessionsDateStepRoute
-  SessionsDateIndexRoute: typeof SessionsDateIndexRoute
+  ClubRouteRoute: typeof ClubRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -123,70 +142,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_landing': {
-      id: '/_landing'
+    '/$club': {
+      id: '/$club'
+      path: '/$club'
+      fullPath: '/$club'
+      preLoaderRoute: typeof ClubRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$club/': {
+      id: '/$club/'
+      path: '/'
+      fullPath: '/$club/'
+      preLoaderRoute: typeof ClubIndexRouteImport
+      parentRoute: typeof ClubRouteRoute
+    }
+    '/$club/_landing': {
+      id: '/$club/_landing'
       path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof LandingRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$club'
+      preLoaderRoute: typeof ClubLandingRouteImport
+      parentRoute: typeof ClubRouteRoute
     }
-    '/_landing/players': {
-      id: '/_landing/players'
+    '/$club/_landing/players': {
+      id: '/$club/_landing/players'
       path: '/players'
-      fullPath: '/players'
-      preLoaderRoute: typeof LandingPlayersRouteImport
-      parentRoute: typeof LandingRoute
+      fullPath: '/$club/players'
+      preLoaderRoute: typeof ClubLandingPlayersRouteImport
+      parentRoute: typeof ClubLandingRoute
     }
-    '/_landing/sessions': {
-      id: '/_landing/sessions'
+    '/$club/_landing/sessions': {
+      id: '/$club/_landing/sessions'
       path: '/sessions'
-      fullPath: '/sessions'
-      preLoaderRoute: typeof LandingSessionsRouteImport
-      parentRoute: typeof LandingRoute
+      fullPath: '/$club/sessions'
+      preLoaderRoute: typeof ClubLandingSessionsRouteImport
+      parentRoute: typeof ClubLandingRoute
     }
-    '/players/$id': {
-      id: '/players/$id'
+    '/$club/players/$id': {
+      id: '/$club/players/$id'
       path: '/players/$id'
-      fullPath: '/players/$id'
-      preLoaderRoute: typeof PlayersIdRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$club/players/$id'
+      preLoaderRoute: typeof ClubPlayersIdRouteImport
+      parentRoute: typeof ClubRouteRoute
     }
-    '/sessions/$date/': {
-      id: '/sessions/$date/'
+    '/$club/sessions/$date/': {
+      id: '/$club/sessions/$date/'
       path: '/sessions/$date'
-      fullPath: '/sessions/$date/'
-      preLoaderRoute: typeof SessionsDateIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$club/sessions/$date/'
+      preLoaderRoute: typeof ClubSessionsDateIndexRouteImport
+      parentRoute: typeof ClubRouteRoute
     }
-    '/sessions/$date/$step': {
-      id: '/sessions/$date/$step'
+    '/$club/sessions/$date/$step': {
+      id: '/$club/sessions/$date/$step'
       path: '/sessions/$date/$step'
-      fullPath: '/sessions/$date/$step'
-      preLoaderRoute: typeof SessionsDateStepRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/$club/sessions/$date/$step'
+      preLoaderRoute: typeof ClubSessionsDateStepRouteImport
+      parentRoute: typeof ClubRouteRoute
     }
   }
 }
 
-interface LandingRouteChildren {
-  LandingPlayersRoute: typeof LandingPlayersRoute
-  LandingSessionsRoute: typeof LandingSessionsRoute
+interface ClubLandingRouteChildren {
+  ClubLandingPlayersRoute: typeof ClubLandingPlayersRoute
+  ClubLandingSessionsRoute: typeof ClubLandingSessionsRoute
 }
 
-const LandingRouteChildren: LandingRouteChildren = {
-  LandingPlayersRoute: LandingPlayersRoute,
-  LandingSessionsRoute: LandingSessionsRoute,
+const ClubLandingRouteChildren: ClubLandingRouteChildren = {
+  ClubLandingPlayersRoute: ClubLandingPlayersRoute,
+  ClubLandingSessionsRoute: ClubLandingSessionsRoute,
 }
 
-const LandingRouteWithChildren =
-  LandingRoute._addFileChildren(LandingRouteChildren)
+const ClubLandingRouteWithChildren = ClubLandingRoute._addFileChildren(
+  ClubLandingRouteChildren,
+)
+
+interface ClubRouteRouteChildren {
+  ClubLandingRoute: typeof ClubLandingRouteWithChildren
+  ClubIndexRoute: typeof ClubIndexRoute
+  ClubPlayersIdRoute: typeof ClubPlayersIdRoute
+  ClubSessionsDateStepRoute: typeof ClubSessionsDateStepRoute
+  ClubSessionsDateIndexRoute: typeof ClubSessionsDateIndexRoute
+}
+
+const ClubRouteRouteChildren: ClubRouteRouteChildren = {
+  ClubLandingRoute: ClubLandingRouteWithChildren,
+  ClubIndexRoute: ClubIndexRoute,
+  ClubPlayersIdRoute: ClubPlayersIdRoute,
+  ClubSessionsDateStepRoute: ClubSessionsDateStepRoute,
+  ClubSessionsDateIndexRoute: ClubSessionsDateIndexRoute,
+}
+
+const ClubRouteRouteWithChildren = ClubRouteRoute._addFileChildren(
+  ClubRouteRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LandingRoute: LandingRouteWithChildren,
-  PlayersIdRoute: PlayersIdRoute,
-  SessionsDateStepRoute: SessionsDateStepRoute,
-  SessionsDateIndexRoute: SessionsDateIndexRoute,
+  ClubRouteRoute: ClubRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

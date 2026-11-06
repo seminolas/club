@@ -33,33 +33,41 @@ import type {
   HcMember,
   ProfileChange,
   playerProfile,
-} from '../../services/players'
-import { PageCard } from '../components/PageCard'
+} from '../../../services/players'
+import { PageCard } from '../../components/PageCard'
 import {
   removePlayerFn,
   searchHcFn,
   unlinkPlayerFn,
   updatePlayerFn,
-} from '../fns/players'
-import type { Crumbs } from '../components/PageCrumbs'
-import { INFO_TEXT } from '../lib/colors'
-import { playerQuery, viewerQuery } from '../lib/queries'
-import { confirmAction, toastError, toastOk } from '../lib/toasts'
+} from '../../fns/players'
+import type { Crumbs } from '../../components/PageCrumbs'
+import { INFO_TEXT } from '../../lib/colors'
+import { playerQuery, viewerQuery } from '../../lib/queries'
+import { confirmAction, toastError, toastOk } from '../../lib/toasts'
 
 // Typed, as the route's own type depends on it.
 function useCrumbs(): Crumbs {
-  const { id }: { id?: string } = useParams({ strict: false })
-  const { data: player } = useSuspenseQuery(playerQuery(Number(id)))
-  return { parent: { label: 'Players', to: '/players' }, current: player.name }
+  const { club = '', id }: { club?: string; id?: string } = useParams({
+    strict: false,
+  })
+  const { data: player } = useSuspenseQuery(playerQuery(club, Number(id)))
+  return {
+    parent: { label: 'Players', to: '/$club/players' },
+    current: player.name,
+  }
 }
 
-export const Route = createFileRoute('/players/$id')({
-  beforeLoad: async ({ context }) => {
+export const Route = createFileRoute('/$club/players/$id')({
+  beforeLoad: async ({ context, params }) => {
     const viewer = await context.queryClient.ensureQueryData(viewerQuery)
-    if (!viewer.isAdmin) throw redirect({ to: '/players' })
+    if (!viewer.isAdmin)
+      throw redirect({ to: '/$club/players', params: { club: params.club } })
   },
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(playerQuery(Number(params.id))),
+    context.queryClient.ensureQueryData(
+      playerQuery(params.club, Number(params.id)),
+    ),
   staticData: { crumbs: useCrumbs },
   component: PlayerPage,
 })
@@ -67,8 +75,9 @@ export const Route = createFileRoute('/players/$id')({
 type Profile = Awaited<ReturnType<typeof playerProfile>>
 
 function PlayerPage() {
-  const id = Number(Route.useParams().id)
-  const { data: player } = useSuspenseQuery(playerQuery(id))
+  const { club, id: idParam } = Route.useParams()
+  const id = Number(idParam)
+  const { data: player } = useSuspenseQuery(playerQuery(club, id))
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [draft, setDraft] = useState<Required<ProfileChange> | null>(null)
@@ -76,12 +85,12 @@ function PlayerPage() {
 
   const refresh = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['player', id] }),
-      queryClient.invalidateQueries({ queryKey: ['ladder'] }),
+      queryClient.invalidateQueries({ queryKey: [club, 'player', id] }),
+      queryClient.invalidateQueries({ queryKey: [club, 'ladder'] }),
     ])
   const save = async (fields: ProfileChange, done: string) => {
     try {
-      await updatePlayerFn({ data: { id, fields } })
+      await updatePlayerFn({ data: { club, id, fields } })
       await refresh()
       toastOk(done)
       return true
@@ -122,10 +131,10 @@ function PlayerPage() {
       danger: true,
       onConfirm: async () => {
         try {
-          await removePlayerFn({ data: id })
-          await queryClient.invalidateQueries({ queryKey: ['ladder'] })
+          await removePlayerFn({ data: { club, id } })
+          await queryClient.invalidateQueries({ queryKey: [club, 'ladder'] })
           toastOk(`${player.name} removed.`)
-          void navigate({ to: '/players' })
+          void navigate({ to: '/$club/players', params: { club } })
         } catch (e) {
           toastError(e)
         }
@@ -140,7 +149,7 @@ function PlayerPage() {
       danger: true,
       onConfirm: async () => {
         try {
-          await unlinkPlayerFn({ data: id })
+          await unlinkPlayerFn({ data: { club, id } })
           await refresh()
           toastOk('Sign-in unlinked.')
         } catch (e) {

@@ -48,6 +48,8 @@ interface Row extends PersonRow {
 }
 
 export function CheckInStep(props: {
+  /** The club's slug. */
+  club: string
   session: Session
   ladder: LadderRow[]
   /** Signed-in players and admins, while check-in is open. */
@@ -62,7 +64,7 @@ export function CheckInStep(props: {
   const { session, me } = props
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState<string | null>(null)
-  const key = ['session', session.date]
+  const key = [props.club, 'session', session.date]
 
   // The list: today's ladder while check-in is open, else the ladder the
   // session started with (as the old UI).
@@ -154,7 +156,12 @@ export function CheckInStep(props: {
     try {
       apply(
         await setAttendanceFn({
-          data: { date: session.date, playerId: r.personId, attending },
+          data: {
+            club: props.club,
+            date: session.date,
+            playerId: r.personId,
+            attending,
+          },
         }),
       )
     } catch (e) {
@@ -317,7 +324,9 @@ export function CheckInStep(props: {
         onClose={() => setAdding(null)}
         onAdd={async (input) => {
           try {
-            await addPlayerFn({ data: { date: session.date, ...input } })
+            await addPlayerFn({
+              data: { club: props.club, date: session.date, ...input },
+            })
             await queryClient.invalidateQueries()
             toastOk(`Added ${input.name} at position ${input.insertRank}.`)
             setAdding(null)
