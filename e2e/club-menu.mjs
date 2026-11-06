@@ -14,6 +14,7 @@ await s.go('/seniors/sessions')
 check('the menu shows the club', (await menu.textContent())?.includes('Seniors'))
 await menu.click()
 const items = page.getByRole('menuitem')
+await items.first().waitFor()
 check('it lists the clubs', (await items.count()) >= 2, String(await items.count()))
 check(
   'the current club is marked',
@@ -21,6 +22,8 @@ check(
 )
 await page.getByRole('menuitem', { name: /Juniors/ }).click()
 await page.waitForURL('**/juniors/sessions')
+// The header and the remembered club follow the page's render.
+await page.waitForFunction(() => document.cookie.includes('club=juniors'), null, { timeout: 5000 }).catch(() => {})
 check('switching keeps the tab', path() === '/juniors/sessions', path())
 check('the menu now says Juniors', (await menu.textContent())?.includes('Juniors'))
 
