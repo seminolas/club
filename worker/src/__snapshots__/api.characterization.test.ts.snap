@@ -168,7 +168,7 @@ exports[`admin > a whole session night: create, attend, add a player, boxes, sco
   },
   {
     "body": {
-      "error": "Player already exists",
+      "error": "Player already on this ladder",
     },
     "label": "add existing",
     "status": 409,
@@ -1552,9 +1552,9 @@ exports[`admin > players: update profile, delete with and without game data; lea
   },
   {
     "body": {
-      "ok": true,
+      "error": "Finish the current session before importing a new leaderboard.",
     },
-    "status": 200,
+    "status": 409,
   },
   {
     "body": {
@@ -1569,16 +1569,23 @@ exports[`admin > players: update profile, delete with and without game data; lea
     "status": 404,
   },
   {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
+    "body": {
+      "ok": true,
+    },
+    "status": 200,
+  },
+  {
     "body": [
       {
         "attendee_count": 9,
         "date": "2026-01-06",
         "status": "closed",
-      },
-      {
-        "attendee_count": 0,
-        "date": "2025-12-30",
-        "status": "attendance",
       },
     ],
     "status": 200,
@@ -1586,6 +1593,12 @@ exports[`admin > players: update profile, delete with and without game data; lea
   {
     "body": {
       "players": [
+        {
+          "hc_member_id": "hc-0003",
+          "id": 3,
+          "name": "Chloe Wu",
+          "preferred_name": null,
+        },
         {
           "hc_member_id": "hc-0001",
           "id": 1,
@@ -1597,12 +1610,6 @@ exports[`admin > players: update profile, delete with and without game data; lea
           "id": 2,
           "name": "Ben Carter",
           "preferred_name": "Benny",
-        },
-        {
-          "hc_member_id": "hc-0003",
-          "id": 3,
-          "name": "Chloe Wu",
-          "preferred_name": null,
         },
       ],
       "updatedAt": "<today>",

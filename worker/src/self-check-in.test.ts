@@ -165,12 +165,14 @@ describe('players marking attendance', () => {
 
   it('players mark only people on the session’s ladder; admins as before', async () => {
     const me = await as('test-player')
-    // Mia Late (14): in the club, not on this ladder. 13: archived. 16: other club.
-    await expect(setAttendance(me, DATE, 14, true)).rejects.toThrow(
-      'ask an admin',
-    )
+    // Mia Late (14): not on this ladder. 16: another club's, also not on it
+    // (people are shared across clubs: MULTI-CLUB.md). 13: archived.
+    for (const id of [14, 16])
+      await expect(setAttendance(me, DATE, id, true)).rejects.toThrow(
+        'ask an admin',
+      )
     await expect(setAttendance(me, DATE, 13, true)).rejects.toThrow('not found')
-    await expect(setAttendance(me, DATE, 16, true)).rejects.toThrow('not found')
+    await expect(setAttendance(me, DATE, 99, true)).rejects.toThrow('not found')
     await setAttendance(await as('test-admin'), DATE, 14, true)
     expect(await attendees()).toEqual([14])
   })

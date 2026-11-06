@@ -48,13 +48,14 @@ const userOf = async (playerId: number) =>
   )?.user_id
 
 describe('claimable players', () => {
-  it('are the unlinked active players of the club, by name', async () => {
+  it('are the unlinked active people of every club, by name', async () => {
     await addUser('u-x', 'x@example.test')
     await sql("UPDATE players SET user_id = 'u-x' WHERE id = 2")
-    const names = (await db.listClaimablePlayers(t.db, 1)).map((p) => p.name)
+    const names = (await db.listClaimablePlayers(t.db)).map((p) => p.name)
     expect(names).not.toContain('Ben Carter') // linked
     expect(names).not.toContain('Liam Gone') // archived
-    expect(names).not.toContain('Zed Other') // other club
+    // People are shared across clubs (MULTI-CLUB.md): club 2's too.
+    expect(names).toContain('Zed Other')
     expect(names).toContain('Aroha Ngata')
     expect(names).toEqual([...names].sort())
   })
@@ -63,29 +64,29 @@ describe('claimable players', () => {
 describe('claiming a player', () => {
   it('links an unlinked active player to a login with no player', async () => {
     await addUser('u-a', 'a@example.test')
-    expect(await db.claimPlayer(t.db, 1, 4, 'u-a')).toBe(true)
+    expect(await db.claimPlayer(t.db, 4, 'u-a')).toBe(true)
     expect(await userOf(4)).toBe('u-a')
   })
 
   it('refuses a player someone already claimed', async () => {
     await addUser('u-a', 'a@example.test')
     await addUser('u-b', 'b@example.test')
-    await db.claimPlayer(t.db, 1, 4, 'u-a')
-    expect(await db.claimPlayer(t.db, 1, 4, 'u-b')).toBe(false)
+    await db.claimPlayer(t.db, 4, 'u-a')
+    expect(await db.claimPlayer(t.db, 4, 'u-b')).toBe(false)
     expect(await userOf(4)).toBe('u-a')
   })
 
   it('refuses a second player for the same login', async () => {
     await addUser('u-a', 'a@example.test')
-    await db.claimPlayer(t.db, 1, 4, 'u-a')
-    expect(await db.claimPlayer(t.db, 1, 5, 'u-a')).toBe(false)
+    await db.claimPlayer(t.db, 4, 'u-a')
+    expect(await db.claimPlayer(t.db, 5, 'u-a')).toBe(false)
     expect(await userOf(5)).toBeNull()
   })
 
-  it('refuses archived players and other clubs', async () => {
+  it('refuses archived players; another club’s person can be claimed', async () => {
     await addUser('u-a', 'a@example.test')
-    expect(await db.claimPlayer(t.db, 1, 13, 'u-a')).toBe(false)
-    expect(await db.claimPlayer(t.db, 1, 15, 'u-a')).toBe(false)
+    expect(await db.claimPlayer(t.db, 13, 'u-a')).toBe(false)
+    expect(await db.claimPlayer(t.db, 15, 'u-a')).toBe(true)
   })
 })
 
@@ -93,7 +94,7 @@ describe('auto-linking by HelloClub email', () => {
   it('links the one active player with that email, ignoring case and spaces', async () => {
     await addUser('u-a', 'Aroha@Example.test')
     expect(
-      await db.autoLinkByEmail(t.db, 1, 'u-a', ' AROHA@example.TEST '),
+      await db.autoLinkByEmail(t.db, 'u-a', ' AROHA@example.TEST '),
     ).toEqual({ id: 1, name: 'Aroha Ngata' })
     expect(await userOf(1)).toBe('u-a')
   })
@@ -101,7 +102,7 @@ describe('auto-linking by HelloClub email', () => {
   it('does nothing when no player has the email', async () => {
     await addUser('u-a', 'nobody@example.test')
     expect(
-      await db.autoLinkByEmail(t.db, 1, 'u-a', 'nobody@example.test'),
+      await db.autoLinkByEmail(t.db, 'u-a', 'nobody@example.test'),
     ).toBeNull()
   })
 
@@ -111,7 +112,7 @@ describe('auto-linking by HelloClub email', () => {
     )
     await addUser('u-a', 'family@example.test')
     expect(
-      await db.autoLinkByEmail(t.db, 1, 'u-a', 'family@example.test'),
+      await db.autoLinkByEmail(t.db, 'u-a', 'family@example.test'),
     ).toBeNull()
     expect([await userOf(4), await userOf(5)]).toEqual([null, null])
   })
@@ -124,30 +125,37 @@ describe('auto-linking by HelloClub email', () => {
     await sql("UPDATE players SET user_id = 'u-parent' WHERE id = 4")
     await addUser('u-a', 'family@example.test')
     expect(
-      await db.autoLinkByEmail(t.db, 1, 'u-a', 'family@example.test'),
+      await db.autoLinkByEmail(t.db, 'u-a', 'family@example.test'),
     ).toBeNull()
     expect(await userOf(5)).toBeNull()
   })
 
-  it('ignores archived players and other clubs when matching', async () => {
-    // Liam (archived) shares Aroha's email; Aroha in club 2 too.
-    await sql(
-      "UPDATE players SET email = 'aroha@example.test' WHERE id IN (13, 15)",
+  it('ignores archived players when matching', async () => {
+    // Liam (archived) shares Aroha's email.
+    await sql("UPDATE players SET email = 'aroha@example.test' WHERE id = 13")
+    await addUser('u-a', 'aroha@example.test')
+    expect(await db.autoLinkByEmail(t.db, 'u-a', 'aroha@example.test')).toEqual(
+      {
+        id: 1,
+        name: 'Aroha Ngata',
+      },
     )
+  })
+
+  it('counts another club’s person: a shared email there doesn’t link', async () => {
+    // Club 2's Aroha shares the email: people are shared across clubs.
+    await sql("UPDATE players SET email = 'aroha@example.test' WHERE id = 15")
     await addUser('u-a', 'aroha@example.test')
     expect(
-      await db.autoLinkByEmail(t.db, 1, 'u-a', 'aroha@example.test'),
-    ).toEqual({
-      id: 1,
-      name: 'Aroha Ngata',
-    })
+      await db.autoLinkByEmail(t.db, 'u-a', 'aroha@example.test'),
+    ).toBeNull()
   })
 })
 
 describe('admin: a player’s sign-in, and unlinking', () => {
   it('shows the linked Google email; unlink removes the link', async () => {
     await addUser('u-a', 'a@example.test')
-    await db.claimPlayer(t.db, 1, 4, 'u-a')
+    await db.claimPlayer(t.db, 4, 'u-a')
     expect(await db.getPlayerLogin(t.db, 4)).toEqual({
       email: 'a@example.test',
     })

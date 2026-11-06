@@ -123,7 +123,7 @@ async function liveSocket(c: AppContext, club: ClubRef, date: string) {
   if (!room) return c.json({ error: 'Live updates unavailable' }, 503)
   const session = await getSession(c)
   const player = session
-    ? await db.getPlayerByUserId(c.get('db'), club.id, session.user.id)
+    ? await db.getPlayerByUserId(c.get('db'), session.user.id)
     : null
   // Overwrites anything the browser sent under these names.
   const headers = new Headers(c.req.raw.headers)

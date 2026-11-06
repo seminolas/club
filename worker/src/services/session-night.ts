@@ -43,7 +43,7 @@ async function session(ctx: ServiceContext, date: string) {
 /** Admins only; the admin's own player, for the check-in audit. */
 async function actingAdmin(ctx: ServiceContext) {
   const userId = await requireAdmin(ctx)
-  return (await db.getPlayerByUserId(ctx.db, ctx.club.id, userId))?.id ?? null
+  return (await db.getPlayerByUserId(ctx.db, userId))?.id ?? null
 }
 
 /**
@@ -53,7 +53,7 @@ async function actingAdmin(ctx: ServiceContext) {
 async function actingPlayer(ctx: ServiceContext) {
   const auth = await signedIn(ctx)
   if (!auth) throw new ServiceError('Sign in to mark who’s coming', 401)
-  const player = await db.getPlayerByUserId(ctx.db, ctx.club.id, auth.user.id)
+  const player = await db.getPlayerByUserId(ctx.db, auth.user.id)
   const isAdmin = auth.user.role === 'admin'
   if (!isAdmin && !player) throw new ServiceError('Pick your player first', 403)
   return { id: player?.id ?? null, isAdmin }
@@ -95,7 +95,7 @@ export async function setAttendance(
   const s = await session(ctx, date)
   if (s.status === 'games' || s.status === 'closed')
     throw new ServiceError('Cannot change attendance in this state', 400)
-  const player = await db.getPlayerById(ctx.db, ctx.club.id, playerId)
+  const player = await db.getPlayerById(ctx.db, playerId)
   if (!player) throw new ServiceError('Player not found', 404)
   // Players mark from the ladder; someone new is added by an admin.
   if (!by.isAdmin && !(await db.isOnSessionLadder(ctx.db, s.id, playerId)))
@@ -207,8 +207,11 @@ export async function addPlayer(
       'Cannot add players during games — re-open attendance first',
       400,
     )
-  if (await db.getPlayerByName(ctx.db, ctx.club.id, name))
-    throw new ServiceError('Player already exists', 409)
+  // Someone with this name in another club is the same person (people are
+  // shared: MULTI-CLUB.md), added to this ladder; only once per ladder.
+  const existing = await db.getPlayerByName(ctx.db, name)
+  if (existing && (await db.isOnSessionLadder(ctx.db, s.id, existing.id)))
+    throw new ServiceError('Player already on this ladder', 409)
   const id = await db.addPlayerMidSession(
     ctx.db,
     ctx.club.id,
@@ -217,7 +220,8 @@ export async function addPlayer(
     insertRank,
     by,
   )
-  if (input.preferredName)
+  // A display name is given for someone new; an existing person keeps theirs.
+  if (input.preferredName && !existing)
     await db.updatePlayerProfile(ctx.db, id, {
       preferred_name: input.preferredName,
     })

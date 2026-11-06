@@ -155,6 +155,8 @@ export const sessionRanks = sqliteTable(
       .references(() => players.id),
     rankPosition: integer('rank_position').notNull(),
     phase: text('phase').$type<'before' | 'after'>().notNull().default('after'),
+    /** A starting-ladder row's club (session_id NULL; migration 0016). */
+    clubId: integer('club_id').references(() => clubs.id),
   },
   (t) => [
     unique().on(t.sessionId, t.playerId, t.phase),
