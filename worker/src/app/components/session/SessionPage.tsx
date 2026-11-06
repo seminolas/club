@@ -37,7 +37,7 @@ import {
   withAttendance,
 } from '../../lib/session'
 import { confirmAction, toastError, toastOk } from '../../lib/toasts'
-import { sessionDate } from '../list-helpers'
+import { playedDefault, sessionDate } from '../list-helpers'
 import { AssignBoxesModal } from './AssignBoxesModal'
 import { ScoreSheets } from '../print/ScoreSheets'
 import type { SheetLayout } from '../print/ScoreSheets'
@@ -426,6 +426,7 @@ export function SessionPage(props: {
           canMark={(admin || !!viewer.player) && phase === 'checkin'}
           canAdd={admin && phase === 'checkin'}
           me={viewer.player ?? null}
+          defaultFilters={playedDefault(sessions)}
           header={card.content('checkin')}
           stickyTop={PINNED_H}
         />,

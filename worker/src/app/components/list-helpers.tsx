@@ -1,7 +1,8 @@
 // Shared pieces of the list pages (club-table-lab src/demos/shared.tsx).
 import { Text } from '@mantine/core'
 import type { ReactNode } from 'react'
-import type { FilterDef } from './list-table/filters'
+import { periodStart } from './list-table/filters'
+import type { FilterDef, FilterState } from './list-table/filters'
 
 const TZ = 'Pacific/Auckland'
 
@@ -74,6 +75,27 @@ export function Dash(): ReactNode {
 }
 
 export const SIX_MONTHS = { n: 6, unit: 'month' } as const
+export const THREE_MONTHS = { n: 3, unit: 'month' } as const
+
+/**
+ * The people lists' default filter: "Last played: within 3 months", once the
+ * club has 3 months of sessions. Before that it's off: in a new club nobody
+ * has played yet, so it would hide everyone. `sessions`: the club's, any
+ * order.
+ */
+export function playedDefault(
+  sessions: readonly { date: string }[],
+  now = Date.now(),
+): FilterState {
+  const first = sessions.reduce<string | null>(
+    (min, s) => (min === null || s.date < min ? s.date : min),
+    null,
+  )
+  const longEnough =
+    first !== null &&
+    new Date(dayStart(first)).getTime() <= periodStart(THREE_MONTHS, now)
+  return longEnough ? { played: THREE_MONTHS } : {}
+}
 
 /** A row of a list of people. */
 export interface PersonRow {
