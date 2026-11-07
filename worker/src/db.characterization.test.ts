@@ -84,6 +84,13 @@ describe('reads', () => {
     expect(await db.getPlayerByName(t.db, 'Nobody')).toBeNull()
   })
 
+  it('getPlayerByName: ignores case and spaces at either end', async () => {
+    expect(await db.getPlayerByName(t.db, '  zed OTHER ')).toEqual({
+      id: 16,
+      name: 'Zed Other',
+    })
+  })
+
   it('getSessionRanks: by session and phase; getSeedRanks: a club’s starting ladder', async () => {
     expect({
       seed: await db.getSeedRanks(t.db, 1),
@@ -200,6 +207,26 @@ describe('writes', () => {
     ])
     expect(await snapshotTables(t.db)).toMatchSnapshot()
     expect(await db.getLeaderboardPlayers(t.db, 1)).toMatchSnapshot()
+  })
+
+  it('replaceLeaderboard: matches names ignoring case and outer spaces; a name twice is one person', async () => {
+    const count = () =>
+      t.raw.prepare('SELECT count(*) AS n FROM players').first<number>('n')
+    const before = await count()
+    // Zed Other is club 2's: club 1's ladder gets the same person.
+    await db.replaceLeaderboard(t.db, 1, [
+      'aroha ngata',
+      ' Zed Other ',
+      'New Person',
+      'new person',
+    ])
+    expect(await count()).toBe((before ?? 0) + 1)
+    const ladder = await db.getLeaderboardPlayers(t.db, 1)
+    expect(ladder.map((p) => p.name)).toEqual([
+      'Aroha Ngata',
+      'Zed Other',
+      'New Person',
+    ])
   })
 
   it('updateSessionStatus: with and without closed_at', async () => {

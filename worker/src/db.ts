@@ -93,7 +93,14 @@ export async function getLeaderboardPlayers(
     .orderBy(asc(t.sessionRanks.rankPosition))
 }
 
-/** An active person by exact name, in any club (people are shared). */
+/**
+ * How a typed or imported name finds a person: ignoring case and spaces at
+ * either end, so "kanon nagasawa" is "Kanon Nagasawa" (an exact match made
+ * the juniors import add a second record for such a person).
+ */
+export const nameKey = (name: string): string => name.trim().toLowerCase()
+
+/** An active person by name (nameKey), in any club (people are shared). */
 export async function getPlayerByName(
   db: DB,
   name: string,
@@ -101,7 +108,13 @@ export async function getPlayerByName(
   const row = await orm(db)
     .select({ id: t.players.id, name: t.players.name })
     .from(t.players)
-    .where(and(eq(t.players.name, name), isNull(t.players.archivedAt)))
+    .where(
+      and(
+        // SQLite's lower() only folds ASCII; nameKey folds the rest too.
+        sql`lower(trim(${t.players.name})) = ${nameKey(name)}`,
+        isNull(t.players.archivedAt),
+      ),
+    )
     .orderBy(asc(t.players.id))
     .get()
   return row ?? null
@@ -217,20 +230,26 @@ export async function replaceLeaderboard(
     .orderBy(asc(t.players.id))
   const existingByName = new Map<string, number>()
   for (const p of allPlayers) {
-    if (!existingByName.has(p.name)) existingByName.set(p.name, p.id)
+    const key = nameKey(p.name)
+    if (!existingByName.has(key)) existingByName.set(key, p.id)
   }
 
   // Revive listed people who were archived, or add them.
   const queries: Query[] = []
+  const added = new Set<string>()
   for (const name of names) {
-    const id = existingByName.get(name)
+    const key = nameKey(name)
+    const id = existingByName.get(key)
+    // A name listed twice is one new person, not two.
+    if (id === undefined && added.has(key)) continue
+    added.add(key)
     queries.push(
       id !== undefined
         ? d
             .update(t.players)
             .set({ archivedAt: null })
             .where(eq(t.players.id, id))
-        : d.insert(t.players).values({ clubId, name }),
+        : d.insert(t.players).values({ clubId, name: name.trim() }),
     )
   }
   await runBatch(db, queries)
@@ -243,12 +262,18 @@ export async function replaceLeaderboard(
     .orderBy(asc(t.players.id))
   const activeByName = new Map<string, number>()
   for (const p of active) {
-    if (!activeByName.has(p.name)) activeByName.set(p.name, p.id)
+    const key = nameKey(p.name)
+    if (!activeByName.has(key)) activeByName.set(key, p.id)
   }
 
-  const playerIds = names
-    .map((name) => activeByName.get(name))
-    .filter((id): id is number => id !== undefined)
+  // Each person once, at their first place in the list.
+  const playerIds = [
+    ...new Set(
+      names
+        .map((name) => activeByName.get(nameKey(name)))
+        .filter((id): id is number => id !== undefined),
+    ),
+  ]
 
   // Write the club's seed rows (used when it has no sessions).
   await setSeedRanks(db, clubId, playerIds)
