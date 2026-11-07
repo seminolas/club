@@ -28,9 +28,9 @@ import { withAttendance } from '../../lib/session'
 import type { Session } from '../../lib/session'
 import { toastError, toastOk, toastWithUndo } from '../../lib/toasts'
 import { ListTable } from '../list-table/ListTable'
+import type { FilterState } from '../list-table/filters'
 import {
   Dash,
-  SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
   markedTime,
@@ -58,6 +58,8 @@ export function CheckInStep(props: {
   canAdd: boolean
   /** The viewer's own player, if signed in. */
   me: Player | null
+  /** The club's default filters (playedDefault). */
+  defaultFilters: FilterState
   header: ReactNode
   stickyTop: number
 }) {
@@ -230,7 +232,7 @@ export function CheckInStep(props: {
           lastPlayedFilter,
           helloClubFilter,
         ]}
-        defaultFilters={{ played: SIX_MONTHS }}
+        defaultFilters={props.defaultFilters}
         stickyHeader
         stickyTop={props.stickyTop}
         primaryColumn="fullName"

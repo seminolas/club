@@ -6,10 +6,10 @@ import { useRef } from 'react'
 import { ListTable } from '../../../components/list-table/ListTable'
 import {
   Dash,
-  SIX_MONTHS,
   helloClubFilter,
   lastPlayedFilter,
   playedDate,
+  playedDefault,
 } from '../../../components/list-helpers'
 import type { PersonRow } from '../../../components/list-helpers'
 import { importLadderFn } from '../../../fns/ladder'
@@ -26,7 +26,11 @@ import { confirmAction, toastError, toastOk } from '../../../lib/toasts'
 
 export const Route = createFileRoute('/$club/_landing/players')({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(ladderQuery(params.club)),
+    Promise.all([
+      context.queryClient.ensureQueryData(ladderQuery(params.club)),
+      // For the default filter (playedDefault).
+      context.queryClient.ensureQueryData(sessionListQuery(params.club)),
+    ]),
   component: PlayersPage,
 })
 
@@ -42,6 +46,7 @@ function PlayersPage() {
   const { weekday } = useClub()
   const { data: viewer } = useSuspenseQuery(viewerQuery)
   const { data: ladder } = useSuspenseQuery(ladderQuery(club))
+  const { data: sessions } = useSuspenseQuery(sessionListQuery(club))
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const resetFile = useRef<() => void>(null)
@@ -76,8 +81,8 @@ function PlayersPage() {
   const importCsv = async (file: File | null) => {
     resetFile.current?.()
     if (!file) return
-    const sessions = await queryClient.fetchQuery(sessionListQuery(club))
-    if (sessions[0] && sessions[0].status !== 'closed')
+    const [latest] = await queryClient.fetchQuery(sessionListQuery(club))
+    if (latest && latest.status !== 'closed')
       return toastError(
         new Error(
           'Finish the current session before importing a new leaderboard.',
@@ -111,7 +116,7 @@ function PlayersPage() {
       searchText={(r) => `${r.fullName} ${r.preferredName ?? ''}`}
       searchPlaceholder="Find a player…"
       filters={[lastPlayedFilter, helloClubFilter]}
-      defaultFilters={{ played: SIX_MONTHS }}
+      defaultFilters={playedDefault(sessions)}
       stickyHeader
       primaryColumn="fullName"
       initialSort={{ column: 'rank', direction: 'asc' }}
