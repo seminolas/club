@@ -1,4 +1,5 @@
-// The header (UI-PORT.md, App shell): home (a house and "NBA") and, on a detail
+// The header (UI-PORT.md, App shell): home (a house) and the club menu
+// ("Seniors ▾", MULTI-CLUB.md) and, on a detail
 // page, its breadcrumb after it (PageCrumbs), the day/night switch
 // (for everyone, signed in or not), and the user menu ("Signed in as <first
 // name>", Sign out) or "Sign in". The decision for S5 (V1): Mantine Avatar +
@@ -7,6 +8,7 @@ import {
   Anchor,
   Avatar,
   Badge,
+  Box,
   Button,
   Container,
   Group,
@@ -14,11 +16,19 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core'
-import { IconChevronDown, IconHome } from '@tabler/icons-react'
-import { Link, useMatches } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { IconCheck, IconChevronDown, IconHome } from '@tabler/icons-react'
+import {
+  Link,
+  useLocation,
+  useMatches,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router'
 import type { Viewer } from '../../services/viewer'
 import { ColorSchemeToggle } from './ColorSchemeToggle'
-import { useClubSlug } from '../lib/club'
+import { DEFAULT_CLUB, WEEKDAYS, rememberedClub } from '../lib/club'
+import { clubsQuery } from '../lib/queries'
 import { PageCrumbs } from './PageCrumbs'
 
 export function AppHeader(props: {
@@ -29,8 +39,8 @@ export function AppHeader(props: {
   const { viewer } = props
   const fullName = viewer.player?.name ?? viewer.name ?? ''
   const first = fullName.trim().split(/\s+/)[0]
-  // Home is the page's club's landing page.
-  const club = useClubSlug()
+  // The page's club; outside a club's pages (admin), this device's last.
+  const club = useHeaderClub()
   // The deepest route with a breadcrumb trail (detail pages); none on the
   // landing pages.
   const trail = useMatches({
@@ -41,27 +51,26 @@ export function AppHeader(props: {
         : undefined
     },
   })
-  // Home: the house and "NBA"; in a trail on phones, the house alone.
+  // Home (the house, to the club's landing page) and the club menu; in a
+  // trail on phones, the house alone.
   const home = (inTrail: boolean) => (
-    <Anchor
-      component={Link}
-      // A plain path: Anchor's polymorphic props don't carry route params.
-      to={`/${club}/players`}
-      fw={700}
-      c="var(--mantine-color-text)"
-      underline="never"
-      // Short, to leave room for a club selector later.
-      aria-label="Northland Badminton, home"
-      title="Northland Badminton"
-      style={{ flexShrink: 0 }}
-    >
-      <Group component="span" gap={6} wrap="nowrap">
+    <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Anchor
+        component={Link}
+        // A plain path: Anchor's polymorphic props don't carry route params.
+        to={`/${club}/players`}
+        c="var(--mantine-color-text)"
+        underline="never"
+        aria-label="Northland Badminton, home"
+        title="Northland Badminton"
+        style={{ display: 'flex' }}
+      >
         <IconHome size={20} stroke={2} />
-        <Text span inherit visibleFrom={inTrail ? 'xs' : undefined}>
-          NBA
-        </Text>
-      </Group>
-    </Anchor>
+      </Anchor>
+      <Box visibleFrom={inTrail ? 'xs' : undefined}>
+        <ClubMenu slug={club} />
+      </Box>
+    </Group>
   )
   return (
     <Container size="md" h="100%" px="md">
@@ -130,5 +139,66 @@ export function AppHeader(props: {
         </Group>
       </Group>
     </Container>
+  )
+}
+
+/** The page's club, or (outside a club's pages) this device's last one. */
+function useHeaderClub() {
+  const { club }: { club?: string } = useParams({ strict: false })
+  return club ?? rememberedClub() ?? DEFAULT_CLUB
+}
+
+/**
+ * The club's name; with more than one club, a menu to switch (MULTI-CLUB.md):
+ * each club and its night. Switching keeps the landing tab (Players or
+ * Sessions); from any other page, it opens the club's Players.
+ */
+function ClubMenu(props: { slug: string }) {
+  const { data: clubs = [] } = useQuery(clubsQuery)
+  const pathname = useLocation({ select: (l) => l.pathname })
+  const navigate = useNavigate()
+  const label = clubs.find((c) => c.slug === props.slug)?.label ?? props.slug
+  if (clubs.length < 2)
+    return (
+      <Text fw={700} data-test="club-name">
+        {label}
+      </Text>
+    )
+  const tab = pathname.endsWith(`/${props.slug}/sessions`)
+    ? '/$club/sessions'
+    : '/$club/players'
+  return (
+    <Menu position="bottom-start" shadow="md" width={220}>
+      <Menu.Target>
+        <UnstyledButton data-test="club-menu" aria-label={`Club: ${label}`}>
+          <Group gap={4} wrap="nowrap">
+            <Text fw={700}>{label}</Text>
+            <IconChevronDown size={14} />
+          </Group>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Club</Menu.Label>
+        {clubs.map((c) => (
+          <Menu.Item
+            key={c.slug}
+            aria-current={c.slug === props.slug ? 'page' : undefined}
+            leftSection={
+              c.slug === props.slug ? <IconCheck size={16} /> : <Box w={16} />
+            }
+            rightSection={
+              c.weekday !== null && (
+                <Text size="xs" c="dimmed">
+                  {WEEKDAYS[c.weekday]}
+                </Text>
+              )
+            }
+            onClick={() => void navigate({ to: tab, params: { club: c.slug } })}
+          >
+            {c.label}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   )
 }
