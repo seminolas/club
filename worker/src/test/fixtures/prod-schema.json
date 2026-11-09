@@ -31,6 +31,12 @@
   },
   {
     "type": "index",
+    "name": "players_email_key",
+    "tbl_name": "players",
+    "sql": "CREATE INDEX players_email_key ON players(lower(trim(email)))"
+  },
+  {
+    "type": "index",
     "name": "players_user_id",
     "tbl_name": "players",
     "sql": "CREATE UNIQUE INDEX `players_user_id` ON `players` (`user_id`)"
@@ -130,6 +136,12 @@
     "name": "players",
     "tbl_name": "players",
     "sql": "CREATE TABLE players (\n  id           INTEGER PRIMARY KEY,\n  club_id      INTEGER NOT NULL REFERENCES clubs(id),\n  name         TEXT NOT NULL,\n  hc_member_id TEXT,\n  archived_at  TEXT\n, email TEXT, preferred_name TEXT, `user_id` text REFERENCES user(id))"
+  },
+  {
+    "type": "table",
+    "name": "saved_totals",
+    "tbl_name": "saved_totals",
+    "sql": "CREATE TABLE saved_totals (\n  club_id INTEGER NOT NULL REFERENCES clubs(id),\n  name TEXT NOT NULL,\n  version TEXT NOT NULL,\n  data TEXT NOT NULL,\n  PRIMARY KEY (club_id, name)\n)"
   },
   {
     "type": "table",
