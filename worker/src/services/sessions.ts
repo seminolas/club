@@ -1,7 +1,7 @@
 // Sessions for the new UI (UI-PORT.md, U2 onwards).
 import * as db from '../db'
 import type { SessionStatus } from '../types'
-import { cachedByVersion } from './cache'
+import { savedByVersion } from './cache'
 import { ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
 
@@ -23,10 +23,12 @@ export async function sessionList(
     db.listSessions(ctx.db, ctx.club.id, false),
     db.sessionAttendeeNames(ctx.db, ctx.club.id, false),
   ])
-  // Closed sessions read every attendee row: cached until one closes,
-  // re-opens or is deleted.
-  const [closedSessions, closed] = await cachedByVersion(
-    `sessions:${ctx.club.id}`,
+  // Closed sessions read every attendee row: cached and saved until one
+  // closes, re-opens or is deleted.
+  const [closedSessions, closed] = await savedByVersion(
+    ctx.db,
+    ctx.club.id,
+    'sessions',
     version,
     () =>
       Promise.all([

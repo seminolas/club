@@ -1225,6 +1225,37 @@ export async function latestSessionDates(db: DB): Promise<Map<number, string>> {
 // rows read in 2026-10, growing ~1,500 a year), so callers cache them by
 // closedSessionsVersion (services/cache.ts) rather than run them per page view.
 
+/** A saved result (0018; services/cache.ts, savedByVersion), or null. */
+export async function getSavedTotal(
+  db: DB,
+  clubId: number,
+  name: string,
+): Promise<{ version: string; data: string } | null> {
+  const row = await orm(db)
+    .select({ version: t.savedTotals.version, data: t.savedTotals.data })
+    .from(t.savedTotals)
+    .where(and(eq(t.savedTotals.clubId, clubId), eq(t.savedTotals.name, name)))
+    .get()
+  return row ?? null
+}
+
+/** Save a result for this version, replacing any older one. */
+export async function saveTotal(
+  db: DB,
+  clubId: number,
+  name: string,
+  version: string,
+  data: string,
+): Promise<void> {
+  await orm(db)
+    .insert(t.savedTotals)
+    .values({ clubId, name, version, data })
+    .onConflictDoUpdate({
+      target: [t.savedTotals.clubId, t.savedTotals.name],
+      set: { version, data },
+    })
+}
+
 /**
  * Changes whenever the set of closed sessions or their results can have
  * changed: a session closed, re-opened or deleted. Cheap (reads the club's
