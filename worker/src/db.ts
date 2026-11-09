@@ -60,12 +60,19 @@ export async function getLeaderboardPlayers(
     preferred_name: string | null
   }[]
 > {
-  const latestSession = orm(db)
-    .select({ id: t.sessions.id })
-    .from(t.sessions)
-    .where(eq(t.sessions.clubId, clubId))
-    .orderBy(desc(t.sessions.date))
-    .limit(1)
+  // The latest session's id and status, each a one-row scalar subquery. Both
+  // are constants to SQLite, so (session_id, phase) is looked up in the
+  // session_ranks_session_phase index already in rank order: only the
+  // ladder's own rows are read, with no join back to sessions and no sort.
+  const latest = <T extends typeof t.sessions.id | typeof t.sessions.status>(
+    column: T,
+  ) =>
+    orm(db)
+      .select({ v: column })
+      .from(t.sessions)
+      .where(eq(t.sessions.clubId, clubId))
+      .orderBy(desc(t.sessions.date))
+      .limit(1)
   return orm(db)
     .select({
       id: t.players.id,
@@ -73,21 +80,21 @@ export async function getLeaderboardPlayers(
       hc_member_id: t.players.hcMemberId,
       preferred_name: t.players.preferredName,
     })
-    .from(t.players)
-    .innerJoin(t.sessionRanks, eq(t.sessionRanks.playerId, t.players.id))
-    .leftJoin(t.sessions, eq(t.sessions.id, t.sessionRanks.sessionId))
+    .from(t.sessionRanks)
+    .innerJoin(t.players, eq(t.players.id, t.sessionRanks.playerId))
     .where(
       and(
         isNull(t.players.archivedAt),
         // IS: also matches the seed rows (NULL) when there are no sessions,
         // this club's own (people are shared across clubs: MULTI-CLUB.md).
-        sql`${t.sessionRanks.sessionId} IS (${latestSession})`,
+        sql`${t.sessionRanks.sessionId} IS (${latest(t.sessions.id)})`,
         or(
           isNotNull(t.sessionRanks.sessionId),
           eq(t.sessionRanks.clubId, clubId),
         ),
-        // An open session's ladder is its 'before'; a closed one's its 'after'.
-        sql`${t.sessionRanks.phase} = CASE WHEN COALESCE(${t.sessions.status}, 'closed') = 'closed' THEN 'after' ELSE 'before' END`,
+        // An open session's ladder is its 'before'; a closed one's (and the
+        // seed's) its 'after'.
+        sql`${t.sessionRanks.phase} = CASE WHEN COALESCE((${latest(t.sessions.status)}), 'closed') = 'closed' THEN 'after' ELSE 'before' END`,
       ),
     )
     .orderBy(asc(t.sessionRanks.rankPosition))
@@ -1217,6 +1224,37 @@ export async function latestSessionDates(db: DB): Promise<Map<number, string>> {
 // These read every attendee row of the club's closed sessions (about 1,300
 // rows read in 2026-10, growing ~1,500 a year), so callers cache them by
 // closedSessionsVersion (services/cache.ts) rather than run them per page view.
+
+/** A saved result (0018; services/cache.ts, savedByVersion), or null. */
+export async function getSavedTotal(
+  db: DB,
+  clubId: number,
+  name: string,
+): Promise<{ version: string; data: string } | null> {
+  const row = await orm(db)
+    .select({ version: t.savedTotals.version, data: t.savedTotals.data })
+    .from(t.savedTotals)
+    .where(and(eq(t.savedTotals.clubId, clubId), eq(t.savedTotals.name, name)))
+    .get()
+  return row ?? null
+}
+
+/** Save a result for this version, replacing any older one. */
+export async function saveTotal(
+  db: DB,
+  clubId: number,
+  name: string,
+  version: string,
+  data: string,
+): Promise<void> {
+  await orm(db)
+    .insert(t.savedTotals)
+    .values({ clubId, name, version, data })
+    .onConflictDoUpdate({
+      target: [t.savedTotals.clubId, t.savedTotals.name],
+      set: { version, data },
+    })
+}
 
 /**
  * Changes whenever the set of closed sessions or their results can have

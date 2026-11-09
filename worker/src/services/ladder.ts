@@ -1,7 +1,7 @@
 // The Players tab: the current ladder with each player's nights played and
 // last night played (UI-PORT.md, U2).
 import * as db from '../db'
-import { cachedByVersion } from './cache'
+import { savedByVersion } from './cache'
 import { ServiceError, requireAdmin } from './context'
 import type { ServiceContext } from './context'
 import { currentSkill } from './skill'
@@ -25,8 +25,12 @@ export async function ladder(ctx: ServiceContext): Promise<LadderRow[]> {
     db.getLeaderboardPlayers(ctx.db, ctx.club.id),
     db.closedSessionsVersion(ctx.db, ctx.club.id),
   ])
-  const stats = await cachedByVersion(`played:${ctx.club.id}`, version, () =>
-    db.playedStats(ctx.db, ctx.club.id),
+  const stats = await savedByVersion(
+    ctx.db,
+    ctx.club.id,
+    'played',
+    version,
+    () => db.playedStats(ctx.db, ctx.club.id),
   )
   const skill = await currentSkill(ctx)
   const byPlayer = new Map(stats.map((s) => [s.playerId, s]))

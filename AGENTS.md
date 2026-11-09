@@ -81,7 +81,7 @@ Staging receives prod's already-migrated schema via the dump, so **apply new mig
 
 ```
 match_players → match_sets → matches → box_players → boxes → attendance_events → attendees
-→ session_ranks → session_skill → sessions → players → session → account → verification
+→ session_ranks → session_skill → saved_totals → sessions → players → session → account → verification
 → user → clubs → d1_migrations
 ```
 (The list also still drops long-gone tables, e.g. `session_lb`, `roles`; harmless with `IF EXISTS`.)
@@ -161,6 +161,7 @@ players         -- id, club_id (where first added; people are shared across club
 sessions        -- id, club_id, date (YYYY-MM-DD), status, created_at, closed_at
 session_ranks   -- session_id, player_id, rank_position, phase ('before'|'after'), club_id (seed rows only: session_id NULL; 0016)  (replaces old session_lb)
 session_skill   -- session_id, player_id, strength, rank, games  (skill as of each closed session; 0014)
+saved_totals    -- club_id, name, version, data (JSON)  (results over all closed sessions, saved by version: services/cache.ts savedByVersion; 0018)
 attendees       -- session_id, player_id  (who's coming now)
 attendance_events -- id, session_id, player_id, attending (0/1), by_player_id, at  (check-in audit, append-only)
 boxes           -- id, session_id, box_number

@@ -123,7 +123,11 @@ export const players = sqliteTable(
     /** The login (BetterAuth user) this player signs in with, if any. */
     userId: text('user_id').references(() => user.id),
   },
-  (t) => [uniqueIndex('players_user_id').on(t.userId)],
+  (t) => [
+    uniqueIndex('players_user_id').on(t.userId),
+    // Sign-in's email match (0018).
+    index('players_email_key').on(sql`lower(trim(${t.email}))`),
+  ],
 )
 
 export const sessions = sqliteTable(
@@ -288,4 +292,19 @@ export const matchPlayers = sqliteTable(
     side: integer('side').notNull(),
   },
   (t) => [primaryKey({ columns: [t.matchId, t.playerId] })],
+)
+
+// Saved results of reads over all closed sessions (0018; services/cache.ts).
+export const savedTotals = sqliteTable(
+  'saved_totals',
+  {
+    clubId: integer('club_id')
+      .notNull()
+      .references(() => clubs.id),
+    name: text('name').notNull(),
+    version: text('version').notNull(),
+    /** JSON. */
+    data: text('data').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clubId, t.name] })],
 )
