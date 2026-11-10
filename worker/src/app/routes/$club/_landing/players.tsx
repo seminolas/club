@@ -110,6 +110,9 @@ function PlayersPage() {
 
   return (
     <ListTable<Row>
+      // A fresh table per club: switching club keeps this page mounted, and
+      // the filters would otherwise stay the last club's, not its defaults.
+      key={club}
       records={rows}
       getKey={(r) => r.personId}
       noun={{ one: 'player', many: 'players' }}

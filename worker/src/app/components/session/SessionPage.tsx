@@ -425,6 +425,8 @@ export function SessionPage(props: {
       {view(
         'checkin',
         <CheckInStep
+          // Fresh filters per club and session (see the players list).
+          key={`${club}/${date}`}
           club={club}
           session={session}
           ladder={ladder}

@@ -27,6 +27,18 @@ await page.waitForFunction(() => document.cookie.includes('club=juniors'), null,
 check('switching keeps the tab', path() === '/juniors/sessions', path())
 check('the menu now says Juniors', (await menu.textContent())?.includes('Juniors'))
 
+// The default filters follow the club: seniors has 3 months of sessions
+// ("Last played: within 3 months"), juniors doesn't (no filter). The page
+// stays mounted across the switch, so the table must start again.
+const played = page.getByText(/Last played: within 3 months/)
+await s.go('/seniors/players')
+check('seniors Players: the 3-month filter is on', await played.first().isVisible())
+await menu.click()
+await page.getByRole('menuitem', { name: /Juniors/ }).click()
+await page.waitForURL('**/juniors/players')
+await page.waitForTimeout(500)
+check('juniors Players after the switch: no 3-month filter', (await played.count()) === 0)
+
 await s.go('/')
 check('/ opens the remembered club', path() === '/juniors/players', path())
 
