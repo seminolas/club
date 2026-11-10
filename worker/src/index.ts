@@ -408,25 +408,37 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
 
     emit(`Found event: "${event.name}"`)
 
-    // Fetch registered attendees
-    const attRes = await fetch(
-      `${HC_BASE}/eventAttendee?event=${event.id}&limit=100`,
-      { headers: hcKey },
-    )
-    if (!attRes.ok) {
-      const body = await attRes.text().catch(() => '')
-      throw new Error(
-        `Failed to fetch attendees: ${attRes.status}${body ? ' — ' + body : ''}`,
+    // Who's registered for the event (pages of 100), by HelloClub member id:
+    // their attendee record's id and whether they're marked attended.
+    const registered = new Map<string, { id: string; hasAttended: boolean }>()
+    for (let offset = 0; ; offset += 100) {
+      const attRes = await fetch(
+        `${HC_BASE}/eventAttendee?event=${event.id}&limit=100&offset=${offset}`,
+        { headers: hcKey },
       )
+      if (!attRes.ok) {
+        const body = await attRes.text().catch(() => '')
+        throw new Error(
+          `Failed to fetch attendees: ${attRes.status}${body ? ' — ' + body : ''}`,
+        )
+      }
+      const page =
+        (
+          await attRes.json<{
+            attendees?: Array<{
+              id: string
+              hasAttended?: boolean
+              member?: { id: string } | string | null
+            }>
+          }>()
+        ).attendees ?? []
+      for (const a of page) {
+        const memberId = typeof a.member === 'string' ? a.member : a.member?.id
+        if (memberId)
+          registered.set(memberId, { id: a.id, hasAttended: !!a.hasAttended })
+      }
+      if (page.length < 100) break
     }
-    const attData = await attRes.json<{
-      attendees?: Array<{ member?: { id: string } }>
-    }>()
-    const registeredIds = new Set(
-      (attData.attendees ?? [])
-        .map((a) => a.member?.id)
-        .filter(Boolean) as string[],
-    )
 
     // Load session attendees with their hc_member_id
     const { results: attendeeRows } = await c
@@ -441,7 +453,11 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
       .bind(session.id)
       .all<{ name: string; hc_member_id: string | null }>()
 
+    // Everyone who came ends up marked attended (club-next decisions.md):
+    // registered ones are marked, the others are registered as attended.
+    // Registered people who didn't come are left as they are.
     const alreadyIn: string[] = [],
+      toMark: Array<{ name: string; attendeeId: string }> = [],
       toSync: Array<{ name: string; hcId: string }> = [],
       notMapped: string[] = []
 
@@ -450,17 +466,45 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
         notMapped.push(name)
         continue
       }
-      if (registeredIds.has(hc_member_id)) {
-        alreadyIn.push(name)
-        continue
-      }
-      toSync.push({ name, hcId: hc_member_id })
+      const reg = registered.get(hc_member_id)
+      if (reg?.hasAttended) alreadyIn.push(name)
+      else if (reg) toMark.push({ name, attendeeId: reg.id })
+      else toSync.push({ name, hcId: hc_member_id })
     }
 
     emit('')
-    emit(`Already in HelloClub (${alreadyIn.length}):`)
+    emit(`Already marked attended in HelloClub (${alreadyIn.length}):`)
     if (alreadyIn.length === 0) emit('  (none)')
     for (const name of alreadyIn) emit(`  ✓ ${name}`, 'ok')
+
+    // One request each, as HelloClub's own admin page does. A failure is
+    // reported per person and doesn't stop the rest; re-running the sync
+    // retries only who's still not marked. (The free plan allows 50
+    // outgoing requests per call: a big night may need a second run.)
+    let marked = 0
+    const notMarked: string[] = []
+    if (toMark.length > 0) {
+      emit('')
+      emit(`Registered, now marked attended (${toMark.length}):`)
+      for (const { name, attendeeId } of toMark) {
+        try {
+          const res = await fetch(
+            `https://api.helloclub.com/eventAttendee/${attendeeId}`,
+            {
+              method: 'PATCH',
+              headers: hcJson,
+              body: JSON.stringify({ hasAttended: true }),
+            },
+          )
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          marked++
+          emit(`  ✓ ${name}`, 'ok')
+        } catch (e) {
+          notMarked.push(name)
+          emit(`  ✗ ${name} (${(e as Error).message})`, 'error')
+        }
+      }
+    }
 
     emit('')
     emit(`To sync (${toSync.length + notMapped.length}):`)
@@ -498,8 +542,11 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
     emit('─'.repeat(48))
     const parts = []
     if (alreadyIn.length) parts.push(`${alreadyIn.length} already in HC`)
+    if (marked) parts.push(`${marked} marked attended`)
     if (synced) parts.push(`${synced} synced`)
     if (notMapped.length) parts.push(`${notMapped.length} no HC ID`)
+    if (notMarked.length)
+      parts.push(`${notMarked.length} not marked (run the sync again)`)
     emit(`Done. ${parts.join(', ')}.`)
   } catch (e) {
     emit('')
