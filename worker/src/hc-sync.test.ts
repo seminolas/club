@@ -80,7 +80,12 @@ type Call = { method: string; url: string; body: unknown }
 
 /** HelloClub with these registrations; a PATCH to `failId` fails. */
 function stubHelloClub(
-  attendees: { id: string; member: string; hasAttended: boolean }[],
+  attendees: {
+    id: string
+    member: string
+    hasAttended: boolean
+    isRemoved?: boolean
+  }[],
   failId?: string,
 ) {
   const calls: Call[] = []
@@ -110,6 +115,7 @@ function stubHelloClub(
         attendees: attendees.map((a, i) => ({
           id: a.id,
           hasAttended: a.hasAttended,
+          ...(a.isRemoved ? { isRemoved: true } : {}),
           member: i % 2 ? a.member : { id: a.member },
         })),
       })
@@ -173,6 +179,52 @@ describe('HelloClub sync', () => {
     expect(text).toContain(
       'Done. 1 already in HC, 2 marked attended, 1 synced, 5 no HC ID.',
     )
+    expect(log.some((l) => l.type === 'error')).toBe(false)
+  })
+
+  it('ignores a registration the member cancelled', async () => {
+    // Two series sign-ups, one taken back (HelloClub lists both; marking the
+    // cancelled one fails), listed either way round.
+    const calls = stubHelloClub(
+      [
+        { id: 'att-3', member: 'hc-0003', hasAttended: false },
+        {
+          id: 'att-3x',
+          member: 'hc-0003',
+          hasAttended: false,
+          isRemoved: true,
+        },
+        {
+          id: 'att-5x',
+          member: 'hc-0005',
+          hasAttended: false,
+          isRemoved: true,
+        },
+        { id: 'att-5', member: 'hc-0005', hasAttended: false },
+        // Only a cancelled registration, but came: registered again, attended.
+        {
+          id: 'att-1x',
+          member: 'hc-0001',
+          hasAttended: false,
+          isRemoved: true,
+        },
+      ],
+      'att-3x',
+    )
+    const log = await sync()
+    expect(
+      calls
+        .filter((c) => c.method === 'PATCH')
+        .map((c) => c.url)
+        .sort(),
+    ).toEqual([
+      'https://api.helloclub.com/eventAttendee/att-3',
+      'https://api.helloclub.com/eventAttendee/att-5',
+    ])
+    const many = calls.find((c) => c.url.endsWith('/eventAttendee/many'))
+    expect(many?.body).toMatchObject({
+      meta: { members: ['hc-0001', 'hc-0004'] },
+    })
     expect(log.some((l) => l.type === 'error')).toBe(false)
   })
 

@@ -428,11 +428,16 @@ app.post('/api/hc/sync', requireAdmin, async (c) => {
             attendees?: Array<{
               id: string
               hasAttended?: boolean
+              isRemoved?: boolean
               member?: { id: string } | string | null
             }>
           }>()
         ).attendees ?? []
       for (const a of page) {
+        // A registration the member cancelled is still listed, with
+        // isRemoved (e.g. a second series sign-up they took back); it can't
+        // be marked attended, so only their active one counts.
+        if (a.isRemoved) continue
         const memberId = typeof a.member === 'string' ? a.member : a.member?.id
         if (memberId)
           registered.set(memberId, { id: a.id, hasAttended: !!a.hasAttended })
