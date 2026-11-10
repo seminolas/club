@@ -22,6 +22,7 @@ import { boxName } from '../../lib/names'
 import { useScoreEntry } from '../../lib/scores'
 import { printSignInSheet } from '../../lib/print'
 import { shareOnWhatsApp } from '../../lib/share'
+import { useClub } from '../../lib/club'
 import {
   ladderQuery,
   sessionListQuery,
@@ -62,6 +63,7 @@ export function SessionPage(props: {
   step: StepId
 }) {
   const { club, date, step } = props
+  const clubInfo = useClub()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { data: session } = useSuspenseQuery(sessionQuery(club, date))
@@ -333,7 +335,10 @@ export function SessionPage(props: {
       },
     ],
     results: [
-      { label: 'Share on WhatsApp', run: () => shareOnWhatsApp(date) },
+      {
+        label: 'Share on WhatsApp',
+        run: () => shareOnWhatsApp(clubInfo, date),
+      },
       ...(admin
         ? [{ label: 'Sync to HelloClub', run: () => setSyncing(date) }]
         : []),
