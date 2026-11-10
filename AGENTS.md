@@ -264,8 +264,8 @@ All under `/api/*`. Routes marked admin need a BetterAuth session whose user is 
 Flow:
 1. Fetch events for the session date from HC API, sorted by `startDate`
 2. Pick the club's event that day (`pickHcEvent`, `services/clubs.ts`): the event of the club's linked **HelloClub series** (`clubs.config.hcSeries`, set on its admin page; junior series change each school term, so they're relinked then), or, before a series is linked, the event whose name includes the club's `hcEvent` (`'Senior Box'` for the seniors; intentionally specific — `'Pre Box'` (6:30 PM warmup) sorts first and must not match)
-3. Fetch current attendees for that event
-4. For each ladder attendee: look up their `hc_member_id`; if not registered in HC, POST them via `eventAttendee/many`
+3. Fetch everyone registered for that event (`eventAttendee?event=`, pages of 100): attendee id, member id, `hasAttended`
+4. For each player checked in that night: no `hc_member_id` → listed as "no HC ID"; registered and already attended → left; registered but not attended → `PATCH https://api.helloclub.com/eventAttendee/:attendeeId` `{"hasAttended":true}` (the call HelloClub's own admin page makes; one per person, a failure is logged and the rest go on); not registered → added as attended in one `eventAttendee/many` (emails them). Registered people who didn't come are left as they are. Re-running is safe: only who's still not marked is sent. The free plan allows 50 outgoing requests per call, so a very big night may need a second run
 5. Returns a `{ log: [{text, type}] }` array rendered in the sync modal
 
 **HC member linking:** Admin can open a player profile (`/players/:id`), search HC members by name via `GET /api/hc/members?q=`, and link the result. This stores `hc_member_id` (HC's MongoDB ObjectId string) on the player row.
@@ -350,4 +350,3 @@ Set via Cloudflare dashboard or `wrangler secret put <NAME>`.
 - need to think about multi-tenancy. e.g. teenage kids group runs their box games the same way
 - whatsapp integration isn't really working - for whatever reason when I click "open app" from that whatsapp link it doesn't find my WA on my samsung phone, so I have to manually copy the text in. 
 - might want to store HC sync results somewhere as well
-- maybe improve HC sync to mark everyone who attended as attended in HC as well 
