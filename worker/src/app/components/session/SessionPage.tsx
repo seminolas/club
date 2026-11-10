@@ -5,7 +5,7 @@
 import { Alert, Box, Button, Group, Stack, Text } from '@mantine/core'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BoxInput } from '../../../types'
 import {
@@ -21,7 +21,7 @@ import type { LiveChannel } from '../../lib/live'
 import { boxName } from '../../lib/names'
 import { useScoreEntry } from '../../lib/scores'
 import { printSignInSheet } from '../../lib/print'
-import { shareOnWhatsApp } from '../../lib/share'
+import { canShare, shareOnWhatsApp, shareSession } from '../../lib/share'
 import { useClub } from '../../lib/club'
 import {
   ladderQuery,
@@ -64,6 +64,9 @@ export function SessionPage(props: {
 }) {
   const { club, date, step } = props
   const clubInfo = useClub()
+  // Known only in the browser (not when rendering on the server).
+  const [shareSheet, setShareSheet] = useState(false)
+  useEffect(() => setShareSheet(canShare()), [])
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { data: session } = useSuspenseQuery(sessionQuery(club, date))
@@ -339,6 +342,9 @@ export function SessionPage(props: {
         label: 'Share on WhatsApp',
         run: () => shareOnWhatsApp(clubInfo, date),
       },
+      ...(shareSheet
+        ? [{ label: 'Share', run: () => void shareSession(clubInfo, date) }]
+        : []),
       ...(admin
         ? [{ label: 'Sync to HelloClub', run: () => setSyncing(date) }]
         : []),
