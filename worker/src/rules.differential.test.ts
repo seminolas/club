@@ -89,7 +89,10 @@ const boxArb = (match: fc.Arbitrary<SetPair[]>) =>
 const prop = (p: fc.IProperty<unknown> | fc.IAsyncProperty<unknown>) =>
   fc.assert(p, { numRuns: RUNS })
 
-describe('new rules match the old ones', () => {
+// 3,000 random cases per rule take ~1 s alone, but the default 5 s timeout
+// was occasionally hit when the whole suite (with its local databases) runs
+// in parallel.
+describe('new rules match the old ones', { timeout: 30_000 }, () => {
   it('set validity and completeness', () => {
     prop(
       fc.property(anyScore, anyScore, (a, b) => {
